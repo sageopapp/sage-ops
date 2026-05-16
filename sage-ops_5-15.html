@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sage Operations</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f7f6f3; --surface: #ffffff; --border: #e4e2db; --border-strong: #c8c5bc;
+    --text: #1a1917; --text-muted: #6b6860; --text-faint: #9b9890;
+    --accent: #1d6b45; --accent-light: #e8f5ee; --accent-text: #0f4a2e;
+    --warn: #b45309; --warn-light: #fef3c7;
+    --info: #1e40af; --info-light: #eff6ff;
+    --danger: #b91c1c; --danger-light: #fef2f2;
+    --radius: 10px; --radius-sm: 6px;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.5; min-height: 100vh; }
+
+  #setup { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+  .setup-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 36px 32px; max-width: 440px; width: 100%; }
+  .setup-card h1 { font-size: 22px; font-weight: 600; margin-bottom: 6px; }
+  .setup-card p { color: var(--text-muted); font-size: 14px; margin-bottom: 24px; line-height: 1.6; }
+  .setup-card label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+  .setup-card input { width: 100%; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 14px; font-family: monospace; margin-bottom: 16px; outline: none; }
+  .setup-card input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(29,107,69,0.1); }
+  .setup-card .hint { font-size: 12px; color: var(--text-faint); margin-bottom: 20px; }
+  .setup-card .hint a { color: var(--accent); text-decoration: none; }
+  .btn-primary { width: 100%; padding: 11px; background: var(--accent); color: white; border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; cursor: pointer; }
+  .btn-primary:hover { background: var(--accent-text); }
+  .setup-error { background: var(--danger-light); color: var(--danger); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 13px; margin-bottom: 16px; display: none; }
+
+  #app { display: none; max-width: 860px; margin: 0 auto; padding: 0 16px 40px; }
+  .app-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 0 0; margin-bottom: 4px; }
+  .app-header h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.3px; }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .sync-btn { background: none; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 6px 12px; font-size: 13px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
+  .sync-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .sync-btn.spinning svg { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .logout-btn { background: none; border: none; font-size: 12px; color: var(--text-faint); cursor: pointer; }
+  .last-synced { font-size: 12px; color: var(--text-faint); }
+
+  nav { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+  nav button { background: none; border: none; border-bottom: 2px solid transparent; padding: 12px 16px; font-size: 14px; font-weight: 500; color: var(--text-muted); cursor: pointer; margin-bottom: -1px; }
+  nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  nav button:hover:not(.active) { color: var(--text); }
+
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* CALENDAR */
+  .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .cal-nav h2 { font-size: 17px; font-weight: 600; }
+  .cal-arrow { background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 12px; cursor: pointer; font-size: 16px; color: var(--text-muted); }
+  .cal-arrow:hover { border-color: var(--border-strong); color: var(--text); }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .cal-day-label { text-align: center; font-size: 11px; font-weight: 600; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 0; }
+  .cal-cell { min-height: 80px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 7px; }
+  .cal-cell.other-month { background: var(--bg); }
+  .cal-cell.today { border-color: var(--accent); background: var(--accent-light); }
+  .cal-num { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; font-weight: 500; }
+  .cal-cell.today .cal-num { color: var(--accent-text); font-weight: 700; }
+  .cal-event { font-size: 10px; font-weight: 500; background: var(--info-light); color: var(--info); border-radius: 3px; padding: 2px 5px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .cal-event:hover { opacity: 0.75; }
+  .cal-more { font-size: 10px; color: var(--text-faint); }
+
+  /* LOAD LIST */
+  .load-controls { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+  .load-controls label { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+  .load-controls select { font-size: 13px; padding: 7px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); outline: none; cursor: pointer; }
+  .job-block { margin-bottom: 24px; }
+  .job-block-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .job-block-name { font-size: 16px; font-weight: 600; }
+  .job-block-meta { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 10px; }
+  .progress-text { font-size: 12px; color: var(--text-faint); }
+  .item-row { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 11px 14px; margin-bottom: 6px; transition: opacity 0.3s; }
+  .item-row.done { opacity: 0.4; }
+  .item-check { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border-strong); background: var(--surface); cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .item-check:hover { border-color: var(--accent); }
+  .item-check.checked { background: var(--accent); border-color: var(--accent); }
+  .item-check.loading { border-color: var(--warn); animation: pulse 0.8s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+  .checkmark { display: none; }
+  .item-check.checked .checkmark { display: block; }
+  .item-info { flex: 1; min-width: 0; }
+  .item-model { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item-detail { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+  .item-qty { font-size: 13px; color: var(--text-muted); white-space: nowrap; }
+  .item-loc { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: var(--bg); border: 1px solid var(--border); color: var(--text-muted); white-space: nowrap; }
+  .item-loc.rig { background: var(--accent-light); border-color: var(--accent); color: var(--accent-text); }
+
+  /* JOBS VIEW */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-bottom: 22px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; }
+  .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); margin-bottom: 4px; }
+  .stat-val { font-size: 26px; font-weight: 600; }
+  .job-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s; }
+  .job-card:hover { border-color: var(--border-strong); }
+  .job-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+  .job-name { font-size: 15px; font-weight: 600; }
+  .job-badges { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; flex-shrink: 0; }
+  .badge { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 99px; }
+  .badge-active { background: var(--accent-light); color: var(--accent-text); }
+  .badge-complete { background: var(--bg); color: var(--text-faint); border: 1px solid var(--border); }
+  .badge-pending { background: var(--warn-light); color: var(--warn); }
+  .badge-ready { background: var(--accent-light); color: var(--accent-text); }
+  .badge-partial { background: var(--warn-light); color: var(--warn); }
+  .job-meta-row { display: flex; gap: 16px; font-size: 13px; color: var(--text-muted); flex-wrap: wrap; }
+
+  /* JOB DETAIL PANEL */
+  .detail-panel { display: none; position: fixed; top: 0; right: 0; bottom: 0; width: 100%; max-width: 500px; background: var(--surface); border-left: 1px solid var(--border); z-index: 100; overflow-y: auto; box-shadow: -4px 0 20px rgba(0,0,0,0.08); }
+  .detail-panel.open { display: block; }
+  .detail-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 99; }
+  .detail-overlay.open { display: block; }
+  .detail-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 20px 16px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 1; }
+  .detail-header h2 { font-size: 18px; font-weight: 600; }
+  .detail-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--text-muted); line-height: 1; padding: 2px 6px; }
+  .detail-close:hover { color: var(--text); }
+  .detail-body { padding: 20px; }
+  .detail-section { margin-bottom: 24px; }
+  .detail-section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); margin-bottom: 10px; }
+  .detail-field { display: flex; justify-content: space-between; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .detail-field:last-child { border-bottom: none; }
+  .detail-field-label { color: var(--text-muted); }
+  .detail-field-val { font-weight: 500; text-align: right; }
+
+  /* MATERIALS */
+  .mat-row { display: flex; align-items: center; gap: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 6px; }
+  .mat-info { flex: 1; min-width: 0; }
+  .mat-name { font-size: 13px; font-weight: 500; }
+  .mat-qty { font-size: 12px; color: var(--text-muted); }
+  .mat-del { background: none; border: none; color: var(--text-faint); cursor: pointer; font-size: 18px; padding: 0 4px; line-height: 1; }
+  .mat-del:hover { color: var(--danger); }
+
+  /* ADD MATERIAL FORM */
+  .add-mat-form { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; margin-top: 12px; }
+  .add-mat-form select, .add-mat-form input { width: 100%; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 13px; background: var(--surface); color: var(--text); outline: none; margin-bottom: 8px; }
+  .add-mat-form select:focus, .add-mat-form input:focus { border-color: var(--accent); }
+  .add-mat-btns { display: flex; gap: 8px; }
+  .btn-sm { padding: 7px 14px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; cursor: pointer; border: none; }
+  .btn-sm-accent { background: var(--accent); color: white; }
+  .btn-sm-accent:hover { background: var(--accent-text); }
+  .btn-sm-ghost { background: none; border: 1px solid var(--border-strong); color: var(--text-muted); }
+  .btn-sm-ghost:hover { border-color: var(--border-strong); color: var(--text); }
+
+  /* COMPLETE JOB */
+  .btn-complete { width: 100%; padding: 12px; background: none; border: 2px solid var(--accent); color: var(--accent); border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+  .btn-complete:hover { background: var(--accent-light); }
+
+  /* CONFIRM MODAL */
+  .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; padding: 24px; }
+  .modal-bg.open { display: flex; }
+  .modal { background: var(--surface); border-radius: var(--radius); padding: 28px; max-width: 480px; width: 100%; }
+  .modal h3 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+  .modal p { font-size: 14px; color: var(--text-muted); margin-bottom: 20px; }
+  .modal-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .modal-item:last-of-type { border-bottom: none; margin-bottom: 16px; }
+  .modal-item-name { flex: 1; font-size: 14px; }
+  .modal-item-qty { display: flex; align-items: center; gap: 8px; }
+  .modal-item-qty input { width: 60px; padding: 5px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 14px; text-align: center; outline: none; }
+  .modal-item-qty input:focus { border-color: var(--accent); }
+  .modal-item-unit { font-size: 13px; color: var(--text-muted); }
+  .modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
+  .btn-danger { padding: 10px 20px; background: var(--danger); color: white; border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; cursor: pointer; }
+  .btn-danger:hover { opacity: 0.9; }
+  .btn-cancel { padding: 10px 20px; background: none; border: 1px solid var(--border-strong); color: var(--text-muted); border-radius: var(--radius-sm); font-size: 14px; cursor: pointer; }
+
+  .empty { text-align: center; padding: 48px 24px; color: var(--text-faint); font-size: 14px; }
+  .empty .icon { font-size: 36px; margin-bottom: 10px; }
+  .error-bar { background: var(--danger-light); color: var(--danger); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 13px; margin-bottom: 14px; }
+
+  @media (max-width: 600px) {
+    .cal-cell { min-height: 56px; padding: 4px 5px; }
+    .cal-event { font-size: 9px; }
+    nav button { padding: 10px 10px; font-size: 13px; }
+    .detail-panel { max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div id="setup">
+  <div class="setup-card">
+    <h1>Sage Operations</h1>
+    <p>Connect your Airtable base to get started. Your API key is stored locally and never sent anywhere else.</p>
+    <div id="setup-error" class="setup-error"></div>
+    <label for="api-key">Airtable Personal Access Token</label>
+    <input type="password" id="api-key" placeholder="pat..." autocomplete="off" />
+    <p class="hint">Find yours at <a href="https://airtable.com/create/tokens" target="_blank">airtable.com/create/tokens</a> — needs <strong>data.records:read</strong> and <strong>data.records:write</strong> scopes on the Sage Operations base.</p>
+    <button class="btn-primary" onclick="connect()">Connect →</button>
+  </div>
+</div>
+
+<div id="app">
+  <div class="app-header">
+    <h1>Sage Operations</h1>
+    <div class="header-right">
+      <span class="last-synced" id="last-synced"></span>
+      <button class="sync-btn" id="sync-btn" onclick="syncData()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+        Sync
+      </button>
+      <button class="logout-btn" onclick="logout()">Disconnect</button>
+    </div>
+  </div>
+
+  <nav>
+    <button class="active" onclick="showView('schedule')">📅 Schedule</button>
+    <button onclick="showView('loadlist')">📋 Load List</button>
+    <button onclick="showView('jobs')">🏗 Jobs</button>
+  </nav>
+
+  <div id="error-bar" class="error-bar" style="display:none"></div>
+
+  <div id="view-schedule" class="view active">
+    <div class="cal-nav">
+      <button class="cal-arrow" onclick="changeMonth(-1)">‹</button>
+      <h2 id="cal-title"></h2>
+      <button class="cal-arrow" onclick="changeMonth(1)">›</button>
+    </div>
+    <div class="cal-grid" id="cal-labels"></div>
+    <div class="cal-grid" id="cal-body"></div>
+  </div>
+
+  <div id="view-loadlist" class="view">
+    <div class="load-controls">
+      <label>Show jobs within:</label>
+      <select id="load-window" onchange="renderLoadList()">
+        <option value="1">Today only</option>
+        <option value="2" selected>Next 2 days</option>
+        <option value="3">Next 3 days</option>
+        <option value="7">Next 7 days</option>
+        <option value="14">Next 2 weeks</option>
+        <option value="9999">All upcoming</option>
+      </select>
+    </div>
+    <div id="loadlist-body"></div>
+  </div>
+
+  <div id="view-jobs" class="view">
+    <div class="stats" id="jobs-stats"></div>
+    <div id="jobs-body"></div>
+  </div>
+</div>
+
+<!-- JOB DETAIL PANEL -->
+<div class="detail-overlay" id="detail-overlay" onclick="closeDetail()"></div>
+<div class="detail-panel" id="detail-panel">
+  <div class="detail-header">
+    <h2 id="detail-title"></h2>
+    <button class="detail-close" onclick="closeDetail()">×</button>
+  </div>
+  <div class="detail-body" id="detail-body"></div>
+</div>
+
+<!-- COMPLETE JOB CONFIRM MODAL -->
+<div class="modal-bg" id="complete-modal">
+  <div class="modal">
+    <h3>Confirm job complete</h3>
+    <p>Review and adjust quantities actually used — inventory will be updated accordingly.</p>
+    <div id="modal-items"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-danger" onclick="confirmComplete()">Confirm & Close Job</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const BASE_ID = 'appFfYj9VVedhrZfv';
+const JOBS_TBL = 'tbleG7eZ2GUldQ7AF';
+const ITEMS_TBL = 'tblmTmWOvzHKIixMu';
+const SKUS_TBL = 'tblZ8EMxOtJlr3Mv2';
+
+const F = {
+  job_name: 'Name', job_type: 'Type', job_status: 'Status',
+  job_visit_plan: 'Visit plan', job_next_type: 'Next visit type',
+  job_next_date: 'Next visit date', job_items: 'Items',
+  job_readiness: 'Readiness', job_scheduled: 'Scheduled visit',
+  job_comments: 'Comments / Questions', job_materials: 'Per-visit Materials',
+  item_model: 'Model number', item_type: 'Type tag', item_qty: 'Quantity',
+  item_status: 'Status', item_location: 'Physical location',
+  item_loaded: 'Loaded?', item_owner: 'Owner', item_visit: 'Visit consumed at',
+  item_sku: 'Stock SKU', item_comments: 'Comments',
+  sku_name: 'Name', sku_barn: 'On-hand (Barn)', sku_tent: 'On-hand (Inventory Tent)',
+  sku_susie: 'On-hand (Susie)', sku_lumber: 'On-hand (Lumber rack)', sku_rig: 'On-hand (Rig)',
+};
+
+let apiKey = '', jobs = [], items = [], skus = [];
+let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
+let checkedLocally = {};
+let currentJobId = null, completeJobId = null;
+let showAddMat = false;
+
+function getKey() { return localStorage.getItem('sage_pat') || ''; }
+function saveKey(k) { localStorage.setItem('sage_pat', k); }
+function clearKey() { localStorage.removeItem('sage_pat'); }
+
+async function airtableFetch(table, offset='') {
+  const url = `https://api.airtable.com/v0/${BASE_ID}/${table}?pageSize=100${offset?'&offset='+offset:''}`;
+  const res = await fetch(url, { headers: { Authorization: 'Bearer ' + apiKey } });
+  if (!res.ok) throw new Error('Airtable error: ' + res.status);
+  return res.json();
+}
+
+async function fetchAll(table) {
+  let records = [], offset = '';
+  do {
+    const data = await airtableFetch(table, offset);
+    records = records.concat(data.records);
+    offset = data.offset || '';
+  } while (offset);
+  return records;
+}
+
+async function patchRecord(table, id, fields) {
+  const res = await fetch(`https://api.airtable.com/v0/${BASE_ID}/${table}/${id}`, {
+    method: 'PATCH',
+    headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields })
+  });
+  if (!res.ok) throw new Error('Patch failed');
+  return res.json();
+}
+
+async function createRecord(table, fields) {
+  const res = await fetch(`https://api.airtable.com/v0/${BASE_ID}/${table}`, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields })
+  });
+  if (!res.ok) throw new Error('Create failed');
+  return res.json();
+}
+
+async function deleteRecord(table, id) {
+  const res = await fetch(`https://api.airtable.com/v0/${BASE_ID}/${table}/${id}`, {
+    method: 'DELETE', headers: { 'Authorization': 'Bearer ' + apiKey }
+  });
+  if (!res.ok) throw new Error('Delete failed');
+}
+
+async function connect() {
+  const key = document.getElementById('api-key').value.trim();
+  if (!key) { showSetupError('Please enter your API key.'); return; }
+  apiKey = key;
+  try {
+    await fetchAll(JOBS_TBL);
+    saveKey(key); startApp();
+  } catch(e) {
+    showSetupError('Could not connect — check your API key and base access.');
+  }
+}
+function showSetupError(msg) { const el = document.getElementById('setup-error'); el.textContent = msg; el.style.display = 'block'; }
+function logout() { clearKey(); apiKey = ''; document.getElementById('setup').style.display='flex'; document.getElementById('app').style.display='none'; }
+
+async function startApp() {
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  await syncData();
+}
+
+async function syncData() {
+  const btn = document.getElementById('sync-btn');
+  btn.classList.add('spinning');
+  showError('');
+  try {
+    [jobs, items, skus] = await Promise.all([fetchAll(JOBS_TBL), fetchAll(ITEMS_TBL), fetchAll(SKUS_TBL)]);
+    renderAll();
+    document.getElementById('last-synced').textContent = 'Synced ' + new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    if (currentJobId) renderDetailBody(currentJobId);
+  } catch(e) { showError('Sync failed. Check your connection.'); }
+  btn.classList.remove('spinning');
+}
+
+function showError(msg) { const el = document.getElementById('error-bar'); el.textContent = msg; el.style.display = msg ? 'block' : 'none'; }
+
+function f(record, fieldName) {
+  if (!record || !record.fields) return null;
+  const val = record.fields[fieldName];
+  if (val === undefined || val === null) return null;
+  if (typeof val === 'object' && !Array.isArray(val) && val.name !== undefined) return val.name;
+  if (typeof val === 'object' && !Array.isArray(val) && val.value !== undefined) return val.value;
+  return val;
+}
+function parseDate(str) { if (!str) return null; const d = new Date(str+'T12:00:00'); return isNaN(d)?null:d; }
+function fmtDate(str) { const d = parseDate(str); if (!d) return ''; return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}); }
+function today0() { const t = new Date(); t.setHours(0,0,0,0); return t; }
+
+function renderAll() { renderCalendar(); renderLoadList(); renderJobs(); }
+
+// ── CALENDAR ──
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+function changeMonth(dir) {
+  calMonth += dir;
+  if (calMonth > 11) { calMonth=0; calYear++; }
+  if (calMonth < 0) { calMonth=11; calYear--; }
+  renderCalendar();
+}
+
+function renderCalendar() {
+  document.getElementById('cal-title').textContent = MONTHS[calMonth] + ' ' + calYear;
+  document.getElementById('cal-labels').innerHTML = DAYS.map(d=>`<div class="cal-day-label">${d}</div>`).join('');
+  const byDate = {};
+  jobs.forEach(j => { const ds = f(j,F.job_next_date); if (!ds) return; if (!byDate[ds]) byDate[ds]=[]; byDate[ds].push(j); });
+  const firstDay = new Date(calYear,calMonth,1).getDay();
+  const daysInMonth = new Date(calYear,calMonth+1,0).getDate();
+  const prevDays = new Date(calYear,calMonth,0).getDate();
+  const t = today0();
+  let html = '';
+  for (let i=firstDay-1;i>=0;i--) html+=`<div class="cal-cell other-month"><div class="cal-num">${prevDays-i}</div></div>`;
+  for (let d=1;d<=daysInMonth;d++) {
+    const ds=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const cd=new Date(calYear,calMonth,d); cd.setHours(0,0,0,0);
+    const isToday=cd.getTime()===t.getTime();
+    const dayJobs=byDate[ds]||[];
+    html+=`<div class="cal-cell${isToday?' today':''}"><div class="cal-num">${d}</div>
+      ${dayJobs.slice(0,2).map(j=>`<div class="cal-event" onclick="openDetail('${j.id}')">${f(j,F.job_name)||'Job'}</div>`).join('')}
+      ${dayJobs.length>2?`<div class="cal-more">+${dayJobs.length-2} more</div>`:''}
+    </div>`;
+  }
+  const used=firstDay+daysInMonth; const tail=used%7===0?0:7-(used%7);
+  for (let i=1;i<=tail;i++) html+=`<div class="cal-cell other-month"><div class="cal-num">${i}</div></div>`;
+  document.getElementById('cal-body').innerHTML = html;
+}
+
+// ── LOAD LIST ──
+function renderLoadList() {
+  const days = parseInt(document.getElementById('load-window').value);
+  const t = today0(); const cutoff = new Date(t); cutoff.setDate(cutoff.getDate()+days);
+  const scheduled = jobs.filter(j => {
+    const status = (f(j,F.job_status)||'').toLowerCase();
+    if (status==='complete') return false;
+    const d = parseDate(f(j,F.job_next_date)); if (!d) return false;
+    d.setHours(0,0,0,0); return d>=t && d<cutoff;
+  }).sort((a,b)=>(parseDate(f(a,F.job_next_date))||0)-(parseDate(f(b,F.job_next_date))||0));
+
+  const body = document.getElementById('loadlist-body');
+  if (!scheduled.length) { body.innerHTML=`<div class="empty"><div class="icon">📭</div>No jobs scheduled in this window</div>`; return; }
+
+  const itemsByJob = {};
+  items.forEach(item => {
+    const owners = f(item,F.item_owner);
+    if (!Array.isArray(owners)) return;
+    owners.forEach(o => { const id=typeof o==='string'?o:o.id; if (!itemsByJob[id]) itemsByJob[id]=[]; itemsByJob[id].push(item); });
+  });
+
+  let html = '';
+  scheduled.forEach(job => {
+    const jid=job.id, jname=f(job,F.job_name)||'Unnamed', jdate=f(job,F.job_next_date), jtype=f(job,F.job_next_type)||'';
+    const jtypeLower=jtype.toLowerCase();
+    const jobItems=(itemsByJob[jid]||[]).filter(item=>{
+      const s=(f(item,F.item_status)||'').toLowerCase();
+      if (s==='installed'||s==='pending order') return false;
+      const visitAt=(f(item,F.item_visit)||'').toLowerCase();
+      if (visitAt && jtypeLower) {
+        if (visitAt==='rough-in' && !jtypeLower.includes('rough')) return false;
+        if (visitAt==='trim-out' && !jtypeLower.includes('trim')) return false;
+      }
+      return true;
+    });
+    const loadedCount=jobItems.filter(i=>checkedLocally[i.id]!==undefined?checkedLocally[i.id]:f(i,F.item_loaded)===true).length;
+    const total=jobItems.length;
+    html+=`<div class="job-block">
+      <div class="job-block-header">
+        <div class="job-block-name">${jname}${jtype?' — '+jtype:''}</div>
+        <div class="job-block-meta"><span>${fmtDate(jdate)}</span>${total>0?`<span class="progress-text">${loadedCount}/${total} loaded</span>`:''}</div>
+      </div>`;
+    if (!jobItems.length) {
+      html+=`<div style="font-size:13px;color:var(--text-faint);padding:10px 0;">No items assigned yet</div>`;
+    } else {
+      jobItems.forEach(item=>{
+        const iid=item.id;
+        const isLoaded=checkedLocally[iid]!==undefined?checkedLocally[iid]:f(item,F.item_loaded)===true;
+        const model=f(item,F.item_model)||'Unknown', type=f(item,F.item_type)||'', qty=f(item,F.item_qty)??1, loc=f(item,F.item_location)||'', status=f(item,F.item_status)||'';
+        const locClass=loc.toLowerCase()==='rig'?'item-loc rig':'item-loc';
+        html+=`<div class="item-row${isLoaded?' done':''}" id="row-${iid}">
+          <div class="item-check${isLoaded?' checked':''}" onclick="toggleLoaded('${iid}')" title="Mark as loaded">
+            <svg class="checkmark" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="white" stroke-width="2.5"><polyline points="2,6 5,9 10,3"/></svg>
+          </div>
+          <div class="item-info"><div class="item-model">${model}</div><div class="item-detail">${[type,status].filter(Boolean).join(' · ')}</div></div>
+          <span class="item-qty">×${qty}</span>
+          ${loc?`<span class="${locClass}">${loc}</span>`:''}
+        </div>`;
+      });
+    }
+    html+=`</div>`;
+  });
+  body.innerHTML = html;
+}
+
+async function toggleLoaded(itemId) {
+  const row=document.getElementById('row-'+itemId);
+  const check=row.querySelector('.item-check');
+  const wasLoaded=check.classList.contains('checked');
+  const newVal=!wasLoaded;
+  check.classList.add('loading'); check.classList.remove('checked');
+  try {
+    const fields = newVal
+      ? {'Loaded?':true,'Status':'Loaded','Physical location':'Rig'}
+      : {'Loaded?':false,'Status':'Allocated','Physical location':'Inventory Tent'};
+    await patchRecord(ITEMS_TBL, itemId, fields);
+    checkedLocally[itemId]=newVal;
+    check.classList.remove('loading');
+    if (newVal) { check.classList.add('checked'); row.classList.add('done'); }
+    else { row.classList.remove('done'); }
+    const item=items.find(i=>i.id===itemId);
+    if (item) { item.fields['Loaded?']=newVal; item.fields['Status']=newVal?'Loaded':'Allocated'; item.fields['Physical location']=newVal?'Rig':'Inventory Tent'; }
+    renderLoadList();
+  } catch(e) { check.classList.remove('loading'); if (wasLoaded) check.classList.add('checked'); showError('Could not update item.'); }
+}
+
+// ── JOBS ──
+function renderJobs() {
+  const active=jobs.filter(j=>(f(j,F.job_status)||'').toLowerCase()!=='complete');
+  const complete=jobs.filter(j=>(f(j,F.job_status)||'').toLowerCase()==='complete');
+  const withDate=jobs.filter(j=>f(j,F.job_next_date));
+  document.getElementById('jobs-stats').innerHTML=`
+    <div class="stat"><div class="stat-label">Active</div><div class="stat-val">${active.length}</div></div>
+    <div class="stat"><div class="stat-label">Scheduled</div><div class="stat-val">${withDate.length}</div></div>
+    <div class="stat"><div class="stat-label">Complete</div><div class="stat-val">${complete.length}</div></div>
+    <div class="stat"><div class="stat-label">Items</div><div class="stat-val">${items.length}</div></div>`;
+  const sorted=[...active].sort((a,b)=>{
+    const da=parseDate(f(a,F.job_next_date)),db=parseDate(f(b,F.job_next_date));
+    if (da&&db) return da-db; if (da) return -1; if (db) return 1;
+    return (f(a,F.job_name)||'').localeCompare(f(b,F.job_name)||'');
+  });
+  if (!sorted.length) { document.getElementById('jobs-body').innerHTML=`<div class="empty"><div class="icon">📭</div>No active jobs</div>`; return; }
+  document.getElementById('jobs-body').innerHTML=sorted.map(j=>{
+    const name=f(j,F.job_name)||'Unnamed', status=f(j,F.job_status)||'', type=f(j,F.job_type)||'';
+    const nextDate=f(j,F.job_next_date), scheduled=f(j,F.job_scheduled)||'', readiness=f(j,F.job_readiness)||'', visitPlan=f(j,F.job_visit_plan)||'';
+    const sl=status.toLowerCase();
+    const badgeCls=sl.includes('active')?'badge-active':sl.includes('complete')?'badge-complete':'badge-pending';
+    const readBadge=readiness.includes('●')&&!readiness.includes('⚠')?'<span class="badge badge-ready">Ready</span>':readiness.includes('⚠')?'<span class="badge badge-partial">Partial</span>':'';
+    return `<div class="job-card" onclick="openDetail('${j.id}')">
+      <div class="job-card-top"><div class="job-name">${name}</div><div class="job-badges">${readBadge}<span class="badge ${badgeCls}">${status||'Unknown'}</span></div></div>
+      <div class="job-meta-row">
+        ${type?`<span>🔧 ${type}</span>`:''}
+        ${scheduled?`<span>📅 ${scheduled}</span>`:nextDate?`<span>📅 ${fmtDate(nextDate)}</span>`:''}
+        ${visitPlan?`<span>📝 ${visitPlan}</span>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── JOB DETAIL ──
+function openDetail(jobId) {
+  currentJobId = jobId; showAddMat = false;
+  const job = jobs.find(j=>j.id===jobId);
+  document.getElementById('detail-title').textContent = f(job,F.job_name)||'Job';
+  renderDetailBody(jobId);
+  document.getElementById('detail-panel').classList.add('open');
+  document.getElementById('detail-overlay').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('open');
+  document.getElementById('detail-overlay').classList.remove('open');
+  currentJobId = null; showAddMat = false;
+}
+
+function renderDetailBody(jobId) {
+  const job = jobs.find(j=>j.id===jobId); if (!job) return;
+  const name=f(job,F.job_name)||'Unnamed', status=f(job,F.job_status)||'', type=f(job,F.job_type)||'';
+  const nextDate=f(job,F.job_next_date), nextType=f(job,F.job_next_type)||'', scheduled=f(job,F.job_scheduled)||'';
+  const readiness=f(job,F.job_readiness)||'', visitPlan=f(job,F.job_visit_plan)||'', comments=f(job,F.job_comments)||'';
+
+  // Get consumable items (those linked to a Stock SKU)
+  const jobItems = items.filter(item => {
+    const owners=f(item,F.item_owner); if (!Array.isArray(owners)) return false;
+    return owners.some(o=>(typeof o==='string'?o:o.id)===jobId);
+  });
+  const consumables = jobItems.filter(i => {
+    const skuLinks = f(i, F.item_sku);
+    return Array.isArray(skuLinks) && skuLinks.length > 0;
+  });
+  const equipment = jobItems.filter(i => {
+    const skuLinks = f(i, F.item_sku);
+    return !Array.isArray(skuLinks) || skuLinks.length === 0;
+  });
+
+  let matHtml = '';
+  if (consumables.length) {
+    consumables.forEach(item => {
+      const iid=item.id, model=f(item,F.item_model)||'', qty=f(item,F.item_qty)??1, unit=f(item,'Unit')||'';
+      matHtml += `<div class="mat-row">
+        <div class="mat-info"><div class="mat-name">${model}</div><div class="mat-qty">Qty: ${qty}${unit?' '+unit:''}</div></div>
+        <button class="mat-del" onclick="deleteMaterial('${iid}')" title="Remove">×</button>
+      </div>`;
+    });
+  } else {
+    matHtml = `<div style="font-size:13px;color:var(--text-faint);padding:8px 0;">No consumables added yet</div>`;
+  }
+
+  let addFormHtml = '';
+  if (showAddMat) {
+    const skuOptions = skus.map(s=>`<option value="${s.id}">${f(s,F.sku_name)||'SKU'}</option>`).join('');
+    addFormHtml = `<div class="add-mat-form">
+      <select id="mat-sku">
+        <option value="">Select a stock item...</option>
+        ${skuOptions}
+      </select>
+      <input type="number" id="mat-qty" placeholder="Quantity" min="0.1" step="0.1" />
+      <div class="add-mat-btns">
+        <button class="btn-sm btn-sm-accent" onclick="saveMaterial('${jobId}')">Add to job</button>
+        <button class="btn-sm btn-sm-ghost" onclick="showAddMat=false;renderDetailBody('${jobId}')">Cancel</button>
+      </div>
+    </div>`;
+  }
+
+  const isComplete = status.toLowerCase() === 'complete';
+
+  document.getElementById('detail-body').innerHTML = `
+    <div class="detail-section">
+      <div class="detail-section-title">Job info</div>
+      ${[
+        ['Status', status], ['Type', type],
+        ['Scheduled', scheduled || fmtDate(nextDate) || '—'],
+        ['Visit type', nextType || '—'],
+        ['Visit plan', visitPlan || '—'],
+        ['Comments', comments || '—'],
+      ].map(([l,v])=>`<div class="detail-field"><span class="detail-field-label">${l}</span><span class="detail-field-val">${v}</span></div>`).join('')}
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-title" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Consumables & materials</span>
+        ${!isComplete?`<button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:4px 10px;" onclick="showAddMat=true;renderDetailBody('${jobId}')">+ Add</button>`:''}
+      </div>
+      ${matHtml}
+      ${addFormHtml}
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">Equipment (${equipment.length} items)</div>
+      ${equipment.length ? equipment.map(i=>`<div class="mat-row"><div class="mat-info"><div class="mat-name">${f(i,F.item_model)||'Unknown'}</div><div class="mat-qty">${f(i,F.item_type)||''} · ${f(i,F.item_status)||''}</div></div></div>`).join('') : `<div style="font-size:13px;color:var(--text-faint);padding:8px 0;">No equipment linked</div>`}
+    </div>
+
+    ${!isComplete ? `<button class="btn-complete" onclick="startComplete('${jobId}')">Mark job complete →</button>` : `<div style="text-align:center;padding:16px;font-size:14px;color:var(--accent);font-weight:500;">✓ Job complete</div>`}
+  `;
+}
+
+async function saveMaterial(jobId) {
+  const skuId = document.getElementById('mat-sku').value;
+  const qty = parseFloat(document.getElementById('mat-qty').value);
+  if (!skuId) { alert('Please select a stock item.'); return; }
+  if (!qty || qty <= 0) { alert('Please enter a valid quantity.'); return; }
+  const sku = skus.find(s=>s.id===skuId);
+  if (!sku) return;
+  const skuName = f(sku,F.sku_name)||'Material';
+  try {
+    const newItem = await createRecord(ITEMS_TBL, {
+      'Model number': skuName,
+      'Quantity': qty,
+      'Status': 'Allocated',
+      'Owner': [jobId],
+      'Stock SKU': [skuId],
+    });
+    items.push(newItem);
+    showAddMat = false;
+    renderDetailBody(jobId);
+    renderLoadList();
+  } catch(e) { alert('Could not add material. Check your connection.'); }
+}
+
+async function deleteMaterial(itemId) {
+  if (!confirm('Remove this material from the job?')) return;
+  try {
+    await deleteRecord(ITEMS_TBL, itemId);
+    items = items.filter(i=>i.id!==itemId);
+    renderDetailBody(currentJobId);
+    renderLoadList();
+  } catch(e) { alert('Could not remove material.'); }
+}
+
+// ── COMPLETE JOB ──
+function startComplete(jobId) {
+  completeJobId = jobId;
+  const job = jobs.find(j=>j.id===jobId);
+  const jobItems = items.filter(item => {
+    const owners=f(item,F.item_owner); if (!Array.isArray(owners)) return false;
+    return owners.some(o=>(typeof o==='string'?o:o.id)===jobId);
+  });
+  const consumables = jobItems.filter(i => { const skuLinks=f(i,F.item_sku); return Array.isArray(skuLinks)&&skuLinks.length>0; });
+
+  let html = '';
+  if (!consumables.length) {
+    html = `<div style="font-size:14px;color:var(--text-muted);padding:12px 0 20px;">No consumables tracked for this job.</div>`;
+  } else {
+    consumables.forEach(item => {
+      const iid=item.id, model=f(item,F.item_model)||'Item', qty=f(item,F.item_qty)??1, unit=f(item,'Unit')||'';
+      html += `<div class="modal-item">
+        <div class="modal-item-name">${model}</div>
+        <div class="modal-item-qty">
+          <input type="number" id="confirm-qty-${iid}" value="${qty}" min="0" step="0.1" />
+          <span class="modal-item-unit">${unit}</span>
+        </div>
+      </div>`;
+    });
+  }
+  document.getElementById('modal-items').innerHTML = html;
+  document.getElementById('complete-modal').classList.add('open');
+}
+
+function closeModal() { document.getElementById('complete-modal').classList.remove('open'); completeJobId = null; }
+
+async function confirmComplete() {
+  if (!completeJobId) return;
+  const job = jobs.find(j=>j.id===completeJobId);
+  const jobItems = items.filter(item => {
+    const owners=f(item,F.item_owner); if (!Array.isArray(owners)) return false;
+    return owners.some(o=>(typeof o==='string'?o:o.id)===completeJobId);
+  });
+  const consumables = jobItems.filter(i=>{ const skuLinks=f(i,F.item_sku); return Array.isArray(skuLinks)&&skuLinks.length>0; });
+
+  try {
+    // Deduct inventory for each consumable
+    for (const item of consumables) {
+      const qtyInput = document.getElementById('confirm-qty-'+item.id);
+      const usedQty = qtyInput ? parseFloat(qtyInput.value)||0 : f(item,F.item_qty)||0;
+      const skuLinks = f(item,F.item_sku);
+      if (!Array.isArray(skuLinks)||!skuLinks.length) continue;
+      const skuId = typeof skuLinks[0]==='string'?skuLinks[0]:skuLinks[0].id;
+      const sku = skus.find(s=>s.id===skuId); if (!sku) continue;
+      // Find where stock lives and deduct from that location
+      const barn = f(sku,F.sku_barn)||0, tent = f(sku,F.sku_tent)||0, susie = f(sku,F.sku_susie)||0, lumber = f(sku,F.sku_lumber)||0;
+      const total = barn+tent+susie+lumber;
+      let remaining = usedQty;
+      const updates = {};
+      // Deduct proportionally from each location that has stock
+      if (barn>0 && remaining>0) { const d=Math.min(barn,remaining); updates['On-hand (Barn)']=Math.max(0,barn-d); remaining-=d; }
+      if (tent>0 && remaining>0) { const d=Math.min(tent,remaining); updates['On-hand (Inventory Tent)']=Math.max(0,tent-d); remaining-=d; }
+      if (susie>0 && remaining>0) { const d=Math.min(susie,remaining); updates['On-hand (Susie)']=Math.max(0,susie-d); remaining-=d; }
+      if (lumber>0 && remaining>0) { const d=Math.min(lumber,remaining); updates['On-hand (Lumber rack)']=Math.max(0,lumber-d); remaining-=d; }
+      if (Object.keys(updates).length) await patchRecord(SKUS_TBL, skuId, updates);
+      // Mark item as installed
+      await patchRecord(ITEMS_TBL, item.id, {'Status':'Installed','Physical location':'installed'});
+    }
+    // Mark job complete
+    await patchRecord(JOBS_TBL, completeJobId, {'Status':'Complete'});
+    closeModal();
+    await syncData();
+    closeDetail();
+  } catch(e) { alert('Something went wrong. Check your connection and try again.'); }
+}
+
+// ── NAV ──
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  const idx={schedule:0,loadlist:1,jobs:2};
+  document.querySelectorAll('nav button')[idx[name]].classList.add('active');
+}
+
+const saved = getKey();
+if (saved) { apiKey=saved; startApp(); }
+</script>
+</body>
+</html>
