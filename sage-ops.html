@@ -93,6 +93,19 @@
   /* JOBS VIEW */
   .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-bottom: 22px; }
   .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; }
+  .stat-clickable { cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+  .stat-clickable:hover { border-color: var(--accent); }
+  .stat-clickable.stat-active { border-color: var(--accent); background: var(--accent-light); }
+  .completed-section-header { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); margin: 24px 0 10px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .job-card-complete { opacity: 0.6; background: var(--bg); }
+  .items-group-header { font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 18px 0 8px; padding: 6px 0; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .items-group-header:first-child { margin-top: 0; }
+  .items-group-count { font-size: 11px; background: var(--bg); padding: 1px 7px; border-radius: 99px; color: var(--text-faint); font-weight: 500; }
+  .item-list-row { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 4px; }
+  .item-list-main { flex: 1; min-width: 0; }
+  .item-list-model { font-size: 13px; font-weight: 500; }
+  .item-list-meta { font-size: 11px; color: var(--text-faint); margin-top: 1px; }
+  .item-list-qty { font-size: 13px; color: var(--text-muted); white-space: nowrap; }
   .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); margin-bottom: 4px; }
   .stat-val { font-size: 26px; font-weight: 600; }
   .job-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s; }
@@ -210,6 +223,10 @@
   .walk-sku-vendor { font-size: 13px; color: var(--text-muted); margin-bottom: 14px; }
   .walk-current { font-size: 14px; color: var(--text-muted); padding: 10px 12px; background: var(--bg); border-radius: var(--radius-sm); }
   .walk-lumber-note { font-size: 13px; color: var(--warn); background: var(--warn-light); border-left: 3px solid var(--warn); padding: 10px 12px; border-radius: var(--radius-sm); margin-bottom: 12px; line-height: 1.4; }
+  .btn-tent-found { flex: 1; padding: 14px; background: var(--accent); color: white; border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; cursor: pointer; }
+  .btn-tent-found:hover { background: var(--accent-text); }
+  .btn-tent-missing { flex: 1; padding: 14px; background: var(--warn); color: white; border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; cursor: pointer; }
+  .btn-tent-missing:hover { opacity: 0.9; }
 
   /* DETAIL NOTES (sticky) */
   .detail-note-sticky { background: #fff8c4; border: 1px solid #f4e08c; border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 10px; font-size: 13px; line-height: 1.5; color: #5a4d10; white-space: pre-wrap; cursor: pointer; display: flex; gap: 8px; align-items: flex-start; }
@@ -402,9 +419,12 @@ let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
 let checkedLocally = {};
 let currentJobId = null, completeJobId = null;
 let showAddMat = false;
-let invEditState = null; // {skuId, locField, locLabel, skuName}
-let noteEditState = null; // {jobId, field, label, jobName, returnTo}
-let walkState = null; // {locField, locLabel, index, total}
+let showCompleted = false;
+let showItemsList = false;
+let invEditState = null;
+let noteEditState = null;
+let walkState = null;
+let tentVerifyState = null;
 const LOCATIONS = [
   { field: 'On-hand (Barn)', label: 'Barn' },
   { field: 'On-hand (Inventory Tent)', label: 'Inventory Tent' },
@@ -512,7 +532,6 @@ function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&l
 
 function renderAll() { renderCalendar(); renderLoadList(); renderJobs(); renderInventory(); }
 
-// ── CALENDAR ──
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
@@ -549,7 +568,6 @@ function renderCalendar() {
   document.getElementById('cal-body').innerHTML = html;
 }
 
-// ── LOAD LIST ──
 function renderLoadList() {
   const days = parseInt(document.getElementById('load-window').value);
   const t = today0(); const cutoff = new Date(t); cutoff.setDate(cutoff.getDate()+days);
@@ -592,7 +610,6 @@ function renderLoadList() {
         <div class="job-block-name">${jname}${jtype?' — '+jtype:''}</div>
         <div class="job-block-meta"><span>${fmtDate(jdate)}</span>${total>0?`<span class="progress-text">${loadedCount}/${total} loaded</span>`:''}</div>
       </div>`;
-    // Detail Notes sticky (at top of job block, above items)
     if (detailNotes) {
       html += `<div class="detail-note-sticky" onclick="openNoteEdit('${jid}','detail','loadlist')" title="Tap to edit">
         <span class="sticky-icon">📌</span>
@@ -645,7 +662,6 @@ async function toggleLoaded(itemId) {
   } catch(e) { check.classList.remove('loading'); if (wasLoaded) check.classList.add('checked'); showError('Could not update item.'); }
 }
 
-// ── JOBS ──
 function renderJobs() {
   const active=jobs.filter(j=>(f(j,F.job_status)||'').toLowerCase()!=='complete');
   const complete=jobs.filter(j=>(f(j,F.job_status)||'').toLowerCase()==='complete');
@@ -653,32 +669,93 @@ function renderJobs() {
   document.getElementById('jobs-stats').innerHTML=`
     <div class="stat"><div class="stat-label">Active</div><div class="stat-val">${active.length}</div></div>
     <div class="stat"><div class="stat-label">Scheduled</div><div class="stat-val">${withDate.length}</div></div>
-    <div class="stat"><div class="stat-label">Complete</div><div class="stat-val">${complete.length}</div></div>
-    <div class="stat"><div class="stat-label">Items</div><div class="stat-val">${items.length}</div></div>`;
+    <div class="stat stat-clickable${showCompleted?' stat-active':''}" onclick="toggleCompleted()"><div class="stat-label">Complete ${showCompleted?'▾':'▸'}</div><div class="stat-val">${complete.length}</div></div>
+    <div class="stat stat-clickable${showItemsList?' stat-active':''}" onclick="toggleItemsList()"><div class="stat-label">Items ${showItemsList?'▾':'▸'}</div><div class="stat-val">${items.length}</div></div>`;
+
+  if (showItemsList) {
+    renderItemsList();
+    return;
+  }
+
   const sorted=[...active].sort((a,b)=>{
     const da=parseDate(f(a,F.job_next_date)),db=parseDate(f(b,F.job_next_date));
     if (da&&db) return da-db; if (da) return -1; if (db) return 1;
     return (f(a,F.job_name)||'').localeCompare(f(b,F.job_name)||'');
   });
-  if (!sorted.length) { document.getElementById('jobs-body').innerHTML=`<div class="empty"><div class="icon">📭</div>No active jobs</div>`; return; }
-  document.getElementById('jobs-body').innerHTML=sorted.map(j=>{
-    const name=f(j,F.job_name)||'Unnamed', status=f(j,F.job_status)||'', type=f(j,F.job_type)||'';
-    const nextDate=f(j,F.job_next_date), scheduled=f(j,F.job_scheduled)||'', readiness=f(j,F.job_readiness)||'', visitPlan=f(j,F.job_visit_plan)||'';
-    const sl=status.toLowerCase();
-    const badgeCls=sl.includes('active')?'badge-active':sl.includes('complete')?'badge-complete':'badge-pending';
-    const readBadge=readiness.includes('●')&&!readiness.includes('⚠')?'<span class="badge badge-ready">Ready</span>':readiness.includes('⚠')?'<span class="badge badge-partial">Partial</span>':'';
-    return `<div class="job-card" onclick="openDetail('${j.id}')">
-      <div class="job-card-top"><div class="job-name">${name}</div><div class="job-badges">${readBadge}<span class="badge ${badgeCls}">${status||'Unknown'}</span></div></div>
-      <div class="job-meta-row">
-        ${type?`<span>🔧 ${type}</span>`:''}
-        ${scheduled?`<span>📅 ${scheduled}</span>`:nextDate?`<span>📅 ${fmtDate(nextDate)}</span>`:''}
-        ${visitPlan?`<span>📝 ${visitPlan}</span>`:''}
-      </div>
-    </div>`;
-  }).join('');
+  if (!sorted.length && !showCompleted) { document.getElementById('jobs-body').innerHTML=`<div class="empty"><div class="icon">📭</div>No active jobs</div>`; return; }
+  let html = sorted.map(j=>jobCardHtml(j)).join('');
+  if (showCompleted && complete.length) {
+    html += `<div class="completed-section-header">Completed (${complete.length})</div>`;
+    const sortedComplete = [...complete].sort((a,b)=>{
+      const da=parseDate(f(a,F.job_next_date)),db=parseDate(f(b,F.job_next_date));
+      if (da&&db) return db-da; if (da) return -1; if (db) return 1;
+      return (f(a,F.job_name)||'').localeCompare(f(b,F.job_name)||'');
+    });
+    html += sortedComplete.map(j=>jobCardHtml(j, true)).join('');
+  }
+  document.getElementById('jobs-body').innerHTML = html;
 }
 
-// ── JOB DETAIL ──
+function jobCardHtml(j, isComplete) {
+  const name=f(j,F.job_name)||'Unnamed', status=f(j,F.job_status)||'', type=f(j,F.job_type)||'';
+  const nextDate=f(j,F.job_next_date), scheduled=f(j,F.job_scheduled)||'', readiness=f(j,F.job_readiness)||'', visitPlan=f(j,F.job_visit_plan)||'';
+  const sl=status.toLowerCase();
+  const badgeCls=sl.includes('active')?'badge-active':sl.includes('complete')?'badge-complete':'badge-pending';
+  const readBadge=!isComplete && readiness.includes('●')&&!readiness.includes('⚠')?'<span class="badge badge-ready">✓ All set</span>':!isComplete && readiness.includes('⚠')?'<span class="badge badge-partial">⚠ Missing parts</span>':'';
+  return `<div class="job-card${isComplete?' job-card-complete':''}" onclick="openDetail('${j.id}')">
+    <div class="job-card-top"><div class="job-name">${name}</div><div class="job-badges">${readBadge}<span class="badge ${badgeCls}">${status||'Unknown'}</span></div></div>
+    <div class="job-meta-row">
+      ${type?`<span>🔧 ${type}</span>`:''}
+      ${scheduled?`<span>📅 ${scheduled}</span>`:nextDate?`<span>📅 ${fmtDate(nextDate)}</span>`:''}
+      ${visitPlan?`<span>📝 ${visitPlan}</span>`:''}
+    </div>
+  </div>`;
+}
+
+function toggleCompleted() { showCompleted = !showCompleted; showItemsList = false; renderJobs(); }
+function toggleItemsList() { showItemsList = !showItemsList; renderJobs(); }
+
+function renderItemsList() {
+  const groups = {};
+  items.forEach(item => {
+    const s = f(item,F.item_status) || 'No status';
+    if (!groups[s]) groups[s] = [];
+    groups[s].push(item);
+  });
+  const order = ['Pending order','Allocated','Loaded','Installed','Damaged-hold','No status'];
+  const sortedKeys = Object.keys(groups).sort((a,b)=>{
+    const ai=order.indexOf(a), bi=order.indexOf(b);
+    return (ai<0?99:ai)-(bi<0?99:bi);
+  });
+  let html = '';
+  sortedKeys.forEach(status => {
+    const list = groups[status];
+    html += `<div class="items-group-header">${status} <span class="items-group-count">${list.length}</span></div>`;
+    list.slice().sort((a,b)=>(f(a,F.item_model)||'').localeCompare(f(b,F.item_model)||''))
+      .forEach(item => {
+      const model = f(item,F.item_model)||'Unknown';
+      const type = f(item,F.item_type)||'';
+      const qty = f(item,F.item_qty)??1;
+      const loc = f(item,F.item_location)||'';
+      const owners = f(item,F.item_owner);
+      let ownerName = 'Stock';
+      if (Array.isArray(owners) && owners.length) {
+        const ownerId = typeof owners[0]==='string'?owners[0]:owners[0].id;
+        const job = jobs.find(j=>j.id===ownerId);
+        if (job) ownerName = f(job,F.job_name)||'Unknown';
+      }
+      html += `<div class="item-list-row">
+        <div class="item-list-main">
+          <div class="item-list-model">${model}</div>
+          <div class="item-list-meta">${type?type+' · ':''}${ownerName}${loc?' · '+loc:''}</div>
+        </div>
+        <div class="item-list-qty">×${qty}</div>
+      </div>`;
+    });
+  });
+  document.getElementById('jobs-body').innerHTML = html || `<div class="empty"><div class="icon">📦</div>No items</div>`;
+}
+
 function openDetail(jobId) {
   currentJobId = jobId; showAddMat = false;
   const job = jobs.find(j=>j.id===jobId);
@@ -701,7 +778,6 @@ function renderDetailBody(jobId) {
   const readiness=f(job,F.job_readiness)||'', visitPlan=f(job,F.job_visit_plan)||'', comments=f(job,F.job_comments)||'';
   const detailNotes=f(job,F.job_detail_notes)||'';
 
-  // Get consumable items (those linked to a Stock SKU)
   const jobItems = items.filter(item => {
     const owners=f(item,F.item_owner); if (!Array.isArray(owners)) return false;
     return owners.some(o=>(typeof o==='string'?o:o.id)===jobId);
@@ -746,12 +822,10 @@ function renderDetailBody(jobId) {
 
   const isComplete = status.toLowerCase() === 'complete';
 
-  // Detail Notes block — yellow sticky if has content, else empty placeholder
   const detailNotesBlock = detailNotes
     ? `<div class="detail-note-sticky" onclick="openNoteEdit('${jobId}','detail','panel')" title="Tap to edit"><span class="sticky-icon">📌</span><span class="sticky-text">${escapeHtml(detailNotes)}</span></div>`
     : `<div class="detail-note-empty" onclick="openNoteEdit('${jobId}','detail','panel')">+ Add jobsite note</div>`;
 
-  // Comments block — neutral, editable
   const commentsBlock = comments
     ? `<div class="detail-note-block" onclick="openNoteEdit('${jobId}','comments','panel')">${escapeHtml(comments)}</div>`
     : `<div class="detail-note-block empty" onclick="openNoteEdit('${jobId}','comments','panel')">Tap to add team comments or questions</div>`;
@@ -828,7 +902,6 @@ async function deleteMaterial(itemId) {
   } catch(e) { alert('Could not remove material.'); }
 }
 
-// ── COMPLETE JOB ──
 function startComplete(jobId) {
   completeJobId = jobId;
   const job = jobs.find(j=>j.id===jobId);
@@ -869,7 +942,6 @@ async function confirmComplete() {
   const consumables = jobItems.filter(i=>{ const skuLinks=f(i,F.item_sku); return Array.isArray(skuLinks)&&skuLinks.length>0; });
 
   try {
-    // Deduct inventory for each consumable
     for (const item of consumables) {
       const qtyInput = document.getElementById('confirm-qty-'+item.id);
       const usedQty = qtyInput ? parseFloat(qtyInput.value)||0 : f(item,F.item_qty)||0;
@@ -877,21 +949,16 @@ async function confirmComplete() {
       if (!Array.isArray(skuLinks)||!skuLinks.length) continue;
       const skuId = typeof skuLinks[0]==='string'?skuLinks[0]:skuLinks[0].id;
       const sku = skus.find(s=>s.id===skuId); if (!sku) continue;
-      // Find where stock lives and deduct from that location
       const barn = f(sku,F.sku_barn)||0, tent = f(sku,F.sku_tent)||0, susie = f(sku,F.sku_susie)||0, lumber = f(sku,F.sku_lumber)||0;
-      const total = barn+tent+susie+lumber;
       let remaining = usedQty;
       const updates = {};
-      // Deduct proportionally from each location that has stock
       if (barn>0 && remaining>0) { const d=Math.min(barn,remaining); updates['On-hand (Barn)']=Math.max(0,barn-d); remaining-=d; }
       if (tent>0 && remaining>0) { const d=Math.min(tent,remaining); updates['On-hand (Inventory Tent)']=Math.max(0,tent-d); remaining-=d; }
       if (susie>0 && remaining>0) { const d=Math.min(susie,remaining); updates['On-hand (Susie)']=Math.max(0,susie-d); remaining-=d; }
       if (lumber>0 && remaining>0) { const d=Math.min(lumber,remaining); updates['On-hand (Lumber rack)']=Math.max(0,lumber-d); remaining-=d; }
       if (Object.keys(updates).length) await patchRecord(SKUS_TBL, skuId, updates);
-      // Mark item as installed
       await patchRecord(ITEMS_TBL, item.id, {'Status':'Installed','Physical location':'installed'});
     }
-    // Mark job complete
     await patchRecord(JOBS_TBL, completeJobId, {'Status':'Complete'});
     closeModal();
     await syncData();
@@ -899,9 +966,7 @@ async function confirmComplete() {
   } catch(e) { alert('Something went wrong. Check your connection and try again.'); }
 }
 
-// ── NOTE EDIT (Detail Notes / Comments) ──
 function openNoteEdit(jobId, kind, returnTo) {
-  // kind: 'detail' or 'comments'
   const job = jobs.find(j=>j.id===jobId); if (!job) return;
   const fieldName = kind === 'detail' ? F.job_detail_notes : F.job_comments;
   const label = kind === 'detail' ? 'Detail notes (jobsite)' : 'Comments / questions (team)';
@@ -929,16 +994,14 @@ async function saveNoteEdit() {
     const job = jobs.find(j=>j.id===jobId);
     if (job) job.fields[field] = newVal;
     closeNoteEdit();
-    // Re-render based on where the edit was triggered from
     if (returnTo === 'loadlist') renderLoadList();
     if (currentJobId === jobId) renderDetailBody(jobId);
-    if (returnTo === 'panel') renderLoadList(); // also keep load list in sync
+    if (returnTo === 'panel') renderLoadList();
   } catch(e) {
     alert('Could not save. Check your connection.');
   }
 }
 
-// ── INVENTORY ──
 function renderInventory() {
   const body = document.getElementById('inventory-body');
   if (!body) return;
@@ -975,7 +1038,6 @@ function renderInventory() {
     let locsHtml = '';
     LOCATIONS.forEach(loc => {
       const v = f(sku, loc.field);
-      // Show all locations that have a value (including 0). Hide null/undefined.
       if (v === null || v === undefined) return;
       locsHtml += `<div class="inv-loc" onclick="openInvEdit('${sid}','${loc.field}','${loc.label.replace(/'/g,"\\'")}')">
         <span class="inv-loc-label">${loc.label}</span>
@@ -1036,22 +1098,22 @@ async function saveInvEdit() {
     if (sku) { sku.fields[locField] = newVal; }
     closeInvEdit();
     renderInventory();
-    // If we're in walk mode, advance
     if (walkState) renderWalkStep();
   } catch(e) {
     alert('Could not save count. Check your connection.');
   }
 }
 
-// ── COUNT WALK ──
 function startWalk() {
-  // Ask which location to walk
-  const opts = LOCATIONS.map((l,i)=>`<button class="walk-loc-btn" onclick="beginWalk(${i})">${l.label}</button>`).join('');
+  const opts = LOCATIONS.map((l,i)=>{
+    const isTent = l.field === 'On-hand (Inventory Tent)';
+    return `<button class="walk-loc-btn" onclick="beginWalk(${i})">${l.label}${isTent?'<div style="font-size:11px;color:var(--text-faint);font-weight:400;margin-top:2px;">verify items</div>':''}</button>`;
+  }).join('');
   document.getElementById('walk-title').textContent = 'Count walk';
   document.getElementById('walk-body').innerHTML = `
     <div class="detail-section">
       <div class="detail-section-title">Which location?</div>
-      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Walk through every SKU that lives at the chosen location and update the count.</p>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Walk through every SKU at the chosen location and update counts. Inventory Tent verifies job-allocated items instead.</p>
       <div class="walk-loc-grid">${opts}</div>
     </div>`;
   document.getElementById('walk-panel').classList.add('open');
@@ -1060,13 +1122,108 @@ function startWalk() {
 
 function beginWalk(locIdx) {
   const loc = LOCATIONS[locIdx];
-  // SKUs that have any value (non-null) at this location — those are the ones tracked here
+  if (loc.field === 'On-hand (Inventory Tent)') {
+    beginTentVerify();
+    return;
+  }
   const relevant = skus.filter(s => {
     const v = f(s, loc.field);
     return v !== null && v !== undefined;
   }).sort((a,b) => (f(a,F.sku_name)||'').localeCompare(f(b,F.sku_name)||''));
   walkState = { locField: loc.field, locLabel: loc.label, index: 0, skuIds: relevant.map(s=>s.id) };
   renderWalkStep();
+}
+
+function beginTentVerify() {
+  const tentItems = items.filter(item => {
+    const status = (f(item,F.item_status)||'').toLowerCase();
+    if (status === 'installed') return false;
+    const owners = f(item,F.item_owner);
+    return Array.isArray(owners) && owners.length > 0;
+  }).sort((a,b) => {
+    const aOwn = f(a,F.item_owner), bOwn = f(b,F.item_owner);
+    const aId = Array.isArray(aOwn) && aOwn.length ? (typeof aOwn[0]==='string'?aOwn[0]:aOwn[0].id) : '';
+    const bId = Array.isArray(bOwn) && bOwn.length ? (typeof bOwn[0]==='string'?bOwn[0]:bOwn[0].id) : '';
+    const aJob = jobs.find(j=>j.id===aId), bJob = jobs.find(j=>j.id===bId);
+    const aName = aJob?f(aJob,F.job_name)||'':'', bName = bJob?f(bJob,F.job_name)||'':'';
+    if (aName !== bName) return aName.localeCompare(bName);
+    return (f(a,F.item_model)||'').localeCompare(f(b,F.item_model)||'');
+  });
+  tentVerifyState = { itemIds: tentItems.map(i=>i.id), index: 0, results: {} };
+  renderTentVerifyStep();
+}
+
+function renderTentVerifyStep() {
+  if (!tentVerifyState) return;
+  const { itemIds, index, results } = tentVerifyState;
+  document.getElementById('walk-title').textContent = 'Verify Inventory Tent';
+
+  if (index >= itemIds.length) {
+    const found = Object.values(results).filter(v=>v==='found').length;
+    const missing = Object.entries(results).filter(([k,v])=>v==='missing').map(([k])=>k);
+    const skipped = Object.values(results).filter(v=>v==='skip').length;
+    let summary = `<div class="detail-section" style="text-align:center;padding:24px 16px;">
+      <div style="font-size:36px;margin-bottom:12px;">✓</div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:6px;">Verification complete</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">${found} found · ${missing.length} missing · ${skipped} skipped (out of ${itemIds.length} total)</div>`;
+    if (missing.length) {
+      summary += `<div style="text-align:left;background:var(--warn-light);border:1px solid var(--warn);border-radius:var(--radius-sm);padding:12px;margin-bottom:14px;">
+        <div style="font-size:12px;font-weight:600;text-transform:uppercase;color:var(--warn);margin-bottom:8px;">⚠ Items not found at Tent</div>`;
+      missing.forEach(iid => {
+        const item = items.find(i=>i.id===iid); if (!item) return;
+        const owners = f(item,F.item_owner);
+        const ownerId = Array.isArray(owners) && owners.length ? (typeof owners[0]==='string'?owners[0]:owners[0].id) : '';
+        const job = jobs.find(j=>j.id===ownerId);
+        summary += `<div style="font-size:13px;padding:4px 0;color:#5a3a08;"><strong>${f(item,F.item_model)||'Unknown'}</strong> — ${job?f(job,F.job_name)||'':'Stock'}</div>`;
+      });
+      summary += `</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">Review missing items in Airtable — may be loaded on rig, damaged, or relocated.</div>`;
+    }
+    summary += `<button class="btn-sm btn-sm-accent" onclick="closeWalk()" style="padding:10px 24px;">Done</button></div>`;
+    document.getElementById('walk-body').innerHTML = summary;
+    return;
+  }
+
+  const item = items.find(i=>i.id===itemIds[index]);
+  if (!item) { tentVerifyState.index++; renderTentVerifyStep(); return; }
+  const model = f(item,F.item_model)||'Unknown';
+  const type = f(item,F.item_type)||'';
+  const status = f(item,F.item_status)||'';
+  const qty = f(item,F.item_qty)??1;
+  const owners = f(item,F.item_owner);
+  const ownerId = Array.isArray(owners) && owners.length ? (typeof owners[0]==='string'?owners[0]:owners[0].id) : '';
+  const job = jobs.find(j=>j.id===ownerId);
+  const jobName = job ? f(job,F.job_name)||'Unknown job' : 'Stock';
+  const visitType = job ? f(job,F.job_next_type)||'' : '';
+  const visitDate = job ? f(job,F.job_next_date)||'' : '';
+
+  document.getElementById('walk-body').innerHTML = `
+    <div class="detail-section">
+      <div class="walk-progress">${index+1} of ${itemIds.length} — Tent Verify</div>
+      <div class="walk-sku-name">${model}</div>
+      <div class="walk-sku-vendor">${type}${qty>1?' · qty '+qty:''}</div>
+      <div style="background:var(--info-light);border:1px solid var(--info);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:14px;">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--info);margin-bottom:4px;">Assigned to</div>
+        <div style="font-size:15px;font-weight:600;">${jobName}</div>
+        ${visitType||visitDate?`<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${visitType}${visitType&&visitDate?' · ':''}${visitDate?fmtDate(visitDate):''}</div>`:''}
+      </div>
+      <div class="walk-current" style="margin-bottom:16px;">Status: <strong>${status||'—'}</strong></div>
+      <div style="font-size:13px;color:var(--text-muted);text-align:center;margin-bottom:14px;">Is this item physically at the Inventory Tent?</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <button class="btn-tent-found" onclick="tentMark('found')">✓ Found</button>
+        <button class="btn-tent-missing" onclick="tentMark('missing')">⚠ Not here</button>
+      </div>
+      <button class="btn-sm btn-sm-ghost" style="width:100%;padding:10px;" onclick="tentMark('skip')">Skip</button>
+      <button class="btn-sm btn-sm-ghost" style="width:100%;margin-top:14px;padding:8px;font-size:12px;" onclick="closeWalk()">Exit verification</button>
+    </div>`;
+}
+
+function tentMark(result) {
+  if (!tentVerifyState) return;
+  const { itemIds, index } = tentVerifyState;
+  tentVerifyState.results[itemIds[index]] = result;
+  tentVerifyState.index++;
+  renderTentVerifyStep();
 }
 
 function renderWalkStep() {
@@ -1147,9 +1304,9 @@ function closeWalk() {
   document.getElementById('walk-panel').classList.remove('open');
   document.getElementById('walk-overlay').classList.remove('open');
   walkState = null;
+  tentVerifyState = null;
 }
 
-// ── NAV ──
 function showView(name) {
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
