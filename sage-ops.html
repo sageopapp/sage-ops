@@ -52,17 +52,23 @@
   /* CALENDAR */
   .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
   .cal-nav h2 { font-size: 17px; font-weight: 600; }
-  .cal-arrow { background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 12px; cursor: pointer; font-size: 16px; color: var(--text-muted); }
+  .cal-arrow { background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 12px; cursor: pointer; font-size: 16px; color: var(--text-muted); transition: all 0.15s; }
   .cal-arrow:hover { border-color: var(--border-strong); color: var(--text); }
+  .cal-arrow.drop-armed { background: var(--accent); color: white; border-color: var(--accent); transform: scale(1.1); }
   .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
   .cal-day-label { text-align: center; font-size: 11px; font-weight: 600; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 0; }
-  .cal-cell { min-height: 80px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 7px; }
+  .cal-cell { min-height: 80px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 7px; transition: background 0.1s, border-color 0.1s; }
   .cal-cell.other-month { background: var(--bg); }
   .cal-cell.today { border-color: var(--accent); background: var(--accent-light); }
+  .cal-cell.drop-valid { background: var(--accent-light); border-color: var(--accent); border-style: dashed; }
+  .cal-cell.drop-invalid { background: var(--danger-light); border-color: var(--danger); border-style: dashed; cursor: not-allowed; }
   .cal-num { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; font-weight: 500; }
   .cal-cell.today .cal-num { color: var(--accent-text); font-weight: 700; }
-  .cal-event { font-size: 10px; font-weight: 500; background: var(--info-light); color: var(--info); border-radius: 3px; padding: 2px 5px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .cal-event { font-size: 10px; font-weight: 500; background: var(--info-light); color: var(--info); border-radius: 3px; padding: 2px 5px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: grab; user-select: none; touch-action: none; }
   .cal-event:hover { opacity: 0.75; }
+  .cal-event:active { cursor: grabbing; }
+  .cal-event.dragging { opacity: 0.4; }
+  .cal-event-ghost { position: fixed; pointer-events: none; z-index: 9999; background: var(--info); color: white; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); transform: translate(-50%, -50%); }
   .cal-more { font-size: 10px; color: var(--text-faint); }
 
   /* LOAD LIST */
@@ -98,6 +104,14 @@
   .stat-clickable.stat-active { border-color: var(--accent); background: var(--accent-light); }
   .completed-section-header { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); margin: 24px 0 10px; padding-top: 16px; border-top: 1px solid var(--border); }
   .job-card-complete { opacity: 0.6; background: var(--bg); }
+  .items-group-header { font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 18px 0 8px; padding: 6px 0; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .items-group-header:first-child { margin-top: 0; }
+  .items-group-count { font-size: 11px; background: var(--bg); padding: 1px 7px; border-radius: 99px; color: var(--text-faint); font-weight: 500; }
+  .item-list-row { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 4px; }
+  .item-list-main { flex: 1; min-width: 0; }
+  .item-list-model { font-size: 13px; font-weight: 500; }
+  .item-list-meta { font-size: 11px; color: var(--text-faint); margin-top: 1px; }
+  .item-list-qty { font-size: 13px; color: var(--text-muted); white-space: nowrap; }
   .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); margin-bottom: 4px; }
   .stat-val { font-size: 26px; font-weight: 600; }
   .job-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s; }
@@ -205,13 +219,17 @@
   .inv-loc-val { font-size: 15px; font-weight: 600; color: var(--text); }
   .inv-step { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--surface); font-size: 22px; cursor: pointer; color: var(--text); line-height: 1; }
   .inv-step:hover { border-color: var(--accent); color: var(--accent); }
-  #inv-edit-val { flex: 1; padding: 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 22px; text-align: center; font-weight: 600; outline: none; }
-  #inv-edit-val:focus { border-color: var(--accent); }
+  #inv-edit-val, #walk-val { flex: 1; padding: 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 22px; text-align: center; font-weight: 600; outline: none; }
+  #inv-edit-val:focus, #walk-val:focus { border-color: var(--accent); }
 
   /* WALK MODE */
   .walk-loc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .walk-loc-btn { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 16px 12px; font-size: 14px; font-weight: 500; cursor: pointer; color: var(--text); }
   .walk-loc-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .walk-progress { font-size: 12px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin-bottom: 8px; }
+  .walk-sku-name { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  .walk-sku-vendor { font-size: 13px; color: var(--text-muted); margin-bottom: 14px; }
+  .walk-current { font-size: 14px; color: var(--text-muted); padding: 10px 12px; background: var(--bg); border-radius: var(--radius-sm); }
   .walk-lumber-note { font-size: 13px; color: var(--warn); background: var(--warn-light); border-left: 3px solid var(--warn); padding: 10px 12px; border-radius: var(--radius-sm); margin-bottom: 12px; line-height: 1.4; }
   .walk-sku-row { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 6px; cursor: pointer; transition: border-color 0.15s; }
   .walk-sku-row:hover { border-color: var(--accent); }
@@ -358,6 +376,18 @@
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeModal()">Cancel</button>
       <button class="btn-danger" onclick="confirmComplete()">Confirm & Close Job</button>
+    </div>
+  </div>
+</div>
+
+<!-- MOVE JOB CONFIRM MODAL -->
+<div class="modal-bg" id="move-modal">
+  <div class="modal">
+    <h3 id="move-title">Move job?</h3>
+    <p id="move-msg"></p>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeMoveModal()">Cancel</button>
+      <button class="btn-sm btn-sm-accent" onclick="confirmMove()" style="padding:10px 20px;">Move job</button>
     </div>
   </div>
 </div>
@@ -553,6 +583,257 @@ function changeMonth(dir) {
   renderCalendar();
 }
 
+let dragState = null;
+let pendingMove = null;
+let arrowHoverTimer = null;
+
+function attachCalendarDragHandlers() {
+  document.querySelectorAll('#cal-body .cal-event').forEach(el => {
+    el.addEventListener('dragstart', onCalDragStart);
+    el.addEventListener('dragend', onCalDragEnd);
+    el.addEventListener('click', onCalEventClick);
+    el.addEventListener('touchstart', onCalTouchStart, {passive: false});
+  });
+  document.querySelectorAll('#cal-body .cal-cell').forEach(el => {
+    el.addEventListener('dragover', onCalDragOver);
+    el.addEventListener('dragleave', onCalDragLeave);
+    el.addEventListener('drop', onCalDrop);
+  });
+  document.querySelectorAll('.cal-arrow').forEach(el => {
+    el.addEventListener('dragover', onArrowDragOver);
+    el.addEventListener('dragleave', onArrowDragLeave);
+  });
+}
+
+function onCalEventClick(e) {
+  if (dragState && dragState.moved) { e.stopPropagation(); return; }
+  const jobId = e.currentTarget.dataset.jobId;
+  if (jobId) openDetail(jobId);
+}
+
+function onCalDragStart(e) {
+  const el = e.currentTarget;
+  const jobId = el.dataset.jobId;
+  const fromDate = el.dataset.fromDate;
+  dragState = { jobId, fromDate, moved: false };
+  el.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', jobId);
+}
+
+function onCalDragEnd(e) {
+  e.currentTarget.classList.remove('dragging');
+  clearDropHighlights();
+  cancelArrowHover();
+  setTimeout(()=>{ dragState = null; }, 50);
+}
+
+function onCalDragOver(e) {
+  if (!dragState) return;
+  e.preventDefault();
+  dragState.moved = true;
+  const cell = e.currentTarget;
+  const isPast = cell.dataset.past === '1';
+  const toDate = cell.dataset.date;
+  const sameDay = toDate === dragState.fromDate;
+  clearDropHighlights();
+  if (sameDay) return;
+  if (isPast) {
+    cell.classList.add('drop-invalid');
+    e.dataTransfer.dropEffect = 'none';
+  } else {
+    cell.classList.add('drop-valid');
+    e.dataTransfer.dropEffect = 'move';
+  }
+}
+
+function onCalDragLeave(e) {
+  e.currentTarget.classList.remove('drop-valid', 'drop-invalid');
+}
+
+function onCalDrop(e) {
+  e.preventDefault();
+  const cell = e.currentTarget;
+  cell.classList.remove('drop-valid', 'drop-invalid');
+  if (!dragState) return;
+  const isPast = cell.dataset.past === '1';
+  const toDate = cell.dataset.date;
+  if (isPast) return;
+  if (toDate === dragState.fromDate) return;
+  promptMove(dragState.jobId, dragState.fromDate, toDate);
+}
+
+function onArrowDragOver(e) {
+  if (!dragState) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const arrow = e.currentTarget;
+  if (arrow.classList.contains('drop-armed')) return;
+  arrow.classList.add('drop-armed');
+  if (arrowHoverTimer) clearTimeout(arrowHoverTimer);
+  const dir = arrow.textContent.includes('›') ? 1 : -1;
+  arrowHoverTimer = setTimeout(() => {
+    changeMonth(dir);
+    arrow.classList.remove('drop-armed');
+    arrowHoverTimer = null;
+  }, 600);
+}
+
+function onArrowDragLeave(e) {
+  e.currentTarget.classList.remove('drop-armed');
+  if (arrowHoverTimer) { clearTimeout(arrowHoverTimer); arrowHoverTimer = null; }
+}
+
+function cancelArrowHover() {
+  document.querySelectorAll('.cal-arrow.drop-armed').forEach(a=>a.classList.remove('drop-armed'));
+  if (arrowHoverTimer) { clearTimeout(arrowHoverTimer); arrowHoverTimer = null; }
+}
+
+function clearDropHighlights() {
+  document.querySelectorAll('.cal-cell.drop-valid, .cal-cell.drop-invalid').forEach(c=>c.classList.remove('drop-valid','drop-invalid'));
+}
+
+let touchTimer = null;
+let touchEl = null;
+
+function onCalTouchStart(e) {
+  if (e.touches.length !== 1) return;
+  touchEl = e.currentTarget;
+  const touch = e.touches[0];
+  const startX = touch.clientX, startY = touch.clientY;
+  const jobId = touchEl.dataset.jobId;
+  const fromDate = touchEl.dataset.fromDate;
+  touchTimer = setTimeout(() => {
+    if (navigator.vibrate) navigator.vibrate(30);
+    dragState = { jobId, fromDate, moved: true, ghostEl: null, isTouch: true };
+    const ghost = document.createElement('div');
+    ghost.className = 'cal-event-ghost';
+    ghost.textContent = touchEl.textContent;
+    ghost.style.left = startX + 'px';
+    ghost.style.top = startY + 'px';
+    document.body.appendChild(ghost);
+    dragState.ghostEl = ghost;
+    touchEl.classList.add('dragging');
+    document.addEventListener('touchmove', onCalTouchMove, {passive: false});
+    document.addEventListener('touchend', onCalTouchEnd);
+    document.addEventListener('touchcancel', onCalTouchEnd);
+    touchTimer = null;
+  }, 400);
+  const cancelOnMove = (mv) => {
+    const t2 = mv.touches[0];
+    if (Math.abs(t2.clientX-startX) > 6 || Math.abs(t2.clientY-startY) > 6) {
+      if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; }
+      document.removeEventListener('touchmove', cancelOnMove);
+    }
+  };
+  document.addEventListener('touchmove', cancelOnMove, {passive: true, once: false});
+  const cleanupCancel = () => {
+    document.removeEventListener('touchmove', cancelOnMove);
+    document.removeEventListener('touchend', cleanupCancel);
+  };
+  document.addEventListener('touchend', cleanupCancel, {once: true});
+}
+
+function onCalTouchMove(e) {
+  if (!dragState || !dragState.isTouch) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  if (dragState.ghostEl) {
+    dragState.ghostEl.style.left = touch.clientX + 'px';
+    dragState.ghostEl.style.top = touch.clientY + 'px';
+  }
+  if (dragState.ghostEl) dragState.ghostEl.style.display = 'none';
+  const under = document.elementFromPoint(touch.clientX, touch.clientY);
+  if (dragState.ghostEl) dragState.ghostEl.style.display = '';
+  clearDropHighlights();
+  cancelArrowHoverIfNotOver(under);
+  if (!under) return;
+  const cell = under.closest('.cal-cell');
+  if (cell) {
+    const isPast = cell.dataset.past === '1';
+    const toDate = cell.dataset.date;
+    if (toDate !== dragState.fromDate) {
+      cell.classList.add(isPast ? 'drop-invalid' : 'drop-valid');
+    }
+    return;
+  }
+  const arrow = under.closest('.cal-arrow');
+  if (arrow && !arrow.classList.contains('drop-armed')) {
+    arrow.classList.add('drop-armed');
+    if (arrowHoverTimer) clearTimeout(arrowHoverTimer);
+    const dir = arrow.textContent.includes('›') ? 1 : -1;
+    arrowHoverTimer = setTimeout(() => {
+      changeMonth(dir);
+      arrow.classList.remove('drop-armed');
+      arrowHoverTimer = null;
+    }, 600);
+  }
+}
+
+function cancelArrowHoverIfNotOver(under) {
+  document.querySelectorAll('.cal-arrow.drop-armed').forEach(a => {
+    if (!under || !under.closest('.cal-arrow') || under.closest('.cal-arrow') !== a) {
+      a.classList.remove('drop-armed');
+      if (arrowHoverTimer) { clearTimeout(arrowHoverTimer); arrowHoverTimer = null; }
+    }
+  });
+}
+
+function onCalTouchEnd(e) {
+  if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; }
+  document.removeEventListener('touchmove', onCalTouchMove);
+  document.removeEventListener('touchend', onCalTouchEnd);
+  document.removeEventListener('touchcancel', onCalTouchEnd);
+  if (!dragState || !dragState.isTouch) { touchEl = null; return; }
+  const touch = e.changedTouches[0];
+  if (dragState.ghostEl) dragState.ghostEl.style.display = 'none';
+  const under = touch ? document.elementFromPoint(touch.clientX, touch.clientY) : null;
+  if (dragState.ghostEl) { dragState.ghostEl.remove(); dragState.ghostEl = null; }
+  if (touchEl) touchEl.classList.remove('dragging');
+  clearDropHighlights();
+  cancelArrowHover();
+  if (under) {
+    const cell = under.closest('.cal-cell');
+    if (cell && cell.dataset.past !== '1' && cell.dataset.date !== dragState.fromDate) {
+      promptMove(dragState.jobId, dragState.fromDate, cell.dataset.date);
+    }
+  }
+  touchEl = null;
+  dragState = null;
+}
+
+function promptMove(jobId, fromDate, toDate) {
+  const job = jobs.find(j=>j.id===jobId);
+  if (!job) return;
+  const jobName = f(job,F.job_name) || 'Job';
+  pendingMove = { jobId, fromDate, toDate, jobName };
+  document.getElementById('move-title').textContent = `Move ${jobName}?`;
+  document.getElementById('move-msg').textContent = `From ${fmtDate(fromDate)} → ${fmtDate(toDate)}`;
+  document.getElementById('move-modal').classList.add('open');
+}
+
+function closeMoveModal() {
+  document.getElementById('move-modal').classList.remove('open');
+  pendingMove = null;
+}
+
+async function confirmMove() {
+  if (!pendingMove) return;
+  const { jobId, toDate } = pendingMove;
+  try {
+    await patchRecord(JOBS_TBL, jobId, { 'Next visit date': toDate });
+    const job = jobs.find(j=>j.id===jobId);
+    if (job) job.fields['Next visit date'] = toDate;
+    closeMoveModal();
+    renderCalendar();
+    renderLoadList();
+    renderJobs();
+  } catch(e) {
+    alert('Could not move job. Check your connection.');
+    closeMoveModal();
+  }
+}
+
 function renderCalendar() {
   document.getElementById('cal-title').textContent = MONTHS[calMonth] + ' ' + calYear;
   document.getElementById('cal-labels').innerHTML = DAYS.map(d=>`<div class="cal-day-label">${d}</div>`).join('');
@@ -563,20 +844,35 @@ function renderCalendar() {
   const prevDays = new Date(calYear,calMonth,0).getDate();
   const t = today0();
   let html = '';
-  for (let i=firstDay-1;i>=0;i--) html+=`<div class="cal-cell other-month"><div class="cal-num">${prevDays-i}</div></div>`;
+  for (let i=firstDay-1;i>=0;i--) {
+    const pm = calMonth===0?11:calMonth-1, py = calMonth===0?calYear-1:calYear;
+    const dayNum = prevDays-i;
+    const ds=`${py}-${String(pm+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
+    const cd=new Date(py,pm,dayNum); cd.setHours(0,0,0,0);
+    const isPast = cd<t;
+    html+=`<div class="cal-cell other-month" data-date="${ds}" data-past="${isPast?'1':'0'}"><div class="cal-num">${dayNum}</div></div>`;
+  }
   for (let d=1;d<=daysInMonth;d++) {
     const ds=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const cd=new Date(calYear,calMonth,d); cd.setHours(0,0,0,0);
     const isToday=cd.getTime()===t.getTime();
+    const isPast = cd<t;
     const dayJobs=byDate[ds]||[];
-    html+=`<div class="cal-cell${isToday?' today':''}"><div class="cal-num">${d}</div>
-      ${dayJobs.slice(0,2).map(j=>`<div class="cal-event" onclick="openDetail('${j.id}')">${f(j,F.job_name)||'Job'}</div>`).join('')}
+    html+=`<div class="cal-cell${isToday?' today':''}" data-date="${ds}" data-past="${isPast?'1':'0'}"><div class="cal-num">${d}</div>
+      ${dayJobs.slice(0,2).map(j=>`<div class="cal-event" data-job-id="${j.id}" data-from-date="${ds}" draggable="true">${f(j,F.job_name)||'Job'}</div>`).join('')}
       ${dayJobs.length>2?`<div class="cal-more">+${dayJobs.length-2} more</div>`:''}
     </div>`;
   }
   const used=firstDay+daysInMonth; const tail=used%7===0?0:7-(used%7);
-  for (let i=1;i<=tail;i++) html+=`<div class="cal-cell other-month"><div class="cal-num">${i}</div></div>`;
+  for (let i=1;i<=tail;i++) {
+    const nm = calMonth===11?0:calMonth+1, ny = calMonth===11?calYear+1:calYear;
+    const ds=`${ny}-${String(nm+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+    const cd=new Date(ny,nm,i); cd.setHours(0,0,0,0);
+    const isPast = cd<t;
+    html+=`<div class="cal-cell other-month" data-date="${ds}" data-past="${isPast?'1':'0'}"><div class="cal-num">${i}</div></div>`;
+  }
   document.getElementById('cal-body').innerHTML = html;
+  attachCalendarDragHandlers();
 }
 
 function renderLoadList() {
