@@ -170,6 +170,46 @@
   .empty .icon { font-size: 36px; margin-bottom: 10px; }
   .error-bar { background: var(--danger-light); color: var(--danger); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 13px; margin-bottom: 14px; }
 
+  /* INVENTORY */
+  .inv-controls { margin-bottom: 18px; }
+  .inv-controls input[type="text"] { width: 100%; padding: 10px 14px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 14px; background: var(--surface); color: var(--text); outline: none; margin-bottom: 10px; }
+  .inv-controls input[type="text"]:focus { border-color: var(--accent); }
+  .inv-filter-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .inv-checkbox { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .inv-checkbox input { cursor: pointer; }
+  .btn-walk { background: var(--accent); color: white; border: none; border-radius: var(--radius-sm); padding: 8px 14px; font-size: 13px; font-weight: 500; cursor: pointer; }
+  .btn-walk:hover { background: var(--accent-text); }
+  .inv-summary { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
+  .inv-low-pill { background: var(--warn-light); color: var(--warn); padding: 2px 8px; border-radius: 99px; font-weight: 500; }
+  .inv-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px; }
+  .inv-card.low { border-color: var(--warn); border-left-width: 3px; }
+  .inv-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .inv-card-title { flex: 1; min-width: 0; }
+  .inv-name { font-size: 15px; font-weight: 600; }
+  .inv-meta { font-size: 12px; color: var(--text-faint); margin-top: 2px; }
+  .inv-card-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .inv-low-badge { background: var(--warn-light); color: var(--warn); font-size: 11px; padding: 3px 8px; border-radius: 99px; font-weight: 500; white-space: nowrap; }
+  .inv-total { font-size: 22px; font-weight: 600; color: var(--text); display: flex; flex-direction: column; align-items: flex-end; line-height: 1; }
+  .inv-total-label { font-size: 10px; color: var(--text-faint); font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
+  .inv-locs { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
+  .inv-loc { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; transition: border-color 0.15s; }
+  .inv-loc:hover { border-color: var(--accent); }
+  .inv-loc-label { font-size: 11px; color: var(--text-muted); }
+  .inv-loc-val { font-size: 15px; font-weight: 600; color: var(--text); }
+  .inv-step { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--surface); font-size: 22px; cursor: pointer; color: var(--text); line-height: 1; }
+  .inv-step:hover { border-color: var(--accent); color: var(--accent); }
+  #inv-edit-val, #walk-val { flex: 1; padding: 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 22px; text-align: center; font-weight: 600; outline: none; }
+  #inv-edit-val:focus, #walk-val:focus { border-color: var(--accent); }
+
+  /* WALK MODE */
+  .walk-loc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .walk-loc-btn { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 16px 12px; font-size: 14px; font-weight: 500; cursor: pointer; color: var(--text); }
+  .walk-loc-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .walk-progress { font-size: 12px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin-bottom: 8px; }
+  .walk-sku-name { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  .walk-sku-vendor { font-size: 13px; color: var(--text-muted); margin-bottom: 14px; }
+  .walk-current { font-size: 14px; color: var(--text-muted); padding: 10px 12px; background: var(--bg); border-radius: var(--radius-sm); }
+
   @media (max-width: 600px) {
     .cal-cell { min-height: 56px; padding: 4px 5px; }
     .cal-event { font-size: 9px; }
@@ -209,6 +249,7 @@
     <button class="active" onclick="showView('schedule')">📅 Schedule</button>
     <button onclick="showView('loadlist')">📋 Load List</button>
     <button onclick="showView('jobs')">🏗 Jobs</button>
+    <button onclick="showView('inventory')">📦 Inventory</button>
   </nav>
 
   <div id="error-bar" class="error-bar" style="display:none"></div>
@@ -242,6 +283,17 @@
     <div class="stats" id="jobs-stats"></div>
     <div id="jobs-body"></div>
   </div>
+
+  <div id="view-inventory" class="view">
+    <div class="inv-controls">
+      <input type="text" id="inv-search" placeholder="Search SKUs..." oninput="renderInventory()" />
+      <div class="inv-filter-row">
+        <label class="inv-checkbox"><input type="checkbox" id="inv-low-only" onchange="renderInventory()" /> Low stock only</label>
+        <button class="btn-walk" onclick="startWalk()">📋 Count walk</button>
+      </div>
+    </div>
+    <div id="inventory-body"></div>
+  </div>
 </div>
 
 <!-- JOB DETAIL PANEL -->
@@ -267,6 +319,33 @@
   </div>
 </div>
 
+<!-- INVENTORY EDIT MODAL -->
+<div class="modal-bg" id="inv-edit-modal">
+  <div class="modal">
+    <h3 id="inv-edit-title">Edit count</h3>
+    <p id="inv-edit-subtitle"></p>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+      <button class="inv-step" onclick="invStep(-1)">−</button>
+      <input type="number" id="inv-edit-val" step="1" min="0" />
+      <button class="inv-step" onclick="invStep(1)">+</button>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeInvEdit()">Cancel</button>
+      <button class="btn-sm btn-sm-accent" onclick="saveInvEdit()" style="padding:10px 20px;">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- COUNT WALK PANEL -->
+<div class="detail-overlay" id="walk-overlay" onclick="closeWalk()"></div>
+<div class="detail-panel" id="walk-panel">
+  <div class="detail-header">
+    <h2 id="walk-title">Count walk</h2>
+    <button class="detail-close" onclick="closeWalk()">×</button>
+  </div>
+  <div class="detail-body" id="walk-body"></div>
+</div>
+
 <script>
 const BASE_ID = 'appFfYj9VVedhrZfv';
 const JOBS_TBL = 'tbleG7eZ2GUldQ7AF';
@@ -285,6 +364,8 @@ const F = {
   item_sku: 'Stock SKU', item_comments: 'Comments',
   sku_name: 'Name', sku_barn: 'On-hand (Barn)', sku_tent: 'On-hand (Inventory Tent)',
   sku_susie: 'On-hand (Susie)', sku_lumber: 'On-hand (Lumber rack)', sku_rig: 'On-hand (Rig)',
+  sku_shop: 'On-hand (Shop)', sku_threshold: 'Vendor reorder threshold',
+  sku_total: 'Total on-hand', sku_order_flag: 'Order needed?', sku_vendor: 'Vendor',
 };
 
 let apiKey = '', jobs = [], items = [], skus = [];
@@ -292,6 +373,16 @@ let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
 let checkedLocally = {};
 let currentJobId = null, completeJobId = null;
 let showAddMat = false;
+let invEditState = null; // {skuId, locField, locLabel, skuName}
+let walkState = null; // {locField, locLabel, index, total}
+const LOCATIONS = [
+  { field: 'On-hand (Barn)', label: 'Barn' },
+  { field: 'On-hand (Inventory Tent)', label: 'Inventory Tent' },
+  { field: 'On-hand (Susie)', label: 'Susie' },
+  { field: 'On-hand (Lumber rack)', label: 'Lumber rack' },
+  { field: 'On-hand (Rig)', label: 'Rig' },
+  { field: 'On-hand (Shop)', label: 'Shop' },
+];
 
 function getKey() { return localStorage.getItem('sage_pat') || ''; }
 function saveKey(k) { localStorage.setItem('sage_pat', k); }
@@ -388,7 +479,7 @@ function parseDate(str) { if (!str) return null; const d = new Date(str+'T12:00:
 function fmtDate(str) { const d = parseDate(str); if (!d) return ''; return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}); }
 function today0() { const t = new Date(); t.setHours(0,0,0,0); return t; }
 
-function renderAll() { renderCalendar(); renderLoadList(); renderJobs(); }
+function renderAll() { renderCalendar(); renderLoadList(); renderJobs(); renderInventory(); }
 
 // ── CALENDAR ──
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -747,12 +838,218 @@ async function confirmComplete() {
   } catch(e) { alert('Something went wrong. Check your connection and try again.'); }
 }
 
+// ── INVENTORY ──
+function renderInventory() {
+  const body = document.getElementById('inventory-body');
+  if (!body) return;
+  const searchEl = document.getElementById('inv-search');
+  const lowOnlyEl = document.getElementById('inv-low-only');
+  const search = searchEl ? searchEl.value.trim().toLowerCase() : '';
+  const lowOnly = lowOnlyEl ? lowOnlyEl.checked : false;
+
+  let filtered = skus.slice();
+  if (search) filtered = filtered.filter(s => (f(s,F.sku_name)||'').toLowerCase().includes(search));
+  if (lowOnly) filtered = filtered.filter(s => {
+    const flag = f(s,F.sku_order_flag);
+    return flag && String(flag).includes('order');
+  });
+  filtered.sort((a,b) => (f(a,F.sku_name)||'').localeCompare(f(b,F.sku_name)||''));
+
+  if (!filtered.length) {
+    body.innerHTML = `<div class="empty"><div class="icon">📦</div>No SKUs match</div>`;
+    return;
+  }
+
+  const lowCount = skus.filter(s => { const fl=f(s,F.sku_order_flag); return fl && String(fl).includes('order'); }).length;
+  let html = `<div class="inv-summary">${skus.length} SKUs${lowCount?` · <span class="inv-low-pill">⚠ ${lowCount} low</span>`:''}</div>`;
+
+  filtered.forEach(sku => {
+    const sid = sku.id;
+    const name = f(sku,F.sku_name)||'Unnamed';
+    const vendor = f(sku,F.sku_vendor)||'';
+    const threshold = f(sku,F.sku_threshold);
+    const total = f(sku,F.sku_total) ?? 0;
+    const flag = f(sku,F.sku_order_flag);
+    const isLow = flag && String(flag).includes('order');
+
+    let locsHtml = '';
+    LOCATIONS.forEach(loc => {
+      const v = f(sku, loc.field);
+      // Show all locations that have a value (including 0). Hide null/undefined.
+      if (v === null || v === undefined) return;
+      locsHtml += `<div class="inv-loc" onclick="openInvEdit('${sid}','${loc.field}','${loc.label.replace(/'/g,"\\'")}')">
+        <span class="inv-loc-label">${loc.label}</span>
+        <span class="inv-loc-val">${v}</span>
+      </div>`;
+    });
+    if (!locsHtml) locsHtml = `<div style="font-size:12px;color:var(--text-faint);padding:4px 0;">No location counts set</div>`;
+
+    html += `<div class="inv-card${isLow?' low':''}">
+      <div class="inv-card-top">
+        <div class="inv-card-title">
+          <div class="inv-name">${name}</div>
+          <div class="inv-meta">${vendor||'—'}${threshold!=null?` · reorder &lt; ${threshold}`:''}</div>
+        </div>
+        <div class="inv-card-right">
+          ${isLow?'<span class="inv-low-badge">⚠ order</span>':''}
+          <div class="inv-total">${total}<span class="inv-total-label">total</span></div>
+        </div>
+      </div>
+      <div class="inv-locs">${locsHtml}</div>
+    </div>`;
+  });
+
+  body.innerHTML = html;
+}
+
+function openInvEdit(skuId, locField, locLabel) {
+  const sku = skus.find(s=>s.id===skuId);
+  if (!sku) return;
+  const currentVal = f(sku, locField) ?? 0;
+  invEditState = { skuId, locField, locLabel, skuName: f(sku,F.sku_name)||'SKU' };
+  document.getElementById('inv-edit-title').textContent = invEditState.skuName;
+  document.getElementById('inv-edit-subtitle').textContent = `On-hand at ${locLabel}`;
+  document.getElementById('inv-edit-val').value = currentVal;
+  document.getElementById('inv-edit-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('inv-edit-val').focus(), 50);
+}
+
+function closeInvEdit() {
+  document.getElementById('inv-edit-modal').classList.remove('open');
+  invEditState = null;
+}
+
+function invStep(delta) {
+  const el = document.getElementById('inv-edit-val');
+  const v = parseFloat(el.value)||0;
+  el.value = Math.max(0, v + delta);
+}
+
+async function saveInvEdit() {
+  if (!invEditState) return;
+  const newVal = parseFloat(document.getElementById('inv-edit-val').value);
+  if (isNaN(newVal) || newVal < 0) { alert('Please enter a valid number (0 or greater).'); return; }
+  const { skuId, locField } = invEditState;
+  try {
+    await patchRecord(SKUS_TBL, skuId, { [locField]: newVal });
+    const sku = skus.find(s=>s.id===skuId);
+    if (sku) { sku.fields[locField] = newVal; }
+    closeInvEdit();
+    renderInventory();
+    // If we're in walk mode, advance
+    if (walkState) renderWalkStep();
+  } catch(e) {
+    alert('Could not save count. Check your connection.');
+  }
+}
+
+// ── COUNT WALK ──
+function startWalk() {
+  // Ask which location to walk
+  const opts = LOCATIONS.map((l,i)=>`<button class="walk-loc-btn" onclick="beginWalk(${i})">${l.label}</button>`).join('');
+  document.getElementById('walk-title').textContent = 'Count walk';
+  document.getElementById('walk-body').innerHTML = `
+    <div class="detail-section">
+      <div class="detail-section-title">Which location?</div>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Walk through every SKU that lives at the chosen location and update the count.</p>
+      <div class="walk-loc-grid">${opts}</div>
+    </div>`;
+  document.getElementById('walk-panel').classList.add('open');
+  document.getElementById('walk-overlay').classList.add('open');
+}
+
+function beginWalk(locIdx) {
+  const loc = LOCATIONS[locIdx];
+  // SKUs that have any value (non-null) at this location — those are the ones tracked here
+  const relevant = skus.filter(s => {
+    const v = f(s, loc.field);
+    return v !== null && v !== undefined;
+  }).sort((a,b) => (f(a,F.sku_name)||'').localeCompare(f(b,F.sku_name)||''));
+  walkState = { locField: loc.field, locLabel: loc.label, index: 0, skuIds: relevant.map(s=>s.id) };
+  renderWalkStep();
+}
+
+function renderWalkStep() {
+  if (!walkState) return;
+  const { locLabel, locField, index, skuIds } = walkState;
+  document.getElementById('walk-title').textContent = `Count walk — ${locLabel}`;
+  if (index >= skuIds.length) {
+    document.getElementById('walk-body').innerHTML = `
+      <div class="detail-section" style="text-align:center;padding:32px 16px;">
+        <div style="font-size:36px;margin-bottom:12px;">✓</div>
+        <div style="font-size:16px;font-weight:600;margin-bottom:6px;">Walk complete</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">Counted ${skuIds.length} SKU${skuIds.length===1?'':'s'} at ${locLabel}.</div>
+        <button class="btn-sm btn-sm-accent" onclick="closeWalk()" style="padding:10px 24px;">Done</button>
+      </div>`;
+    return;
+  }
+  const sku = skus.find(s=>s.id===skuIds[index]);
+  if (!sku) { walkState.index++; renderWalkStep(); return; }
+  const name = f(sku,F.sku_name)||'SKU';
+  const current = f(sku, locField) ?? 0;
+  const vendor = f(sku,F.sku_vendor)||'';
+  document.getElementById('walk-body').innerHTML = `
+    <div class="detail-section">
+      <div class="walk-progress">${index+1} of ${skuIds.length}</div>
+      <div class="walk-sku-name">${name}</div>
+      <div class="walk-sku-vendor">${vendor||''}</div>
+      <div class="walk-current">Current count: <strong>${current}</strong></div>
+      <div style="display:flex;align-items:center;gap:10px;margin:16px 0;">
+        <button class="inv-step" onclick="walkStep(-1)">−</button>
+        <input type="number" id="walk-val" step="1" min="0" value="${current}" />
+        <button class="inv-step" onclick="walkStep(1)">+</button>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-sm btn-sm-ghost" style="flex:1;padding:10px;" onclick="walkSkip()">Skip</button>
+        <button class="btn-sm btn-sm-accent" style="flex:2;padding:10px;" onclick="walkSave()">Save & next</button>
+      </div>
+      <button class="btn-sm btn-sm-ghost" style="width:100%;margin-top:14px;padding:8px;font-size:12px;" onclick="closeWalk()">Exit walk</button>
+    </div>`;
+  setTimeout(()=>{ const el=document.getElementById('walk-val'); if (el){el.focus(); el.select();} }, 50);
+}
+
+function walkStep(delta) {
+  const el = document.getElementById('walk-val');
+  const v = parseFloat(el.value)||0;
+  el.value = Math.max(0, v + delta);
+}
+
+function walkSkip() {
+  if (!walkState) return;
+  walkState.index++;
+  renderWalkStep();
+}
+
+async function walkSave() {
+  if (!walkState) return;
+  const newVal = parseFloat(document.getElementById('walk-val').value);
+  if (isNaN(newVal) || newVal < 0) { alert('Please enter a valid number.'); return; }
+  const { locField, index, skuIds } = walkState;
+  const skuId = skuIds[index];
+  try {
+    await patchRecord(SKUS_TBL, skuId, { [locField]: newVal });
+    const sku = skus.find(s=>s.id===skuId);
+    if (sku) sku.fields[locField] = newVal;
+    walkState.index++;
+    renderWalkStep();
+    renderInventory();
+  } catch(e) {
+    alert('Could not save count. Check your connection.');
+  }
+}
+
+function closeWalk() {
+  document.getElementById('walk-panel').classList.remove('open');
+  document.getElementById('walk-overlay').classList.remove('open');
+  walkState = null;
+}
+
 // ── NAV ──
 function showView(name) {
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
   document.getElementById('view-'+name).classList.add('active');
-  const idx={schedule:0,loadlist:1,jobs:2};
+  const idx={schedule:0,loadlist:1,jobs:2,inventory:3};
   document.querySelectorAll('nav button')[idx[name]].classList.add('active');
 }
 
