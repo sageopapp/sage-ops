@@ -1153,12 +1153,13 @@ function renderWalkList() {
     const v = f(sku, locField) ?? 0;
     const vendor = f(sku,F.sku_vendor)||'';
     const unit = f(sku,F.sku_unit)||'';
+    const showUnit = unit && unit.toLowerCase() !== 'each';
     html += `<div class="walk-sku-row" onclick="openInvEditFromWalk('${sid}','${locField.replace(/'/g,"\\'")}','${locLabel.replace(/'/g,"\\'")}')">
       <div class="walk-sku-row-main">
         <div class="walk-sku-row-name">${name}</div>
         ${vendor?`<div class="walk-sku-row-meta">${vendor}</div>`:''}
       </div>
-      <div class="walk-sku-row-val">${v}${unit?` <span style="font-size:10px;color:var(--text-faint);font-weight:400;">${unit}${v===1?'':'s'}</span>`:''}</div>
+      <div class="walk-sku-row-val">${v}${showUnit?` <span style="font-size:10px;color:var(--text-faint);font-weight:400;">${unit}${v===1?'':'s'}</span>`:''}</div>
     </div>`;
   });
 
