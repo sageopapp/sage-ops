@@ -220,23 +220,17 @@ const ITEMS_TABLE = 'tblmTmWOvzHKIixMu';
 
 // Field IDs
 const F = {
-  job_name: 'fldP6cXmEFrX1xiOl',
-  job_type: 'fldWxO40AmWKuXe1e',
-  job_status: 'fldrClS6QEpTtYhCm',
-  job_visit_plan: 'fldasCzZItqxYv7Cn',
-  job_next_type: 'fldADX69De5ZbPtPo',
-  job_next_date: 'fld7Xh2ya0Y58ne1g',
-  job_items: 'fldbRD6g1ocEQzBb3',
-  job_readiness: 'fldWhWD69tgxbge0Q',
-  job_scheduled: 'fldoi6WcCBpgBxqeS',
-  item_model: 'fldiF7YBvxJz50Rju',
-  item_type: 'fldQ177g7cHrcLWMV',
-  item_qty: 'fldC5xOJhC3LLvLxv',
-  item_status: 'fldaFLZfR5o172Gcb',
-  item_location: 'fldJ5LNdjXZzXmPnP',
-  item_loaded: 'fldNbRpyKsYnW89iz',
-  item_owner: 'fldeCIkFTVeedFLer',
-  item_visit: 'fldLNoRPRfPFNBXUN',
+  job_name: 'Name', job_type: 'Type', job_status: 'Status',
+  job_visit_plan: 'Visit plan', job_next_type: 'Next visit type',
+  job_next_date: 'Next visit date', job_items: 'Items',
+  job_readiness: 'Readiness', job_scheduled: 'Scheduled visit',
+  job_comments: 'Comments / Questions', job_materials: 'Per-visit Materials',
+  item_model: 'Model number', item_type: 'Type tag', item_qty: 'Quantity',
+  item_status: 'Status', item_location: 'Physical location',
+  item_loaded: 'Loaded?', item_owner: 'Owner', item_visit: 'Visit consumed at',
+  item_sku: 'Stock SKU', item_comments: 'Comments',
+  sku_name: 'Name', sku_barn: 'On-hand (Barn)', sku_tent: 'On-hand (Inventory Tent)',
+  sku_susie: 'On-hand (Susie)', sku_lumber: 'On-hand (Lumber rack)', sku_rig: 'On-hand (Rig)',
 };
 
 let apiKey = '';
@@ -319,8 +313,10 @@ function showError(msg) {
   el.style.display = msg ? 'block' : 'none';
 }
 
-function f(record, fieldId) {
-  return record?.fields?.[fieldId] ?? null;
+function f(record, fieldName) {
+  const val = record.fields[fieldName];
+  if (val === undefined || val === null) return null;
+  return val;
 }
 
 function parseDate(str) {
