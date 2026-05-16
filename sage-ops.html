@@ -98,14 +98,6 @@
   .stat-clickable.stat-active { border-color: var(--accent); background: var(--accent-light); }
   .completed-section-header { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); margin: 24px 0 10px; padding-top: 16px; border-top: 1px solid var(--border); }
   .job-card-complete { opacity: 0.6; background: var(--bg); }
-  .items-group-header { font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 18px 0 8px; padding: 6px 0; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
-  .items-group-header:first-child { margin-top: 0; }
-  .items-group-count { font-size: 11px; background: var(--bg); padding: 1px 7px; border-radius: 99px; color: var(--text-faint); font-weight: 500; }
-  .item-list-row { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 4px; }
-  .item-list-main { flex: 1; min-width: 0; }
-  .item-list-model { font-size: 13px; font-weight: 500; }
-  .item-list-meta { font-size: 11px; color: var(--text-faint); margin-top: 1px; }
-  .item-list-qty { font-size: 13px; color: var(--text-muted); white-space: nowrap; }
   .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); margin-bottom: 4px; }
   .stat-val { font-size: 26px; font-weight: 600; }
   .job-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s; }
@@ -160,6 +152,8 @@
   /* COMPLETE JOB */
   .btn-complete { width: 100%; padding: 12px; background: none; border: 2px solid var(--accent); color: var(--accent); border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 8px; }
   .btn-complete:hover { background: var(--accent-light); }
+  .btn-revert { width: 100%; padding: 10px; background: none; border: 1px solid var(--border-strong); color: var(--text-muted); border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; cursor: pointer; margin-top: 4px; }
+  .btn-revert:hover { border-color: var(--warn); color: var(--warn); background: var(--warn-light); }
 
   /* CONFIRM MODAL */
   .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; padding: 24px; }
@@ -211,18 +205,20 @@
   .inv-loc-val { font-size: 15px; font-weight: 600; color: var(--text); }
   .inv-step { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--surface); font-size: 22px; cursor: pointer; color: var(--text); line-height: 1; }
   .inv-step:hover { border-color: var(--accent); color: var(--accent); }
-  #inv-edit-val, #walk-val { flex: 1; padding: 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 22px; text-align: center; font-weight: 600; outline: none; }
-  #inv-edit-val:focus, #walk-val:focus { border-color: var(--accent); }
+  #inv-edit-val { flex: 1; padding: 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 22px; text-align: center; font-weight: 600; outline: none; }
+  #inv-edit-val:focus { border-color: var(--accent); }
 
   /* WALK MODE */
   .walk-loc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .walk-loc-btn { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 16px 12px; font-size: 14px; font-weight: 500; cursor: pointer; color: var(--text); }
   .walk-loc-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .walk-progress { font-size: 12px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin-bottom: 8px; }
-  .walk-sku-name { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
-  .walk-sku-vendor { font-size: 13px; color: var(--text-muted); margin-bottom: 14px; }
-  .walk-current { font-size: 14px; color: var(--text-muted); padding: 10px 12px; background: var(--bg); border-radius: var(--radius-sm); }
   .walk-lumber-note { font-size: 13px; color: var(--warn); background: var(--warn-light); border-left: 3px solid var(--warn); padding: 10px 12px; border-radius: var(--radius-sm); margin-bottom: 12px; line-height: 1.4; }
+  .walk-sku-row { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 6px; cursor: pointer; transition: border-color 0.15s; }
+  .walk-sku-row:hover { border-color: var(--accent); }
+  .walk-sku-row-main { flex: 1; min-width: 0; }
+  .walk-sku-row-name { font-size: 14px; font-weight: 500; color: var(--text); }
+  .walk-sku-row-meta { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+  .walk-sku-row-val { font-size: 20px; font-weight: 600; color: var(--text); flex-shrink: 0; min-width: 50px; text-align: right; }
 
   /* TENT VERIFY — Customer-grouped */
   .tent-job-btn { display: flex; align-items: center; width: 100%; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 8px; cursor: pointer; text-align: left; transition: border-color 0.15s; }
@@ -436,7 +432,6 @@ let checkedLocally = {};
 let currentJobId = null, completeJobId = null;
 let showAddMat = false;
 let showCompleted = false;
-let showItemsList = false;
 let invEditState = null;
 let noteEditState = null;
 let walkState = null;
@@ -685,13 +680,7 @@ function renderJobs() {
   document.getElementById('jobs-stats').innerHTML=`
     <div class="stat"><div class="stat-label">Active</div><div class="stat-val">${active.length}</div></div>
     <div class="stat"><div class="stat-label">Scheduled</div><div class="stat-val">${withDate.length}</div></div>
-    <div class="stat stat-clickable${showCompleted?' stat-active':''}" onclick="toggleCompleted()"><div class="stat-label">Complete ${showCompleted?'▾':'▸'}</div><div class="stat-val">${complete.length}</div></div>
-    <div class="stat stat-clickable${showItemsList?' stat-active':''}" onclick="toggleItemsList()"><div class="stat-label">Items ${showItemsList?'▾':'▸'}</div><div class="stat-val">${items.length}</div></div>`;
-
-  if (showItemsList) {
-    renderItemsList();
-    return;
-  }
+    <div class="stat stat-clickable${showCompleted?' stat-active':''}" onclick="toggleCompleted()"><div class="stat-label">Complete ${showCompleted?'▾':'▸'}</div><div class="stat-val">${complete.length}</div></div>`;
 
   const sorted=[...active].sort((a,b)=>{
     const da=parseDate(f(a,F.job_next_date)),db=parseDate(f(b,F.job_next_date));
@@ -699,16 +688,19 @@ function renderJobs() {
     return (f(a,F.job_name)||'').localeCompare(f(b,F.job_name)||'');
   });
   if (!sorted.length && !showCompleted) { document.getElementById('jobs-body').innerHTML=`<div class="empty"><div class="icon">📭</div>No active jobs</div>`; return; }
-  let html = sorted.map(j=>jobCardHtml(j)).join('');
+
+  let html = '';
   if (showCompleted && complete.length) {
-    html += `<div class="completed-section-header">Completed (${complete.length})</div>`;
+    html += `<div class="completed-section-header" style="margin-top:0;padding-top:0;border-top:none;">Completed (${complete.length})</div>`;
     const sortedComplete = [...complete].sort((a,b)=>{
       const da=parseDate(f(a,F.job_next_date)),db=parseDate(f(b,F.job_next_date));
       if (da&&db) return db-da; if (da) return -1; if (db) return 1;
       return (f(a,F.job_name)||'').localeCompare(f(b,F.job_name)||'');
     });
     html += sortedComplete.map(j=>jobCardHtml(j, true)).join('');
+    if (sorted.length) html += `<div class="completed-section-header">Active</div>`;
   }
+  html += sorted.map(j=>jobCardHtml(j)).join('');
   document.getElementById('jobs-body').innerHTML = html;
 }
 
@@ -728,49 +720,7 @@ function jobCardHtml(j, isComplete) {
   </div>`;
 }
 
-function toggleCompleted() { showCompleted = !showCompleted; showItemsList = false; renderJobs(); }
-function toggleItemsList() { showItemsList = !showItemsList; renderJobs(); }
-
-function renderItemsList() {
-  const groups = {};
-  items.forEach(item => {
-    const s = f(item,F.item_status) || 'No status';
-    if (!groups[s]) groups[s] = [];
-    groups[s].push(item);
-  });
-  const order = ['Pending order','Allocated','Loaded','Installed','Damaged-hold','No status'];
-  const sortedKeys = Object.keys(groups).sort((a,b)=>{
-    const ai=order.indexOf(a), bi=order.indexOf(b);
-    return (ai<0?99:ai)-(bi<0?99:bi);
-  });
-  let html = '';
-  sortedKeys.forEach(status => {
-    const list = groups[status];
-    html += `<div class="items-group-header">${status} <span class="items-group-count">${list.length}</span></div>`;
-    list.slice().sort((a,b)=>(f(a,F.item_model)||'').localeCompare(f(b,F.item_model)||''))
-      .forEach(item => {
-      const model = f(item,F.item_model)||'Unknown';
-      const type = f(item,F.item_type)||'';
-      const qty = f(item,F.item_qty)??1;
-      const loc = f(item,F.item_location)||'';
-      const owners = f(item,F.item_owner);
-      let ownerName = 'Stock';
-      if (Array.isArray(owners) && owners.length) {
-        const ownerId = typeof owners[0]==='string'?owners[0]:owners[0].id;
-        const job = jobs.find(j=>j.id===ownerId);
-        if (job) ownerName = f(job,F.job_name)||'Unknown';
-      }
-      html += `<div class="item-list-row">
-        <div class="item-list-main">
-          <div class="item-list-model">${model}</div>
-          <div class="item-list-meta">${type?type+' · ':''}${ownerName}${loc?' · '+loc:''}</div>
-        </div>
-        <div class="item-list-qty">×${qty}</div>
-      </div>`;
-    });
-  });
-  document.getElementById('jobs-body').innerHTML = html || `<div class="empty"><div class="icon">📦</div>No items</div>`;
-}
+function toggleCompleted() { showCompleted = !showCompleted; renderJobs(); }
 
 function openDetail(jobId) {
   currentJobId = jobId; showAddMat = false;
@@ -881,7 +831,10 @@ function renderDetailBody(jobId) {
       ${equipment.length ? equipment.map(i=>`<div class="mat-row"><div class="mat-info"><div class="mat-name">${f(i,F.item_model)||'Unknown'}</div><div class="mat-qty">${f(i,F.item_type)||''} · ${f(i,F.item_status)||''}</div></div></div>`).join('') : `<div style="font-size:13px;color:var(--text-faint);padding:8px 0;">No equipment linked</div>`}
     </div>
 
-    ${!isComplete ? `<button class="btn-complete" onclick="startComplete('${jobId}')">Mark job complete →</button>` : `<div style="text-align:center;padding:16px;font-size:14px;color:var(--accent);font-weight:500;">✓ Job complete</div>`}
+    ${!isComplete ? `<button class="btn-complete" onclick="startComplete('${jobId}')">Mark job complete →</button>` : `
+      <div style="text-align:center;padding:12px 0 8px;font-size:14px;color:var(--accent);font-weight:500;">✓ Job complete</div>
+      <button class="btn-revert" onclick="revertComplete('${jobId}')">↺ Revert to active</button>
+    `}
   `;
 }
 
@@ -980,6 +933,24 @@ async function confirmComplete() {
     await syncData();
     closeDetail();
   } catch(e) { alert('Something went wrong. Check your connection and try again.'); }
+}
+
+async function revertComplete(jobId) {
+  if (!confirm('Revert this job back to Active?\n\nThis will:\n• Set job status to Active\n• Flip any Installed items back to Allocated (so they reappear on the Load List)\n\nIt does NOT restore inventory that was deducted. Adjust counts manually in Inventory if needed.')) return;
+  try {
+    const jobItems = items.filter(item => {
+      const owners=f(item,F.item_owner); if (!Array.isArray(owners)) return false;
+      return owners.some(o=>(typeof o==='string'?o:o.id)===jobId);
+    });
+    for (const item of jobItems) {
+      const status = (f(item,F.item_status)||'').toLowerCase();
+      if (status === 'installed') {
+        await patchRecord(ITEMS_TBL, item.id, {'Status':'Allocated','Physical location':'Inventory Tent','Loaded?':false});
+      }
+    }
+    await patchRecord(JOBS_TBL, jobId, {'Status':'Active'});
+    await syncData();
+  } catch(e) { alert('Could not revert job. Check your connection.'); }
 }
 
 function openNoteEdit(jobId, kind, returnTo) {
@@ -1114,7 +1085,7 @@ async function saveInvEdit() {
     if (sku) { sku.fields[locField] = newVal; }
     closeInvEdit();
     renderInventory();
-    if (walkState) renderWalkStep();
+    if (walkState) renderWalkList();
   } catch(e) {
     alert('Could not save count. Check your connection.');
   }
@@ -1129,7 +1100,7 @@ function startWalk() {
   document.getElementById('walk-body').innerHTML = `
     <div class="detail-section">
       <div class="detail-section-title">Which location?</div>
-      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Walk through every SKU at the chosen location and update counts. Inventory Tent verifies job-allocated items instead.</p>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Pick a location to see all SKUs and update counts. Inventory Tent verifies job-allocated items instead.</p>
       <div class="walk-loc-grid">${opts}</div>
     </div>`;
   document.getElementById('walk-panel').classList.add('open');
@@ -1142,12 +1113,68 @@ function beginWalk(locIdx) {
     beginTentVerify();
     return;
   }
+  walkState = { locField: loc.field, locLabel: loc.label, locIdx };
+  renderWalkList();
+}
+
+function renderWalkList() {
+  if (!walkState) return;
+  const { locField, locLabel } = walkState;
+  document.getElementById('walk-title').textContent = `${locLabel}`;
+
   const relevant = skus.filter(s => {
-    const v = f(s, loc.field);
+    const v = f(s, locField);
     return v !== null && v !== undefined;
   }).sort((a,b) => (f(a,F.sku_name)||'').localeCompare(f(b,F.sku_name)||''));
-  walkState = { locField: loc.field, locLabel: loc.label, index: 0, skuIds: relevant.map(s=>s.id) };
-  renderWalkStep();
+
+  const isLumber = locField === 'On-hand (Lumber rack)';
+  const lumberNote = isLumber ? `<div class="walk-lumber-note">📏 Count full 16' sticks only. Cut pieces and offcuts don't count here.</div>` : '';
+
+  if (!relevant.length) {
+    document.getElementById('walk-body').innerHTML = `
+      <div class="detail-section">
+        ${lumberNote}
+        <div class="empty"><div class="icon">📦</div>No SKUs tracked at ${locLabel}</div>
+        <button class="btn-sm btn-sm-ghost" style="width:100%;margin-top:12px;padding:10px;" onclick="backToWalkPicker()">← Back to locations</button>
+      </div>`;
+    return;
+  }
+
+  let html = `<div class="detail-section">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div style="font-size:12px;color:var(--text-muted);">${relevant.length} SKU${relevant.length===1?'':'s'}</div>
+      <button class="btn-sm btn-sm-ghost" style="font-size:12px;padding:5px 10px;" onclick="backToWalkPicker()">← Locations</button>
+    </div>
+    ${lumberNote}`;
+
+  relevant.forEach(sku => {
+    const sid = sku.id;
+    const name = f(sku,F.sku_name)||'Unnamed';
+    const v = f(sku, locField) ?? 0;
+    const vendor = f(sku,F.sku_vendor)||'';
+    const unit = f(sku,F.sku_unit)||'';
+    html += `<div class="walk-sku-row" onclick="openInvEditFromWalk('${sid}','${locField.replace(/'/g,"\\'")}','${locLabel.replace(/'/g,"\\'")}')">
+      <div class="walk-sku-row-main">
+        <div class="walk-sku-row-name">${name}</div>
+        ${vendor?`<div class="walk-sku-row-meta">${vendor}</div>`:''}
+      </div>
+      <div class="walk-sku-row-val">${v}${unit?` <span style="font-size:10px;color:var(--text-faint);font-weight:400;">${unit}${v===1?'':'s'}</span>`:''}</div>
+    </div>`;
+  });
+
+  html += `</div>
+    <button class="btn-sm btn-sm-accent" style="width:100%;padding:12px;" onclick="backToWalkPicker()">Done →</button>`;
+
+  document.getElementById('walk-body').innerHTML = html;
+}
+
+function openInvEditFromWalk(skuId, locField, locLabel) {
+  openInvEdit(skuId, locField, locLabel);
+}
+
+function backToWalkPicker() {
+  walkState = null;
+  startWalk();
 }
 
 function beginTentVerify() {
@@ -1196,14 +1223,17 @@ function renderTentJobPicker() {
         <div style="font-size:36px;margin-bottom:12px;">📦</div>
         <div style="font-size:16px;font-weight:600;margin-bottom:6px;">Tent is empty</div>
         <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">No items are currently marked Physical location = Inventory Tent.</div>
-        <button class="btn-sm btn-sm-accent" onclick="closeWalk()" style="padding:10px 24px;">Done</button>
+        <button class="btn-sm btn-sm-accent" onclick="backToWalkPicker()" style="padding:10px 24px;">← Back to locations</button>
       </div>`;
     return;
   }
 
   const allDone = jobIds.every(jid => completedJobs[jid]);
   let html = `<div class="detail-section">
-    <div class="detail-section-title">Customer piles at the Tent</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div class="detail-section-title" style="margin-bottom:0;">Customer piles at the Tent</div>
+      <button class="btn-sm btn-sm-ghost" style="font-size:12px;padding:5px 10px;" onclick="backToWalkPicker()">← Locations</button>
+    </div>
     <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Tap a customer to verify their items. Tap finished ones again to re-check.</p>`;
 
   jobIds.forEach(jid => {
@@ -1223,7 +1253,7 @@ function renderTentJobPicker() {
   });
 
   html += `</div>
-    ${allDone ? `<button class="btn-sm btn-sm-accent" style="width:100%;padding:12px;" onclick="finishTentVerify()">Finish & see summary →</button>` : `<button class="btn-sm btn-sm-ghost" style="width:100%;padding:10px;" onclick="closeWalk()">Exit verification</button>`}`;
+    ${allDone ? `<button class="btn-sm btn-sm-accent" style="width:100%;padding:12px;" onclick="finishTentVerify()">Finish & see summary →</button>` : `<button class="btn-sm btn-sm-ghost" style="width:100%;padding:10px;" onclick="backToWalkPicker()">← Back to locations</button>`}`;
 
   document.getElementById('walk-body').innerHTML = html;
 }
@@ -1355,82 +1385,8 @@ function finishTentVerify() {
     summary += `<div style="font-size:13px;color:var(--accent);margin-bottom:14px;">Everything accounted for. Nice work.</div>`;
   }
 
-  summary += `<button class="btn-sm btn-sm-accent" onclick="closeWalk()" style="padding:10px 24px;">Done</button></div>`;
+  summary += `<button class="btn-sm btn-sm-accent" onclick="backToWalkPicker()" style="padding:10px 24px;">← Back to locations</button></div>`;
   document.getElementById('walk-body').innerHTML = summary;
-}
-
-function renderWalkStep() {
-  if (!walkState) return;
-  const { locLabel, locField, index, skuIds } = walkState;
-  document.getElementById('walk-title').textContent = `Count walk — ${locLabel}`;
-  if (index >= skuIds.length) {
-    document.getElementById('walk-body').innerHTML = `
-      <div class="detail-section" style="text-align:center;padding:32px 16px;">
-        <div style="font-size:36px;margin-bottom:12px;">✓</div>
-        <div style="font-size:16px;font-weight:600;margin-bottom:6px;">Walk complete</div>
-        <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">Counted ${skuIds.length} SKU${skuIds.length===1?'':'s'} at ${locLabel}.</div>
-        <button class="btn-sm btn-sm-accent" onclick="closeWalk()" style="padding:10px 24px;">Done</button>
-      </div>`;
-    return;
-  }
-  const sku = skus.find(s=>s.id===skuIds[index]);
-  if (!sku) { walkState.index++; renderWalkStep(); return; }
-  const name = f(sku,F.sku_name)||'SKU';
-  const current = f(sku, locField) ?? 0;
-  const vendor = f(sku,F.sku_vendor)||'';
-  const typeTag = f(sku,F.sku_type)||'';
-  const unit = f(sku,F.sku_unit)||'';
-  const isLumber = locField === 'On-hand (Lumber rack)' || (typeTag||'').toLowerCase() === 'lumber';
-  const lumberNote = isLumber ? `<div class="walk-lumber-note">📏 Count full 16' sticks only. Cut pieces and offcuts don't count here.</div>` : '';
-  document.getElementById('walk-body').innerHTML = `
-    <div class="detail-section">
-      <div class="walk-progress">${index+1} of ${skuIds.length}</div>
-      <div class="walk-sku-name">${name}</div>
-      <div class="walk-sku-vendor">${vendor||''}</div>
-      ${lumberNote}
-      <div class="walk-current">Current count: <strong>${current}</strong>${unit?` <span style="color:var(--text-faint);font-weight:400;">${unit}${current===1?'':'s'}</span>`:''}</div>
-      <div style="display:flex;align-items:center;gap:10px;margin:16px 0;">
-        <button class="inv-step" onclick="walkStep(-1)">−</button>
-        <input type="number" id="walk-val" step="1" min="0" value="${current}" />
-        <button class="inv-step" onclick="walkStep(1)">+</button>
-      </div>
-      <div style="display:flex;gap:8px;">
-        <button class="btn-sm btn-sm-ghost" style="flex:1;padding:10px;" onclick="walkSkip()">Skip</button>
-        <button class="btn-sm btn-sm-accent" style="flex:2;padding:10px;" onclick="walkSave()">Save & next</button>
-      </div>
-      <button class="btn-sm btn-sm-ghost" style="width:100%;margin-top:14px;padding:8px;font-size:12px;" onclick="closeWalk()">Exit walk</button>
-    </div>`;
-  setTimeout(()=>{ const el=document.getElementById('walk-val'); if (el){el.focus(); el.select();} }, 50);
-}
-
-function walkStep(delta) {
-  const el = document.getElementById('walk-val');
-  const v = parseFloat(el.value)||0;
-  el.value = Math.max(0, v + delta);
-}
-
-function walkSkip() {
-  if (!walkState) return;
-  walkState.index++;
-  renderWalkStep();
-}
-
-async function walkSave() {
-  if (!walkState) return;
-  const newVal = parseFloat(document.getElementById('walk-val').value);
-  if (isNaN(newVal) || newVal < 0) { alert('Please enter a valid number.'); return; }
-  const { locField, index, skuIds } = walkState;
-  const skuId = skuIds[index];
-  try {
-    await patchRecord(SKUS_TBL, skuId, { [locField]: newVal });
-    const sku = skus.find(s=>s.id===skuId);
-    if (sku) sku.fields[locField] = newVal;
-    walkState.index++;
-    renderWalkStep();
-    renderInventory();
-  } catch(e) {
-    alert('Could not save count. Check your connection.');
-  }
 }
 
 function closeWalk() {
