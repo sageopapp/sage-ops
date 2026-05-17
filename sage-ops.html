@@ -467,12 +467,26 @@
         </div>
       </div>
       <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Address <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
+        <textarea id="nj-address" rows="2" placeholder="e.g. 123 Main St, Seattle WA 98101" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;font-family:inherit;resize:vertical;"></textarea>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Phone <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
+          <input type="tel" id="nj-phone" placeholder="206-555-0123" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+        </div>
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Email <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
+          <input type="email" id="nj-email" placeholder="customer@example.com" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+        </div>
+      </div>
+      <div>
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Visit plan <span style="font-weight:400;color:var(--text-faint);">(optional, free text)</span></label>
         <input type="text" id="nj-visit-plan" placeholder="e.g. Trim-Out Tue 5/26, MXZ-4D30NL + 3 heads" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
       </div>
       <div>
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Jobsite notes <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
-        <textarea id="nj-detail-notes" rows="2" placeholder="Anything Tyler needs to know" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;font-family:inherit;resize:vertical;"></textarea>
+        <textarea id="nj-detail-notes" rows="2" placeholder="Gate codes, parking, dogs, etc." style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;font-family:inherit;resize:vertical;"></textarea>
       </div>
     </div>
     <div id="nj-error" style="display:none;color:var(--danger);font-size:13px;margin-top:14px;background:var(--danger-light);padding:8px 12px;border-radius:var(--radius-sm);"></div>
@@ -551,6 +565,7 @@ const F = {
   job_readiness: 'Readiness', job_scheduled: 'Scheduled visit',
   job_comments: 'Comments / Questions', job_materials: 'Per-visit Materials',
   job_detail_notes: 'Detail Notes',
+  job_phone: 'Phone number', job_email: 'Email', job_address: 'Address',
   item_model: 'Model number', item_type: 'Type tag', item_qty: 'Quantity',
   item_status: 'Status', item_location: 'Physical location',
   item_loaded: 'Loaded?', item_owner: 'Owner', item_visit: 'Visit consumed at',
@@ -1265,6 +1280,7 @@ function renderDetailBody(jobId) {
   const endDate=f(job,F.job_end_date)||'';
   const readiness=f(job,F.job_readiness)||'', visitPlan=f(job,F.job_visit_plan)||'', comments=f(job,F.job_comments)||'';
   const detailNotes=f(job,F.job_detail_notes)||'';
+  const phone=f(job,F.job_phone)||'', email=f(job,F.job_email)||'', address=f(job,F.job_address)||'';
 
   // Get consumable items (those linked to a Stock SKU)
   const jobItems = items.filter(item => {
@@ -1392,6 +1408,31 @@ function renderDetailBody(jobId) {
       </div>
       ${!nextDate?`<div style="font-size:11px;color:var(--text-faint);padding:4px 0;font-style:italic;">Set a start date before setting end date.</div>`:''}
       ${endDate && nextDate ? `<div style="font-size:11px;color:var(--text-muted);padding:4px 0;">${(() => { const sd=parseDate(nextDate),ed=parseDate(endDate); if (!sd||!ed) return ''; const days=Math.round((ed-sd)/86400000)+1; return days>0?`Multi-day job: ${days} day${days===1?'':'s'} (${fmtDate(nextDate)} → ${fmtDate(endDate)})`:'⚠ End date is before start date'; })()}</div>`:''}
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">Contact</div>
+      <div class="detail-field" style="align-items:flex-start;">
+        <span class="detail-field-label" style="padding-top:6px;">Address</span>
+        <span class="detail-field-val" style="flex:1;max-width:65%;">
+          <textarea rows="2" placeholder="—" onchange="updateJobField('${jobId}','Address',this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;font-family:inherit;resize:vertical;text-align:right;">${escapeHtml(address)}</textarea>
+          ${address?`<div style="text-align:right;margin-top:4px;"><a href="https://maps.apple.com/?q=${encodeURIComponent(address)}" target="_blank" style="font-size:12px;color:var(--info);text-decoration:none;font-weight:500;">→ Directions</a></div>`:''}
+        </span>
+      </div>
+      <div class="detail-field" style="align-items:center;">
+        <span class="detail-field-label">Phone</span>
+        <span class="detail-field-val" style="flex:1;max-width:65%;display:flex;align-items:center;gap:8px;justify-content:flex-end;">
+          <input type="tel" value="${escapeHtml(phone).replace(/"/g,'&quot;')}" placeholder="—" onchange="updateJobField('${jobId}','Phone number',this.value)" style="flex:1;font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;text-align:right;" />
+          ${phone?`<a href="tel:${encodeURIComponent(phone)}" style="font-size:12px;color:var(--info);text-decoration:none;font-weight:500;white-space:nowrap;">📞 Call</a>`:''}
+        </span>
+      </div>
+      <div class="detail-field" style="align-items:center;">
+        <span class="detail-field-label">Email</span>
+        <span class="detail-field-val" style="flex:1;max-width:65%;display:flex;align-items:center;gap:8px;justify-content:flex-end;">
+          <input type="email" value="${escapeHtml(email).replace(/"/g,'&quot;')}" placeholder="—" onchange="updateJobField('${jobId}','Email',this.value)" style="flex:1;font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;text-align:right;" />
+          ${email?`<a href="mailto:${encodeURIComponent(email)}" style="font-size:12px;color:var(--info);text-decoration:none;font-weight:500;white-space:nowrap;">✉ Email</a>`:''}
+        </span>
+      </div>
     </div>
 
     <div class="detail-section">
@@ -1650,6 +1691,9 @@ function openNewJobModal() {
   document.getElementById('nj-end').value = '';
   document.getElementById('nj-visit-type').value = '';
   document.getElementById('nj-type').value = '';
+  document.getElementById('nj-address').value = '';
+  document.getElementById('nj-phone').value = '';
+  document.getElementById('nj-email').value = '';
   document.getElementById('nj-visit-plan').value = '';
   document.getElementById('nj-detail-notes').value = '';
   document.getElementById('nj-error').style.display = 'none';
@@ -1675,6 +1719,9 @@ async function saveNewJob() {
   const jobType = document.getElementById('nj-type').value;
   const visitPlan = document.getElementById('nj-visit-plan').value.trim();
   const detailNotes = document.getElementById('nj-detail-notes').value.trim();
+  const address = document.getElementById('nj-address').value.trim();
+  const phone = document.getElementById('nj-phone').value.trim();
+  const email = document.getElementById('nj-email').value.trim();
 
   if (!name) { njShowError('Please enter a customer / job name.'); return; }
   if (endDate && startDate) {
@@ -1690,6 +1737,9 @@ async function saveNewJob() {
   if (jobType) fields['Type'] = jobType;
   if (visitPlan) fields['Visit plan'] = visitPlan;
   if (detailNotes) fields['Detail Notes'] = detailNotes;
+  if (address) fields['Address'] = address;
+  if (phone) fields['Phone number'] = phone;
+  if (email) fields['Email'] = email;
 
   try {
     const newJob = await createRecord(JOBS_TBL, fields);
