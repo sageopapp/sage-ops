@@ -439,18 +439,30 @@
             <option value="">— None —</option>
             <option value="Rough-In">Rough-In</option>
             <option value="Trim-Out">Trim-Out</option>
-            <option value="DHP Install">DHP Install</option>
-            <option value="Retrofit">Retrofit</option>
             <option value="Clean">Clean</option>
+            <option value="Service">Service</option>
+            <option value="Retrofit">Retrofit</option>
+            <option value="Fire-Up">Fire-Up</option>
+            <option value="DHP Install">DHP Install</option>
+            <option value="Ducting Install">Ducting Install</option>
+            <option value="Punch-List">Punch-List</option>
+            <option value="Walk">Walk</option>
           </select>
         </div>
         <div style="flex:1;">
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Type <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
           <select id="nj-type" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
             <option value="">— None —</option>
-            <option value="Install (DHP)">Install (DHP)</option>
-            <option value="Retrofit">Retrofit</option>
+            <option value="Rough-In">Rough-In</option>
+            <option value="Trim-Out">Trim-Out</option>
             <option value="Clean">Clean</option>
+            <option value="Service">Service</option>
+            <option value="Retrofit">Retrofit</option>
+            <option value="Fire-Up">Fire-Up</option>
+            <option value="DHP Install">DHP Install</option>
+            <option value="Ducting Install">Ducting Install</option>
+            <option value="Punch-List">Punch-List</option>
+            <option value="Walk">Walk</option>
           </select>
         </div>
       </div>
@@ -1327,9 +1339,16 @@ function renderDetailBody(jobId) {
         <span class="detail-field-val">
           <select onchange="updateJobField('${jobId}','Type',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">
             <option value=""${!type?' selected':''}>— None —</option>
-            <option value="Install (DHP)"${type==='Install (DHP)'?' selected':''}>Install (DHP)</option>
-            <option value="Retrofit"${type==='Retrofit'?' selected':''}>Retrofit</option>
+            <option value="Rough-In"${type==='Rough-In'?' selected':''}>Rough-In</option>
+            <option value="Trim-Out"${type==='Trim-Out'?' selected':''}>Trim-Out</option>
             <option value="Clean"${type==='Clean'?' selected':''}>Clean</option>
+            <option value="Service"${type==='Service'?' selected':''}>Service</option>
+            <option value="Retrofit"${type==='Retrofit'?' selected':''}>Retrofit</option>
+            <option value="Fire-Up"${type==='Fire-Up'?' selected':''}>Fire-Up</option>
+            <option value="DHP Install"${type==='DHP Install'?' selected':''}>DHP Install</option>
+            <option value="Ducting Install"${type==='Ducting Install'?' selected':''}>Ducting Install</option>
+            <option value="Punch-List"${type==='Punch-List'?' selected':''}>Punch-List</option>
+            <option value="Walk"${type==='Walk'?' selected':''}>Walk</option>
           </select>
         </span>
       </div>
@@ -1354,9 +1373,14 @@ function renderDetailBody(jobId) {
             <option value=""${!nextType?' selected':''}>— None —</option>
             <option value="Rough-In"${nextType==='Rough-In'?' selected':''}>Rough-In</option>
             <option value="Trim-Out"${nextType==='Trim-Out'?' selected':''}>Trim-Out</option>
-            <option value="DHP Install"${nextType==='DHP Install'?' selected':''}>DHP Install</option>
-            <option value="Retrofit"${nextType==='Retrofit'?' selected':''}>Retrofit</option>
             <option value="Clean"${nextType==='Clean'?' selected':''}>Clean</option>
+            <option value="Service"${nextType==='Service'?' selected':''}>Service</option>
+            <option value="Retrofit"${nextType==='Retrofit'?' selected':''}>Retrofit</option>
+            <option value="Fire-Up"${nextType==='Fire-Up'?' selected':''}>Fire-Up</option>
+            <option value="DHP Install"${nextType==='DHP Install'?' selected':''}>DHP Install</option>
+            <option value="Ducting Install"${nextType==='Ducting Install'?' selected':''}>Ducting Install</option>
+            <option value="Punch-List"${nextType==='Punch-List'?' selected':''}>Punch-List</option>
+            <option value="Walk"${nextType==='Walk'?' selected':''}>Walk</option>
           </select>
         </span>
       </div>
