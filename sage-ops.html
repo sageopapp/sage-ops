@@ -172,6 +172,8 @@
   .btn-complete:hover { background: var(--accent-light); }
   .btn-revert { width: 100%; padding: 10px; background: none; border: 1px solid var(--border-strong); color: var(--text-muted); border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; cursor: pointer; margin-top: 4px; }
   .btn-revert:hover { border-color: var(--warn); color: var(--warn); background: var(--warn-light); }
+  .btn-delete-job { width: 100%; padding: 10px; background: none; border: 1px solid var(--border); color: var(--text-faint); border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; cursor: pointer; margin-top: 20px; }
+  .btn-delete-job:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-light); }
 
   /* CONFIRM MODAL */
   .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; padding: 24px; }
@@ -276,8 +278,16 @@
   .detail-note-block.empty { color: var(--text-faint); font-style: italic; }
 
   @media (max-width: 600px) {
-    .cal-cell { min-height: 56px; padding: 4px 5px; }
-    .cal-event { font-size: 9px; }
+    #app { padding: 0 8px 40px; }
+    .cal-grid { gap: 2px; }
+    .cal-cell { min-height: 56px; padding: 3px 3px; overflow: hidden; }
+    .cal-day-label { font-size: 10px; padding: 4px 0; }
+    .cal-num { font-size: 11px; margin-bottom: 2px; }
+    .cal-event { font-size: 9px; padding: 1px 3px; }
+    /* Tighter spans on mobile to prevent overflow */
+    .cal-event.span-start { margin-right: -4px; padding-right: 5px; }
+    .cal-event.span-mid { margin-left: -4px; margin-right: -4px; padding-left: 5px; padding-right: 5px; }
+    .cal-event.span-end { margin-left: -4px; padding-left: 5px; }
     nav button { padding: 10px 10px; font-size: 13px; }
     .detail-panel { max-width: 100%; }
   }
@@ -325,8 +335,8 @@
       <h2 id="cal-title"></h2>
       <button class="cal-arrow" onclick="changeMonth(1)">›</button>
     </div>
-    <div style="margin-bottom: 14px;">
-      <button class="btn-sm btn-sm-accent" onclick="openNewJobModal()" style="padding: 8px 14px;">+ New Job</button>
+    <div style="text-align:center;margin-bottom: 12px;">
+      <button class="btn-sm btn-sm-ghost" onclick="openNewJobModal()" style="padding: 5px 12px;font-size:12px;">+ New Job</button>
     </div>
     <div class="cal-grid" id="cal-labels"></div>
     <div class="cal-grid" id="cal-body"></div>
@@ -348,8 +358,8 @@
   </div>
 
   <div id="view-jobs" class="view">
-    <div style="margin-bottom: 14px;">
-      <button class="btn-sm btn-sm-accent" onclick="openNewJobModal()" style="padding: 8px 14px;">+ New Job</button>
+    <div style="text-align:center;margin-bottom: 12px;">
+      <button class="btn-sm btn-sm-ghost" onclick="openNewJobModal()" style="padding: 5px 12px;font-size:12px;">+ New Job</button>
     </div>
     <div class="stats" id="jobs-stats"></div>
     <div id="jobs-body"></div>
@@ -457,6 +467,21 @@
     <div class="modal-btns" style="margin-top:20px;">
       <button class="btn-cancel" onclick="closeNewJobModal()">Cancel</button>
       <button class="btn-sm btn-sm-accent" onclick="saveNewJob()" style="padding:10px 20px;">Create job</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE JOB CONFIRM MODAL -->
+<div class="modal-bg" id="delete-job-modal">
+  <div class="modal">
+    <h3>Delete this job?</h3>
+    <p id="delete-job-msg"></p>
+    <div style="background:var(--danger-light);border:1px solid var(--danger);border-radius:var(--radius-sm);padding:10px 12px;font-size:12px;color:var(--danger);margin-bottom:18px;">
+      <strong>This cannot be undone.</strong> The job record and all linked items will be permanently removed from Airtable. Inventory counts won't be restored — adjust manually if needed.
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeDeleteJobModal()">Cancel</button>
+      <button class="btn-danger" onclick="confirmDeleteJob()">Delete permanently</button>
     </div>
   </div>
 </div>
@@ -1332,6 +1357,8 @@ function renderDetailBody(jobId) {
       <div style="text-align:center;padding:12px 0 8px;font-size:14px;color:var(--accent);font-weight:500;">✓ Job complete</div>
       <button class="btn-revert" onclick="revertComplete('${jobId}')">↺ Revert to active</button>
     `}
+
+    <button class="btn-delete-job" onclick="startDeleteJob('${jobId}')">🗑 Delete job</button>
   `;
 }
 
@@ -1546,6 +1573,70 @@ async function saveNewJob() {
     openDetail(newJob.id);
   } catch(e) {
     njShowError('Could not create job. Check your connection and try again.');
+  }
+}
+
+// ── DELETE JOB ──
+let pendingDeleteJobId = null;
+
+function startDeleteJob(jobId) {
+  const job = jobs.find(j=>j.id===jobId);
+  if (!job) return;
+  const jobName = f(job, F.job_name) || 'this job';
+  // Count linked items
+  const linkedItems = items.filter(item => {
+    const owners = f(item, F.item_owner);
+    if (!Array.isArray(owners)) return false;
+    return owners.some(o => (typeof o==='string'?o:o.id) === jobId);
+  });
+  const itemCount = linkedItems.length;
+  pendingDeleteJobId = jobId;
+  let msg = `Delete `;
+  msg += jobName;
+  msg += ' from the schedule';
+  if (itemCount > 0) {
+    msg += ` along with ${itemCount} linked item${itemCount===1?'':'s'}`;
+  }
+  msg += '?';
+  document.getElementById('delete-job-msg').textContent = msg;
+  document.getElementById('delete-job-modal').classList.add('open');
+}
+
+function closeDeleteJobModal() {
+  document.getElementById('delete-job-modal').classList.remove('open');
+  pendingDeleteJobId = null;
+}
+
+async function confirmDeleteJob() {
+  if (!pendingDeleteJobId) return;
+  const jobId = pendingDeleteJobId;
+  try {
+    // Delete all linked items first
+    const linkedItems = items.filter(item => {
+      const owners = f(item, F.item_owner);
+      if (!Array.isArray(owners)) return false;
+      return owners.some(o => (typeof o==='string'?o:o.id) === jobId);
+    });
+    for (const item of linkedItems) {
+      await deleteRecord(ITEMS_TBL, item.id);
+    }
+    // Then delete the job
+    await deleteRecord(JOBS_TBL, jobId);
+    // Update local state
+    items = items.filter(i => {
+      const owners = f(i, F.item_owner);
+      if (!Array.isArray(owners)) return true;
+      return !owners.some(o => (typeof o==='string'?o:o.id) === jobId);
+    });
+    jobs = jobs.filter(j => j.id !== jobId);
+    closeDeleteJobModal();
+    closeDetail();
+    renderCalendar();
+    renderLoadList();
+    renderJobs();
+  } catch(e) {
+    alert('Could not delete job. Check your connection and try again.');
+    closeDeleteJobModal();
   }
 }
 
