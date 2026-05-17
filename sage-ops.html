@@ -57,14 +57,14 @@
   .cal-arrow.drop-armed { background: var(--accent); color: white; border-color: var(--accent); transform: scale(1.1); }
   .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
   .cal-day-label { text-align: center; font-size: 11px; font-weight: 600; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 0; }
-  .cal-cell { min-height: 80px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 7px; transition: background 0.1s, border-color 0.1s; }
+  .cal-cell { min-height: 80px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 7px; transition: background 0.1s, border-color 0.1s; -webkit-tap-highlight-color: transparent; }
   .cal-cell.other-month { background: var(--bg); }
   .cal-cell.today { border-color: var(--accent); background: var(--accent-light); }
   .cal-cell.drop-valid { background: var(--accent-light); border-color: var(--accent); border-style: dashed; }
   .cal-cell.drop-invalid { background: var(--danger-light); border-color: var(--danger); border-style: dashed; cursor: not-allowed; }
   .cal-num { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; font-weight: 500; }
   .cal-cell.today .cal-num { color: var(--accent-text); font-weight: 700; }
-  .cal-event { font-size: 10px; font-weight: 500; background: var(--info-light); color: var(--info); border-radius: 3px; padding: 2px 5px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: grab; user-select: none; touch-action: none; }
+  .cal-event { font-size: 10px; font-weight: 500; background: var(--info-light); color: var(--info); border-radius: 3px; padding: 2px 5px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: grab; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; touch-action: none; }
   .cal-event:hover { opacity: 0.75; }
   .cal-event:active { cursor: grabbing; }
   .cal-event.dragging { opacity: 0.4; }
