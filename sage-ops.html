@@ -645,7 +645,7 @@ async function createRecord(table, fields) {
   const res = await fetch(`https://api.airtable.com/v0/${BASE_ID}/${table}`, {
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields })
+    body: JSON.stringify({ fields, typecast: true })
   });
   if (!res.ok) throw new Error('Create failed');
   return res.json();
@@ -1325,13 +1325,29 @@ function renderDetailBody(jobId) {
 
   let addFormHtml = '';
   if (showAddMat) {
-    const skuOptions = skus.map(s=>`<option value="${s.id}">${f(s,F.sku_name)||'SKU'}</option>`).join('');
+    const skuOptions = skus.map(s=>{
+      const sn = f(s,F.sku_name)||'SKU';
+      const su = f(s,F.sku_unit)||'';
+      return `<option value="${s.id}" data-unit="${escapeHtml(su)}">${escapeHtml(sn)}${su?' ('+escapeHtml(su)+')':''}</option>`;
+    }).join('');
     addFormHtml = `<div class="add-mat-form">
-      <select id="mat-sku">
+      <select id="mat-sku" onchange="updateMatQtyUnit()">
         <option value="">Select a stock item...</option>
         ${skuOptions}
       </select>
-      <input type="number" id="mat-qty" placeholder="Quantity" min="0.1" step="0.1" />
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+        <input type="number" id="mat-qty" placeholder="Quantity" min="0.1" step="0.1" style="flex:1;margin-bottom:0;" />
+        <select id="mat-qty-unit" style="width:auto;margin-bottom:0;padding:8px 8px;">
+          <option value="">—</option>
+          <option value="ft">ft</option>
+          <option value="roll">roll</option>
+          <option value="each">each</option>
+          <option value="board">board</option>
+          <option value="box">box</option>
+          <option value="bag">bag</option>
+          <option value="pack">pack</option>
+        </select>
+      </div>
       <div class="add-mat-btns">
         <button class="btn-sm btn-sm-accent" onclick="saveMaterial('${jobId}')">Add to job</button>
         <button class="btn-sm btn-sm-ghost" onclick="showAddMat=false;renderDetailBody('${jobId}')">Cancel</button>
@@ -1484,22 +1500,49 @@ function renderDetailBody(jobId) {
   `;
 }
 
+function updateMatQtyUnit() {
+  const sel = document.getElementById('mat-sku');
+  const opt = sel.options[sel.selectedIndex];
+  const unit = opt ? (opt.getAttribute('data-unit') || '') : '';
+  const unitEl = document.getElementById('mat-qty-unit');
+  if (unitEl) {
+    // Default to SKU's unit. If unit isn't a known option, add it dynamically.
+    if (unit) {
+      const exists = Array.from(unitEl.options).some(o => o.value === unit);
+      if (!exists) {
+        const newOpt = document.createElement('option');
+        newOpt.value = unit; newOpt.textContent = unit;
+        unitEl.appendChild(newOpt);
+      }
+      unitEl.value = unit;
+    } else {
+      unitEl.value = '';
+    }
+  }
+  // Update qty input placeholder
+  const qtyEl = document.getElementById('mat-qty');
+  if (qtyEl) qtyEl.placeholder = unit ? `Quantity (${unit})` : 'Quantity';
+}
+
 async function saveMaterial(jobId) {
   const skuId = document.getElementById('mat-sku').value;
   const qty = parseFloat(document.getElementById('mat-qty').value);
+  const chosenUnit = document.getElementById('mat-qty-unit').value;
   if (!skuId) { alert('Please select a stock item.'); return; }
   if (!qty || qty <= 0) { alert('Please enter a valid quantity.'); return; }
   const sku = skus.find(s=>s.id===skuId);
   if (!sku) return;
   const skuName = f(sku,F.sku_name)||'Material';
   try {
-    const newItem = await createRecord(ITEMS_TBL, {
+    const fields = {
       'Model number': skuName,
       'Quantity': qty,
       'Status': 'Allocated',
       'Owner': [jobId],
       'Stock SKU': [skuId],
-    });
+    };
+    if (chosenUnit) fields['Unit'] = chosenUnit;
+    const newItem = await createRecord(ITEMS_TBL, fields);
     items.push(newItem);
     showAddMat = false;
     renderDetailBody(jobId);
