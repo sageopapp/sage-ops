@@ -325,6 +325,9 @@
       <h2 id="cal-title"></h2>
       <button class="cal-arrow" onclick="changeMonth(1)">›</button>
     </div>
+    <div style="margin-bottom: 14px;">
+      <button class="btn-sm btn-sm-accent" onclick="openNewJobModal()" style="padding: 8px 14px;">+ New Job</button>
+    </div>
     <div class="cal-grid" id="cal-labels"></div>
     <div class="cal-grid" id="cal-body"></div>
   </div>
@@ -345,6 +348,9 @@
   </div>
 
   <div id="view-jobs" class="view">
+    <div style="margin-bottom: 14px;">
+      <button class="btn-sm btn-sm-accent" onclick="openNewJobModal()" style="padding: 8px 14px;">+ New Job</button>
+    </div>
     <div class="stats" id="jobs-stats"></div>
     <div id="jobs-body"></div>
   </div>
@@ -392,6 +398,65 @@
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeMoveModal()">Cancel</button>
       <button class="btn-sm btn-sm-accent" onclick="confirmMove()" style="padding:10px 20px;">Move job</button>
+    </div>
+  </div>
+</div>
+
+<!-- NEW JOB MODAL -->
+<div class="modal-bg" id="new-job-modal">
+  <div class="modal" style="max-width:520px;">
+    <h3>Schedule new job</h3>
+    <p>Add a job to the schedule. You can update details, add items, and notes after creating.</p>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Customer / Job name *</label>
+        <input type="text" id="nj-name" placeholder="e.g. Smith residence" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Start date</label>
+          <input type="date" id="nj-start" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+        </div>
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">End date <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
+          <input type="date" id="nj-end" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Visit type</label>
+          <select id="nj-visit-type" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+            <option value="">— None —</option>
+            <option value="Rough-In">Rough-In</option>
+            <option value="Trim-Out">Trim-Out</option>
+            <option value="DHP Install">DHP Install</option>
+            <option value="Retrofit">Retrofit</option>
+            <option value="Clean">Clean</option>
+          </select>
+        </div>
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Type <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
+          <select id="nj-type" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+            <option value="">— None —</option>
+            <option value="Install (DHP)">Install (DHP)</option>
+            <option value="Retrofit">Retrofit</option>
+            <option value="Clean">Clean</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Visit plan <span style="font-weight:400;color:var(--text-faint);">(optional, free text)</span></label>
+        <input type="text" id="nj-visit-plan" placeholder="e.g. Trim-Out Tue 5/26, MXZ-4D30NL + 3 heads" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Jobsite notes <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
+        <textarea id="nj-detail-notes" rows="2" placeholder="Anything Tyler needs to know" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;font-family:inherit;resize:vertical;"></textarea>
+      </div>
+    </div>
+    <div id="nj-error" style="display:none;color:var(--danger);font-size:13px;margin-top:14px;background:var(--danger-light);padding:8px 12px;border-radius:var(--radius-sm);"></div>
+    <div class="modal-btns" style="margin-top:20px;">
+      <button class="btn-cancel" onclick="closeNewJobModal()">Cancel</button>
+      <button class="btn-sm btn-sm-accent" onclick="saveNewJob()" style="padding:10px 20px;">Create job</button>
     </div>
   </div>
 </div>
@@ -1419,6 +1484,68 @@ async function updateEndDate(jobId, newDate) {
   } catch(e) {
     alert('Could not save end date. Check your connection.');
     renderDetailBody(jobId);
+  }
+}
+
+// ── NEW JOB ──
+function openNewJobModal() {
+  document.getElementById('nj-name').value = '';
+  document.getElementById('nj-start').value = '';
+  document.getElementById('nj-end').value = '';
+  document.getElementById('nj-visit-type').value = '';
+  document.getElementById('nj-type').value = '';
+  document.getElementById('nj-visit-plan').value = '';
+  document.getElementById('nj-detail-notes').value = '';
+  document.getElementById('nj-error').style.display = 'none';
+  document.getElementById('new-job-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('nj-name').focus(), 50);
+}
+
+function closeNewJobModal() {
+  document.getElementById('new-job-modal').classList.remove('open');
+}
+
+function njShowError(msg) {
+  const el = document.getElementById('nj-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+async function saveNewJob() {
+  const name = document.getElementById('nj-name').value.trim();
+  const startDate = document.getElementById('nj-start').value;
+  const endDate = document.getElementById('nj-end').value;
+  const visitType = document.getElementById('nj-visit-type').value;
+  const jobType = document.getElementById('nj-type').value;
+  const visitPlan = document.getElementById('nj-visit-plan').value.trim();
+  const detailNotes = document.getElementById('nj-detail-notes').value.trim();
+
+  if (!name) { njShowError('Please enter a customer / job name.'); return; }
+  if (endDate && startDate) {
+    const sd = parseDate(startDate), ed = parseDate(endDate);
+    if (sd && ed && ed < sd) { njShowError('End date cannot be before start date.'); return; }
+  }
+  if (endDate && !startDate) { njShowError('Please set a start date before adding an end date.'); return; }
+
+  const fields = { 'Name': name, 'Status': 'Active' };
+  if (startDate) fields['Next visit date'] = startDate;
+  if (endDate) fields['End Date'] = endDate;
+  if (visitType) fields['Next visit type'] = visitType;
+  if (jobType) fields['Type'] = jobType;
+  if (visitPlan) fields['Visit plan'] = visitPlan;
+  if (detailNotes) fields['Detail Notes'] = detailNotes;
+
+  try {
+    const newJob = await createRecord(JOBS_TBL, fields);
+    jobs.push(newJob);
+    closeNewJobModal();
+    renderCalendar();
+    renderLoadList();
+    renderJobs();
+    // Open detail panel for the new job
+    openDetail(newJob.id);
+  } catch(e) {
+    njShowError('Could not create job. Check your connection and try again.');
   }
 }
 
