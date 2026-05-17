@@ -1312,20 +1312,61 @@ function renderDetailBody(jobId) {
   document.getElementById('detail-body').innerHTML = `
     <div class="detail-section">
       <div class="detail-section-title">Job info</div>
-      ${[
-        ['Status', status], ['Type', type],
-        ['Scheduled', scheduled || fmtDate(nextDate) || '—'],
-        ['Visit type', nextType || '—'],
-        ['Visit plan', visitPlan || '—'],
-      ].map(([l,v])=>`<div class="detail-field"><span class="detail-field-label">${l}</span><span class="detail-field-val">${v}</span></div>`).join('')}
+      <div class="detail-field" style="align-items:center;">
+        <span class="detail-field-label">Status</span>
+        <span class="detail-field-val">
+          <select onchange="updateJobField('${jobId}','Status',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">
+            <option value="Active"${status==='Active'?' selected':''}>Active</option>
+            <option value="Awaiting fire-up"${status==='Awaiting fire-up'?' selected':''}>Awaiting fire-up</option>
+            <option value="Complete"${status==='Complete'?' selected':''}>Complete</option>
+          </select>
+        </span>
+      </div>
+      <div class="detail-field" style="align-items:center;">
+        <span class="detail-field-label">Type</span>
+        <span class="detail-field-val">
+          <select onchange="updateJobField('${jobId}','Type',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">
+            <option value=""${!type?' selected':''}>— None —</option>
+            <option value="Install (DHP)"${type==='Install (DHP)'?' selected':''}>Install (DHP)</option>
+            <option value="Retrofit"${type==='Retrofit'?' selected':''}>Retrofit</option>
+            <option value="Clean"${type==='Clean'?' selected':''}>Clean</option>
+          </select>
+        </span>
+      </div>
+      <div class="detail-field" style="align-items:center;">
+        <span class="detail-field-label">Start date</span>
+        <span class="detail-field-val" style="display:flex;align-items:center;gap:6px;">
+          <input type="date" value="${nextDate||''}" onchange="updateStartDate('${jobId}', this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;" />
+          ${nextDate?`<button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:3px 8px;" onclick="updateStartDate('${jobId}','')" title="Clear start date">×</button>`:''}
+        </span>
+      </div>
       <div class="detail-field" style="align-items:center;">
         <span class="detail-field-label">End date</span>
         <span class="detail-field-val" style="display:flex;align-items:center;gap:6px;">
-          <input type="date" id="end-date-input-${jobId}" value="${endDate}" ${!nextDate?'disabled':''} onchange="updateEndDate('${jobId}', this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;" />
+          <input type="date" value="${endDate}" ${!nextDate?'disabled':''} onchange="updateEndDate('${jobId}', this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;" />
           ${endDate?`<button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:3px 8px;" onclick="updateEndDate('${jobId}','')" title="Clear end date">×</button>`:''}
         </span>
       </div>
-      ${!nextDate?`<div style="font-size:11px;color:var(--text-faint);padding:4px 0;font-style:italic;">Set a start date (Next visit date) before setting end date.</div>`:''}
+      <div class="detail-field" style="align-items:center;">
+        <span class="detail-field-label">Visit type</span>
+        <span class="detail-field-val">
+          <select onchange="updateJobField('${jobId}','Next visit type',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">
+            <option value=""${!nextType?' selected':''}>— None —</option>
+            <option value="Rough-In"${nextType==='Rough-In'?' selected':''}>Rough-In</option>
+            <option value="Trim-Out"${nextType==='Trim-Out'?' selected':''}>Trim-Out</option>
+            <option value="DHP Install"${nextType==='DHP Install'?' selected':''}>DHP Install</option>
+            <option value="Retrofit"${nextType==='Retrofit'?' selected':''}>Retrofit</option>
+            <option value="Clean"${nextType==='Clean'?' selected':''}>Clean</option>
+          </select>
+        </span>
+      </div>
+      <div class="detail-field" style="align-items:center;">
+        <span class="detail-field-label">Visit plan</span>
+        <span class="detail-field-val" style="flex:1;max-width:60%;">
+          <input type="text" value="${escapeHtml(visitPlan).replace(/"/g,'&quot;')}" placeholder="—" onchange="updateJobField('${jobId}','Visit plan',this.value)" style="width:100%;font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;text-align:right;" />
+        </span>
+      </div>
+      ${!nextDate?`<div style="font-size:11px;color:var(--text-faint);padding:4px 0;font-style:italic;">Set a start date before setting end date.</div>`:''}
       ${endDate && nextDate ? `<div style="font-size:11px;color:var(--text-muted);padding:4px 0;">${(() => { const sd=parseDate(nextDate),ed=parseDate(endDate); if (!sd||!ed) return ''; const days=Math.round((ed-sd)/86400000)+1; return days>0?`Multi-day job: ${days} day${days===1?'':'s'} (${fmtDate(nextDate)} → ${fmtDate(endDate)})`:'⚠ End date is before start date'; })()}</div>`:''}
     </div>
 
@@ -1495,7 +1536,20 @@ async function updateEndDate(jobId, newDate) {
   if (newDate && start) {
     const sd = parseDate(start), ed = parseDate(newDate);
     if (sd && ed && ed < sd) {
-      alert('End date cannot be before the start date.');
+      const proceed = confirm(`End date (${fmtDate(newDate)}) is before start date (${fmtDate(start)}).\n\nClick OK to also move the start date to ${fmtDate(newDate)}, or Cancel to fix manually.`);
+      if (proceed) {
+        // Auto-fix: set both start and end to newDate
+        try {
+          await patchRecord(JOBS_TBL, jobId, { 'Next visit date': newDate, 'End Date': newDate });
+          job.fields[F.job_next_date] = newDate;
+          job.fields[F.job_end_date] = newDate;
+          renderDetailBody(jobId);
+          renderCalendar();
+          renderLoadList();
+          renderJobs();
+        } catch(e) { alert('Could not save. Check your connection.'); renderDetailBody(jobId); }
+        return;
+      }
       renderDetailBody(jobId);
       return;
     }
@@ -1510,6 +1564,57 @@ async function updateEndDate(jobId, newDate) {
     renderLoadList();
   } catch(e) {
     alert('Could not save end date. Check your connection.');
+    renderDetailBody(jobId);
+  }
+}
+
+// ── START DATE UPDATE (from detail panel) ──
+async function updateStartDate(jobId, newDate) {
+  const job = jobs.find(j=>j.id===jobId);
+  if (!job) return;
+  const endDate = f(job, F.job_end_date);
+  // If clearing the start date, also clear the end date (end can't exist without start)
+  // If setting a start date and there's an end date, validate that end >= new start
+  if (newDate && endDate) {
+    const sd = parseDate(newDate), ed = parseDate(endDate);
+    if (sd && ed && ed < sd) {
+      alert('Start date cannot be after the end date. Clear or update the end date first.');
+      renderDetailBody(jobId);
+      return;
+    }
+  }
+  try {
+    const fieldVal = newDate || null;
+    const updates = { 'Next visit date': fieldVal };
+    // If we're clearing the start date, also clear the end date
+    if (!newDate && endDate) updates['End Date'] = null;
+    await patchRecord(JOBS_TBL, jobId, updates);
+    job.fields[F.job_next_date] = fieldVal;
+    if (!newDate && endDate) job.fields[F.job_end_date] = null;
+    renderDetailBody(jobId);
+    renderCalendar();
+    renderLoadList();
+    renderJobs();
+  } catch(e) {
+    alert('Could not save start date. Check your connection.');
+    renderDetailBody(jobId);
+  }
+}
+
+// ── GENERIC JOB FIELD UPDATE (Status, Type, Next visit type, Visit plan) ──
+async function updateJobField(jobId, fieldName, newValue) {
+  const job = jobs.find(j=>j.id===jobId);
+  if (!job) return;
+  try {
+    const fieldVal = newValue === '' ? null : newValue;
+    await patchRecord(JOBS_TBL, jobId, { [fieldName]: fieldVal });
+    job.fields[fieldName] = fieldVal;
+    renderDetailBody(jobId);
+    renderCalendar();
+    renderLoadList();
+    renderJobs();
+  } catch(e) {
+    alert('Could not save. Check your connection.');
     renderDetailBody(jobId);
   }
 }
