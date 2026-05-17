@@ -73,7 +73,8 @@
   .cal-event.span-mid { border-radius: 0; margin-left: -8px; margin-right: -8px; padding-left: 11px; padding-right: 11px; color: transparent; }
   .cal-event.span-end { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -8px; padding-left: 11px; color: transparent; }
   .cal-event-ghost { position: fixed; pointer-events: none; z-index: 9999; background: var(--info); color: white; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); transform: translate(-50%, -50%); }
-  .cal-more { font-size: 10px; color: var(--text-faint); }
+  .cal-more { font-size: 10px; color: var(--text-faint); cursor: pointer; padding: 1px 3px; border-radius: 3px; transition: background 0.1s, color 0.1s; }
+  .cal-more:hover { background: var(--info-light); color: var(--info); }
 
   /* LOAD LIST */
   .load-controls { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
@@ -493,6 +494,17 @@
     <div class="modal-btns" style="margin-top:20px;">
       <button class="btn-cancel" onclick="closeNewJobModal()">Cancel</button>
       <button class="btn-sm btn-sm-accent" onclick="saveNewJob()" style="padding:10px 20px;">Create job</button>
+    </div>
+  </div>
+</div>
+
+<!-- DAY JOBS MODAL (when clicking +N more) -->
+<div class="modal-bg" id="day-jobs-modal">
+  <div class="modal" style="max-width:380px;">
+    <h3 id="day-jobs-title">Jobs</h3>
+    <div id="day-jobs-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px;"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeDayJobsModal()">Close</button>
     </div>
   </div>
 </div>
@@ -1077,7 +1089,7 @@ function renderCalendar() {
     }).join('');
     html+=`<div class="cal-cell${isToday?' today':''}" data-date="${ds}" data-past="${isPast?'1':'0'}"><div class="cal-num">${d}</div>
       ${eventsHtml}
-      ${dayJobs.length>2?`<div class="cal-more">+${dayJobs.length-2} more</div>`:''}
+      ${dayJobs.length>2?`<div class="cal-more" onclick="showDayJobs('${ds}')">+${dayJobs.length-2} more</div>`:''}
     </div>`;
   }
   const used=firstDay+daysInMonth; const tail=used%7===0?0:7-(used%7);
@@ -1682,6 +1694,41 @@ async function updateJobField(jobId, fieldName, newValue) {
     alert('Could not save. Check your connection.');
     renderDetailBody(jobId);
   }
+}
+
+// ── DAY JOBS MODAL (shows all jobs on a given date) ──
+function showDayJobs(dateStr) {
+  // Find all jobs on this date (including multi-day jobs that span this date)
+  const matches = [];
+  jobs.forEach(j => {
+    const spans = jobSpanDates(j);
+    const hit = spans.find(s => s.date === dateStr);
+    if (hit) matches.push({ job: j, entry: hit });
+  });
+  if (!matches.length) return;
+  // Format title
+  const d = parseDate(dateStr);
+  const dayName = d ? d.toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}) : dateStr;
+  document.getElementById('day-jobs-title').textContent = `Jobs on ${dayName}`;
+  // Build list
+  const listEl = document.getElementById('day-jobs-list');
+  listEl.innerHTML = matches.map(m => {
+    const j = m.job;
+    const name = escapeHtml(f(j, F.job_name) || 'Unnamed');
+    const vt = f(j, F.job_next_type) || '';
+    const spans = jobSpanDates(j);
+    const isMulti = spans.length > 1;
+    const dayLabel = isMulti ? ` (day ${spans.findIndex(s => s.date === dateStr)+1} of ${spans.length})` : '';
+    return `<button onclick="closeDayJobsModal();openDetail('${j.id}')" style="text-align:left;padding:10px 12px;background:var(--info-light);color:var(--info);border:none;border-radius:var(--radius-sm);font-size:14px;font-weight:500;cursor:pointer;display:flex;flex-direction:column;gap:2px;">
+      <div>${name}${dayLabel}</div>
+      ${vt?`<div style="font-size:11px;color:var(--text-muted);font-weight:400;">${escapeHtml(vt)}</div>`:''}
+    </button>`;
+  }).join('');
+  document.getElementById('day-jobs-modal').classList.add('open');
+}
+
+function closeDayJobsModal() {
+  document.getElementById('day-jobs-modal').classList.remove('open');
 }
 
 // ── NEW JOB ──
