@@ -68,6 +68,10 @@
   .cal-event:hover { opacity: 0.75; }
   .cal-event:active { cursor: grabbing; }
   .cal-event.dragging { opacity: 0.4; }
+  /* Multi-day spanning bar — flat edges on the side that continues to adjacent day */
+  .cal-event.span-start { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: -8px; padding-right: 11px; position: relative; z-index: 2; }
+  .cal-event.span-mid { border-radius: 0; margin-left: -8px; margin-right: -8px; padding-left: 11px; padding-right: 11px; color: transparent; }
+  .cal-event.span-end { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -8px; padding-left: 11px; color: transparent; }
   .cal-event-ghost { position: fixed; pointer-events: none; z-index: 9999; background: var(--info); color: white; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); transform: translate(-50%, -50%); }
   .cal-more { font-size: 10px; color: var(--text-faint); }
 
@@ -441,7 +445,7 @@ const SKUS_TBL = 'tblZ8EMxOtJlr3Mv2';
 const F = {
   job_name: 'Name', job_type: 'Type', job_status: 'Status',
   job_visit_plan: 'Visit plan', job_next_type: 'Next visit type',
-  job_next_date: 'Next visit date', job_items: 'Items',
+  job_next_date: 'Next visit date', job_end_date: 'End date', job_items: 'Items',
   job_readiness: 'Readiness', job_scheduled: 'Scheduled visit',
   job_comments: 'Comments / Questions', job_materials: 'Per-visit Materials',
   job_detail_notes: 'Detail Notes',
@@ -462,10 +466,10 @@ let checkedLocally = {};
 let currentJobId = null, completeJobId = null;
 let showAddMat = false;
 let showCompleted = false;
-let invEditState = null;
-let noteEditState = null;
-let walkState = null;
-let tentVerifyState = null;
+let invEditState = null; // {skuId, locField, locLabel, skuName}
+let noteEditState = null; // {jobId, field, label, jobName, returnTo}
+let walkState = null; // {locField, locLabel, index, total}
+let tentVerifyState = null; // {itemIds, index, results}
 const LOCATIONS = [
   { field: 'On-hand (Barn)', label: 'Barn' },
   { field: 'On-hand (Inventory Tent)', label: 'Inventory Tent' },
@@ -573,6 +577,7 @@ function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&l
 
 function renderAll() { renderCalendar(); renderLoadList(); renderJobs(); renderInventory(); }
 
+// ── CALENDAR ──
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
@@ -583,15 +588,18 @@ function changeMonth(dir) {
   renderCalendar();
 }
 
-let dragState = null;
-let pendingMove = null;
+// ── CALENDAR DRAG-AND-DROP ──
+let dragState = null; // {jobId, fromDate, ghostEl, startX, startY, moved}
+let pendingMove = null; // {jobId, fromDate, toDate, jobName}
 let arrowHoverTimer = null;
 
 function attachCalendarDragHandlers() {
+  // DESKTOP: HTML5 drag-and-drop on .cal-event
   document.querySelectorAll('#cal-body .cal-event').forEach(el => {
     el.addEventListener('dragstart', onCalDragStart);
     el.addEventListener('dragend', onCalDragEnd);
     el.addEventListener('click', onCalEventClick);
+    // MOBILE: long-press touch
     el.addEventListener('touchstart', onCalTouchStart, {passive: false});
   });
   document.querySelectorAll('#cal-body .cal-cell').forEach(el => {
@@ -599,6 +607,7 @@ function attachCalendarDragHandlers() {
     el.addEventListener('dragleave', onCalDragLeave);
     el.addEventListener('drop', onCalDrop);
   });
+  // Arrow drop-zones
   document.querySelectorAll('.cal-arrow').forEach(el => {
     el.addEventListener('dragover', onArrowDragOver);
     el.addEventListener('dragleave', onArrowDragLeave);
@@ -606,11 +615,13 @@ function attachCalendarDragHandlers() {
 }
 
 function onCalEventClick(e) {
+  // Distinguish click from drag: if dragState says we moved, swallow the click
   if (dragState && dragState.moved) { e.stopPropagation(); return; }
   const jobId = e.currentTarget.dataset.jobId;
   if (jobId) openDetail(jobId);
 }
 
+// ── DESKTOP DRAG ──
 function onCalDragStart(e) {
   const el = e.currentTarget;
   const jobId = el.dataset.jobId;
@@ -625,7 +636,7 @@ function onCalDragEnd(e) {
   e.currentTarget.classList.remove('dragging');
   clearDropHighlights();
   cancelArrowHover();
-  setTimeout(()=>{ dragState = null; }, 50);
+  setTimeout(()=>{ dragState = null; }, 50); // let click handler check moved flag
 }
 
 function onCalDragOver(e) {
@@ -637,7 +648,7 @@ function onCalDragOver(e) {
   const toDate = cell.dataset.date;
   const sameDay = toDate === dragState.fromDate;
   clearDropHighlights();
-  if (sameDay) return;
+  if (sameDay) return; // no highlight for same day
   if (isPast) {
     cell.classList.add('drop-invalid');
     e.dataTransfer.dropEffect = 'none';
@@ -693,6 +704,7 @@ function clearDropHighlights() {
   document.querySelectorAll('.cal-cell.drop-valid, .cal-cell.drop-invalid').forEach(c=>c.classList.remove('drop-valid','drop-invalid'));
 }
 
+// ── MOBILE TOUCH (long-press to pick up) ──
 let touchTimer = null;
 let touchEl = null;
 
@@ -704,6 +716,7 @@ function onCalTouchStart(e) {
   const jobId = touchEl.dataset.jobId;
   const fromDate = touchEl.dataset.fromDate;
   touchTimer = setTimeout(() => {
+    // Activated long-press: start drag
     if (navigator.vibrate) navigator.vibrate(30);
     dragState = { jobId, fromDate, moved: true, ghostEl: null, isTouch: true };
     const ghost = document.createElement('div');
@@ -719,6 +732,7 @@ function onCalTouchStart(e) {
     document.addEventListener('touchcancel', onCalTouchEnd);
     touchTimer = null;
   }, 400);
+  // If user moves before long-press triggers, cancel timer (treat as scroll/click)
   const cancelOnMove = (mv) => {
     const t2 = mv.touches[0];
     if (Math.abs(t2.clientX-startX) > 6 || Math.abs(t2.clientY-startY) > 6) {
@@ -742,6 +756,7 @@ function onCalTouchMove(e) {
     dragState.ghostEl.style.left = touch.clientX + 'px';
     dragState.ghostEl.style.top = touch.clientY + 'px';
   }
+  // Find element under finger
   if (dragState.ghostEl) dragState.ghostEl.style.display = 'none';
   const under = document.elementFromPoint(touch.clientX, touch.clientY);
   if (dragState.ghostEl) dragState.ghostEl.style.display = '';
@@ -792,9 +807,11 @@ function onCalTouchEnd(e) {
   if (touchEl) touchEl.classList.remove('dragging');
   clearDropHighlights();
   cancelArrowHover();
+  let droppedOnValidCell = false;
   if (under) {
     const cell = under.closest('.cal-cell');
     if (cell && cell.dataset.past !== '1' && cell.dataset.date !== dragState.fromDate) {
+      droppedOnValidCell = true;
       promptMove(dragState.jobId, dragState.fromDate, cell.dataset.date);
     }
   }
@@ -802,13 +819,42 @@ function onCalTouchEnd(e) {
   dragState = null;
 }
 
+// ── MOVE CONFIRM MODAL ──
 function promptMove(jobId, fromDate, toDate) {
   const job = jobs.find(j=>j.id===jobId);
   if (!job) return;
   const jobName = f(job,F.job_name) || 'Job';
-  pendingMove = { jobId, fromDate, toDate, jobName };
+  const startDate = f(job, F.job_next_date);
+  const endDate = f(job, F.job_end_date) || startDate;
+  const isMultiDay = endDate && endDate !== startDate;
+  // Compute the delta in days between fromDate (where they grabbed) and toDate
+  const fromD = parseDate(fromDate), toD = parseDate(toDate);
+  const deltaDays = Math.round((toD - fromD) / 86400000);
+  // New start = current start + delta, new end = current end + delta
+  const sd = parseDate(startDate);
+  const newStart = new Date(sd.getTime() + deltaDays * 86400000);
+  const newStartStr = ymd(newStart.getFullYear(), newStart.getMonth(), newStart.getDate());
+  let newEndStr = null;
+  if (isMultiDay) {
+    const ed = parseDate(endDate);
+    const newEnd = new Date(ed.getTime() + deltaDays * 86400000);
+    newEndStr = ymd(newEnd.getFullYear(), newEnd.getMonth(), newEnd.getDate());
+  }
+  // Block move if new start would be in the past
+  const t = today0();
+  if (newStart < t) {
+    // Drag was to a past date for the start — should be impossible via UI, but safeguard
+    return;
+  }
+  pendingMove = { jobId, newStart: newStartStr, newEnd: newEndStr, jobName };
   document.getElementById('move-title').textContent = `Move ${jobName}?`;
-  document.getElementById('move-msg').textContent = `From ${fmtDate(fromDate)} → ${fmtDate(toDate)}`;
+  let msg;
+  if (isMultiDay) {
+    msg = `From ${fmtDate(startDate)}–${fmtDate(endDate)} → ${fmtDate(newStartStr)}–${fmtDate(newEndStr)}`;
+  } else {
+    msg = `From ${fmtDate(startDate)} → ${fmtDate(newStartStr)}`;
+  }
+  document.getElementById('move-msg').textContent = msg;
   document.getElementById('move-modal').classList.add('open');
 }
 
@@ -819,11 +865,16 @@ function closeMoveModal() {
 
 async function confirmMove() {
   if (!pendingMove) return;
-  const { jobId, toDate } = pendingMove;
+  const { jobId, newStart, newEnd } = pendingMove;
   try {
-    await patchRecord(JOBS_TBL, jobId, { 'Next visit date': toDate });
+    const updates = { 'Next visit date': newStart };
+    if (newEnd) updates['End date'] = newEnd;
+    await patchRecord(JOBS_TBL, jobId, updates);
     const job = jobs.find(j=>j.id===jobId);
-    if (job) job.fields['Next visit date'] = toDate;
+    if (job) {
+      job.fields['Next visit date'] = newStart;
+      if (newEnd) job.fields['End date'] = newEnd;
+    }
     closeMoveModal();
     renderCalendar();
     renderLoadList();
@@ -834,11 +885,45 @@ async function confirmMove() {
   }
 }
 
+function ymd(y, m, d) {
+  return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+
+// Returns array of {date: 'YYYY-MM-DD', isStart, isEnd, isMid} for each day the job spans
+function jobSpanDates(job) {
+  const start = f(job, F.job_next_date);
+  if (!start) return [];
+  const end = f(job, F.job_end_date) || start;
+  const sd = parseDate(start), ed = parseDate(end);
+  if (!sd || !ed || ed < sd) return [{ date: start, isStart: true, isEnd: true }];
+  const dates = [];
+  const cur = new Date(sd.getTime());
+  while (cur <= ed) {
+    const ds = ymd(cur.getFullYear(), cur.getMonth(), cur.getDate());
+    dates.push({
+      date: ds,
+      isStart: ds === start,
+      isEnd: ymd(cur.getFullYear(), cur.getMonth(), cur.getDate()) === ymd(ed.getFullYear(), ed.getMonth(), ed.getDate()),
+    });
+    cur.setDate(cur.getDate() + 1);
+  }
+  // Mark mid days
+  dates.forEach(d => { if (!d.isStart && !d.isEnd) d.isMid = true; });
+  return dates;
+}
+
 function renderCalendar() {
   document.getElementById('cal-title').textContent = MONTHS[calMonth] + ' ' + calYear;
   document.getElementById('cal-labels').innerHTML = DAYS.map(d=>`<div class="cal-day-label">${d}</div>`).join('');
+  // Build byDate map — each job appears on every date in its span, with positioning info
   const byDate = {};
-  jobs.forEach(j => { const ds = f(j,F.job_next_date); if (!ds) return; if (!byDate[ds]) byDate[ds]=[]; byDate[ds].push(j); });
+  jobs.forEach(j => {
+    const span = jobSpanDates(j);
+    span.forEach(seg => {
+      if (!byDate[seg.date]) byDate[seg.date] = [];
+      byDate[seg.date].push({ job: j, isStart: seg.isStart, isEnd: seg.isEnd, isMid: seg.isMid, fromDate: f(j, F.job_next_date) });
+    });
+  });
   const firstDay = new Date(calYear,calMonth,1).getDay();
   const daysInMonth = new Date(calYear,calMonth+1,0).getDate();
   const prevDays = new Date(calYear,calMonth,0).getDate();
@@ -858,8 +943,23 @@ function renderCalendar() {
     const isToday=cd.getTime()===t.getTime();
     const isPast = cd<t;
     const dayJobs=byDate[ds]||[];
+    const eventsHtml = dayJobs.slice(0,2).map(entry => {
+      const j = entry.job;
+      // Class for span position: spans only get the .span-* class if multi-day
+      let cls = '';
+      if (!entry.isStart || !entry.isEnd) {
+        // Multi-day
+        if (entry.isStart) cls = ' span-start';
+        else if (entry.isEnd) cls = ' span-end';
+        else cls = ' span-mid';
+      }
+      // Only show the name on the first day; mid/end show invisible text so the bar continues but stays the same height
+      const name = f(j, F.job_name) || 'Job';
+      const showName = entry.isStart ? name : name; // text is there but transparent on mid/end via CSS
+      return `<div class="cal-event${cls}" data-job-id="${j.id}" data-from-date="${entry.fromDate}" draggable="true">${showName}</div>`;
+    }).join('');
     html+=`<div class="cal-cell${isToday?' today':''}" data-date="${ds}" data-past="${isPast?'1':'0'}"><div class="cal-num">${d}</div>
-      ${dayJobs.slice(0,2).map(j=>`<div class="cal-event" data-job-id="${j.id}" data-from-date="${ds}" draggable="true">${f(j,F.job_name)||'Job'}</div>`).join('')}
+      ${eventsHtml}
       ${dayJobs.length>2?`<div class="cal-more">+${dayJobs.length-2} more</div>`:''}
     </div>`;
   }
@@ -875,18 +975,28 @@ function renderCalendar() {
   attachCalendarDragHandlers();
 }
 
+// ── LOAD LIST ──
 function renderLoadList() {
   const days = parseInt(document.getElementById('load-window').value);
   const t = today0(); const cutoff = new Date(t); cutoff.setDate(cutoff.getDate()+days);
-  const scheduled = jobs.filter(j => {
+  // Expand each job into (job, displayDate) pairs for each day in span that falls in window
+  const entries = [];
+  jobs.forEach(j => {
     const status = (f(j,F.job_status)||'').toLowerCase();
-    if (status==='complete') return false;
-    const d = parseDate(f(j,F.job_next_date)); if (!d) return false;
-    d.setHours(0,0,0,0); return d>=t && d<cutoff;
-  }).sort((a,b)=>(parseDate(f(a,F.job_next_date))||0)-(parseDate(f(b,F.job_next_date))||0));
+    if (status==='complete') return;
+    const span = jobSpanDates(j);
+    span.forEach((seg, idx) => {
+      const d = parseDate(seg.date); if (!d) return;
+      d.setHours(0,0,0,0);
+      if (d >= t && d < cutoff) {
+        entries.push({ job: j, displayDate: seg.date, totalDays: span.length, dayIdx: idx + 1 });
+      }
+    });
+  });
+  entries.sort((a, b) => (parseDate(a.displayDate) || 0) - (parseDate(b.displayDate) || 0) || (f(a.job,F.job_name)||'').localeCompare(f(b.job,F.job_name)||''));
 
   const body = document.getElementById('loadlist-body');
-  if (!scheduled.length) { body.innerHTML=`<div class="empty"><div class="icon">📭</div>No jobs scheduled in this window</div>`; return; }
+  if (!entries.length) { body.innerHTML=`<div class="empty"><div class="icon">📭</div>No jobs scheduled in this window</div>`; return; }
 
   const itemsByJob = {};
   items.forEach(item => {
@@ -896,8 +1006,9 @@ function renderLoadList() {
   });
 
   let html = '';
-  scheduled.forEach(job => {
-    const jid=job.id, jname=f(job,F.job_name)||'Unnamed', jdate=f(job,F.job_next_date), jtype=f(job,F.job_next_type)||'';
+  entries.forEach(entry => {
+    const job = entry.job;
+    const jid=job.id, jname=f(job,F.job_name)||'Unnamed', jtype=f(job,F.job_next_type)||'';
     const detailNotes = f(job,F.job_detail_notes)||'';
     const jtypeLower=jtype.toLowerCase();
     const jobItems=(itemsByJob[jid]||[]).filter(item=>{
@@ -912,10 +1023,11 @@ function renderLoadList() {
     });
     const loadedCount=jobItems.filter(i=>checkedLocally[i.id]!==undefined?checkedLocally[i.id]:f(i,F.item_loaded)===true).length;
     const total=jobItems.length;
+    const dayLabel = entry.totalDays > 1 ? ` <span style="font-size:12px;color:var(--text-faint);font-weight:500;">(day ${entry.dayIdx} of ${entry.totalDays})</span>` : '';
     html+=`<div class="job-block">
       <div class="job-block-header">
-        <div class="job-block-name">${jname}${jtype?' — '+jtype:''}</div>
-        <div class="job-block-meta"><span>${fmtDate(jdate)}</span>${total>0?`<span class="progress-text">${loadedCount}/${total} loaded</span>`:''}</div>
+        <div class="job-block-name">${jname}${jtype?' — '+jtype:''}${dayLabel}</div>
+        <div class="job-block-meta"><span>${fmtDate(entry.displayDate)}</span>${total>0?`<span class="progress-text">${loadedCount}/${total} loaded</span>`:''}</div>
       </div>`;
     if (detailNotes) {
       html += `<div class="detail-note-sticky" onclick="openNoteEdit('${jid}','detail','loadlist')" title="Tap to edit">
@@ -933,7 +1045,7 @@ function renderLoadList() {
         const isLoaded=checkedLocally[iid]!==undefined?checkedLocally[iid]:f(item,F.item_loaded)===true;
         const model=f(item,F.item_model)||'Unknown', type=f(item,F.item_type)||'', qty=f(item,F.item_qty)??1, loc=f(item,F.item_location)||'', status=f(item,F.item_status)||'';
         const locClass=loc.toLowerCase()==='rig'?'item-loc rig':'item-loc';
-        html+=`<div class="item-row${isLoaded?' done':''}" id="row-${iid}">
+        html+=`<div class="item-row${isLoaded?' done':''}" data-item-id="${iid}">
           <div class="item-check${isLoaded?' checked':''}" onclick="toggleLoaded('${iid}')" title="Mark as loaded">
             <svg class="checkmark" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="white" stroke-width="2.5"><polyline points="2,6 5,9 10,3"/></svg>
           </div>
@@ -949,26 +1061,36 @@ function renderLoadList() {
 }
 
 async function toggleLoaded(itemId) {
-  const row=document.getElementById('row-'+itemId);
-  const check=row.querySelector('.item-check');
-  const wasLoaded=check.classList.contains('checked');
-  const newVal=!wasLoaded;
-  check.classList.add('loading'); check.classList.remove('checked');
+  const rows = document.querySelectorAll(`[data-item-id="${itemId}"]`);
+  if (!rows.length) return;
+  const firstCheck = rows[0].querySelector('.item-check');
+  const wasLoaded = firstCheck.classList.contains('checked');
+  const newVal = !wasLoaded;
+  // Show loading state on all instances
+  rows.forEach(row => {
+    const c = row.querySelector('.item-check');
+    c.classList.add('loading'); c.classList.remove('checked');
+  });
   try {
     const fields = newVal
       ? {'Loaded?':true,'Status':'Loaded','Physical location':'Rig'}
       : {'Loaded?':false,'Status':'Allocated','Physical location':'Inventory Tent'};
     await patchRecord(ITEMS_TBL, itemId, fields);
     checkedLocally[itemId]=newVal;
-    check.classList.remove('loading');
-    if (newVal) { check.classList.add('checked'); row.classList.add('done'); }
-    else { row.classList.remove('done'); }
     const item=items.find(i=>i.id===itemId);
     if (item) { item.fields['Loaded?']=newVal; item.fields['Status']=newVal?'Loaded':'Allocated'; item.fields['Physical location']=newVal?'Rig':'Inventory Tent'; }
     renderLoadList();
-  } catch(e) { check.classList.remove('loading'); if (wasLoaded) check.classList.add('checked'); showError('Could not update item.'); }
+  } catch(e) {
+    rows.forEach(row => {
+      const c = row.querySelector('.item-check');
+      c.classList.remove('loading');
+      if (wasLoaded) c.classList.add('checked');
+    });
+    showError('Could not update item.');
+  }
 }
 
+// ── JOBS ──
 function renderJobs() {
   const active=jobs.filter(j=>(f(j,F.job_status)||'').toLowerCase()!=='complete');
   const complete=jobs.filter(j=>(f(j,F.job_status)||'').toLowerCase()==='complete');
@@ -1018,6 +1140,7 @@ function jobCardHtml(j, isComplete) {
 
 function toggleCompleted() { showCompleted = !showCompleted; renderJobs(); }
 
+// ── JOB DETAIL ──
 function openDetail(jobId) {
   currentJobId = jobId; showAddMat = false;
   const job = jobs.find(j=>j.id===jobId);
@@ -1037,9 +1160,11 @@ function renderDetailBody(jobId) {
   const job = jobs.find(j=>j.id===jobId); if (!job) return;
   const name=f(job,F.job_name)||'Unnamed', status=f(job,F.job_status)||'', type=f(job,F.job_type)||'';
   const nextDate=f(job,F.job_next_date), nextType=f(job,F.job_next_type)||'', scheduled=f(job,F.job_scheduled)||'';
+  const endDate=f(job,F.job_end_date)||'';
   const readiness=f(job,F.job_readiness)||'', visitPlan=f(job,F.job_visit_plan)||'', comments=f(job,F.job_comments)||'';
   const detailNotes=f(job,F.job_detail_notes)||'';
 
+  // Get consumable items (those linked to a Stock SKU)
   const jobItems = items.filter(item => {
     const owners=f(item,F.item_owner); if (!Array.isArray(owners)) return false;
     return owners.some(o=>(typeof o==='string'?o:o.id)===jobId);
@@ -1084,10 +1209,12 @@ function renderDetailBody(jobId) {
 
   const isComplete = status.toLowerCase() === 'complete';
 
+  // Detail Notes block — yellow sticky if has content, else empty placeholder
   const detailNotesBlock = detailNotes
     ? `<div class="detail-note-sticky" onclick="openNoteEdit('${jobId}','detail','panel')" title="Tap to edit"><span class="sticky-icon">📌</span><span class="sticky-text">${escapeHtml(detailNotes)}</span></div>`
     : `<div class="detail-note-empty" onclick="openNoteEdit('${jobId}','detail','panel')">+ Add jobsite note</div>`;
 
+  // Comments block — neutral, editable
   const commentsBlock = comments
     ? `<div class="detail-note-block" onclick="openNoteEdit('${jobId}','comments','panel')">${escapeHtml(comments)}</div>`
     : `<div class="detail-note-block empty" onclick="openNoteEdit('${jobId}','comments','panel')">Tap to add team comments or questions</div>`;
@@ -1101,6 +1228,15 @@ function renderDetailBody(jobId) {
         ['Visit type', nextType || '—'],
         ['Visit plan', visitPlan || '—'],
       ].map(([l,v])=>`<div class="detail-field"><span class="detail-field-label">${l}</span><span class="detail-field-val">${v}</span></div>`).join('')}
+      <div class="detail-field" style="align-items:center;">
+        <span class="detail-field-label">End date</span>
+        <span class="detail-field-val" style="display:flex;align-items:center;gap:6px;">
+          <input type="date" id="end-date-input-${jobId}" value="${endDate}" ${!nextDate?'disabled':''} onchange="updateEndDate('${jobId}', this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;" />
+          ${endDate?`<button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:3px 8px;" onclick="updateEndDate('${jobId}','')" title="Clear end date">×</button>`:''}
+        </span>
+      </div>
+      ${!nextDate?`<div style="font-size:11px;color:var(--text-faint);padding:4px 0;font-style:italic;">Set a start date (Next visit date) before setting end date.</div>`:''}
+      ${endDate && nextDate ? `<div style="font-size:11px;color:var(--text-muted);padding:4px 0;">${(() => { const sd=parseDate(nextDate),ed=parseDate(endDate); if (!sd||!ed) return ''; const days=Math.round((ed-sd)/86400000)+1; return days>0?`Multi-day job: ${days} day${days===1?'':'s'} (${fmtDate(nextDate)} → ${fmtDate(endDate)})`:'⚠ End date is before start date'; })()}</div>`:''}
     </div>
 
     <div class="detail-section">
@@ -1167,6 +1303,7 @@ async function deleteMaterial(itemId) {
   } catch(e) { alert('Could not remove material.'); }
 }
 
+// ── COMPLETE JOB ──
 function startComplete(jobId) {
   completeJobId = jobId;
   const job = jobs.find(j=>j.id===jobId);
@@ -1207,6 +1344,7 @@ async function confirmComplete() {
   const consumables = jobItems.filter(i=>{ const skuLinks=f(i,F.item_sku); return Array.isArray(skuLinks)&&skuLinks.length>0; });
 
   try {
+    // Deduct inventory for each consumable
     for (const item of consumables) {
       const qtyInput = document.getElementById('confirm-qty-'+item.id);
       const usedQty = qtyInput ? parseFloat(qtyInput.value)||0 : f(item,F.item_qty)||0;
@@ -1214,16 +1352,21 @@ async function confirmComplete() {
       if (!Array.isArray(skuLinks)||!skuLinks.length) continue;
       const skuId = typeof skuLinks[0]==='string'?skuLinks[0]:skuLinks[0].id;
       const sku = skus.find(s=>s.id===skuId); if (!sku) continue;
+      // Find where stock lives and deduct from that location
       const barn = f(sku,F.sku_barn)||0, tent = f(sku,F.sku_tent)||0, susie = f(sku,F.sku_susie)||0, lumber = f(sku,F.sku_lumber)||0;
+      const total = barn+tent+susie+lumber;
       let remaining = usedQty;
       const updates = {};
+      // Deduct proportionally from each location that has stock
       if (barn>0 && remaining>0) { const d=Math.min(barn,remaining); updates['On-hand (Barn)']=Math.max(0,barn-d); remaining-=d; }
       if (tent>0 && remaining>0) { const d=Math.min(tent,remaining); updates['On-hand (Inventory Tent)']=Math.max(0,tent-d); remaining-=d; }
       if (susie>0 && remaining>0) { const d=Math.min(susie,remaining); updates['On-hand (Susie)']=Math.max(0,susie-d); remaining-=d; }
       if (lumber>0 && remaining>0) { const d=Math.min(lumber,remaining); updates['On-hand (Lumber rack)']=Math.max(0,lumber-d); remaining-=d; }
       if (Object.keys(updates).length) await patchRecord(SKUS_TBL, skuId, updates);
+      // Mark item as installed
       await patchRecord(ITEMS_TBL, item.id, {'Status':'Installed','Physical location':'installed'});
     }
+    // Mark job complete
     await patchRecord(JOBS_TBL, completeJobId, {'Status':'Complete'});
     closeModal();
     await syncData();
@@ -1231,9 +1374,11 @@ async function confirmComplete() {
   } catch(e) { alert('Something went wrong. Check your connection and try again.'); }
 }
 
+// ── REVERT JOB TO ACTIVE ──
 async function revertComplete(jobId) {
   if (!confirm('Revert this job back to Active?\n\nThis will:\n• Set job status to Active\n• Flip any Installed items back to Allocated (so they reappear on the Load List)\n\nIt does NOT restore inventory that was deducted. Adjust counts manually in Inventory if needed.')) return;
   try {
+    // Flip items: Installed → Allocated, Physical location installed → Inventory Tent
     const jobItems = items.filter(item => {
       const owners=f(item,F.item_owner); if (!Array.isArray(owners)) return false;
       return owners.some(o=>(typeof o==='string'?o:o.id)===jobId);
@@ -1249,7 +1394,37 @@ async function revertComplete(jobId) {
   } catch(e) { alert('Could not revert job. Check your connection.'); }
 }
 
+// ── END DATE UPDATE ──
+async function updateEndDate(jobId, newDate) {
+  const job = jobs.find(j=>j.id===jobId);
+  if (!job) return;
+  const start = f(job, F.job_next_date);
+  // Validate: if a date is provided, must be on/after start
+  if (newDate && start) {
+    const sd = parseDate(start), ed = parseDate(newDate);
+    if (sd && ed && ed < sd) {
+      alert('End date cannot be before the start date.');
+      renderDetailBody(jobId);
+      return;
+    }
+  }
+  try {
+    // Empty string means clear the field
+    const fieldVal = newDate || null;
+    await patchRecord(JOBS_TBL, jobId, { 'End date': fieldVal });
+    job.fields[F.job_end_date] = fieldVal;
+    renderDetailBody(jobId);
+    renderCalendar();
+    renderLoadList();
+  } catch(e) {
+    alert('Could not save end date. Check your connection.');
+    renderDetailBody(jobId);
+  }
+}
+
+// ── NOTE EDIT (Detail Notes / Comments) ──
 function openNoteEdit(jobId, kind, returnTo) {
+  // kind: 'detail' or 'comments'
   const job = jobs.find(j=>j.id===jobId); if (!job) return;
   const fieldName = kind === 'detail' ? F.job_detail_notes : F.job_comments;
   const label = kind === 'detail' ? 'Detail notes (jobsite)' : 'Comments / questions (team)';
@@ -1277,16 +1452,17 @@ async function saveNoteEdit() {
     const job = jobs.find(j=>j.id===jobId);
     if (job) job.fields[field] = newVal;
     closeNoteEdit();
+    // Re-render based on where the edit was triggered from
     if (returnTo === 'loadlist') renderLoadList();
     if (currentJobId === jobId) renderDetailBody(jobId);
-    if (returnTo === 'panel') renderLoadList();
+    if (returnTo === 'panel') renderLoadList(); // also keep load list in sync
   } catch(e) {
     alert('Could not save. Check your connection.');
   }
 }
 
-function renderInventory() {
-  const body = document.getElementById('inventory-body');
+// ── INVENTORY ──
+function renderInventory() {  const body = document.getElementById('inventory-body');
   if (!body) return;
   const searchEl = document.getElementById('inv-search');
   const lowOnlyEl = document.getElementById('inv-low-only');
@@ -1321,6 +1497,7 @@ function renderInventory() {
     let locsHtml = '';
     LOCATIONS.forEach(loc => {
       const v = f(sku, loc.field);
+      // Show all locations that have a value (including 0). Hide null/undefined.
       if (v === null || v === undefined) return;
       locsHtml += `<div class="inv-loc" onclick="openInvEdit('${sid}','${loc.field}','${loc.label.replace(/'/g,"\\'")}')">
         <span class="inv-loc-label">${loc.label}</span>
@@ -1381,13 +1558,16 @@ async function saveInvEdit() {
     if (sku) { sku.fields[locField] = newVal; }
     closeInvEdit();
     renderInventory();
+    // If we're in walk mode, advance
     if (walkState) renderWalkList();
   } catch(e) {
     alert('Could not save count. Check your connection.');
   }
 }
 
+// ── COUNT WALK ──
 function startWalk() {
+  // Ask which location to walk
   const opts = LOCATIONS.map((l,i)=>{
     const isTent = l.field === 'On-hand (Inventory Tent)';
     return `<button class="walk-loc-btn" onclick="beginWalk(${i})">${l.label}${isTent?'<div style="font-size:11px;color:var(--text-faint);font-weight:400;margin-top:2px;">verify items</div>':''}</button>`;
@@ -1396,7 +1576,7 @@ function startWalk() {
   document.getElementById('walk-body').innerHTML = `
     <div class="detail-section">
       <div class="detail-section-title">Which location?</div>
-      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Pick a location to see all SKUs and update counts. Inventory Tent verifies job-allocated items instead.</p>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Walk through every SKU at the chosen location and update counts. Inventory Tent verifies job-allocated items instead.</p>
       <div class="walk-loc-grid">${opts}</div>
     </div>`;
   document.getElementById('walk-panel').classList.add('open');
@@ -1405,6 +1585,7 @@ function startWalk() {
 
 function beginWalk(locIdx) {
   const loc = LOCATIONS[locIdx];
+  // Special case: Inventory Tent verifies job-allocated Items, not SKU counts
   if (loc.field === 'On-hand (Inventory Tent)') {
     beginTentVerify();
     return;
@@ -1418,6 +1599,7 @@ function renderWalkList() {
   const { locField, locLabel } = walkState;
   document.getElementById('walk-title').textContent = `${locLabel}`;
 
+  // All SKUs that track this location (non-null value)
   const relevant = skus.filter(s => {
     const v = f(s, locField);
     return v !== null && v !== undefined;
@@ -1466,6 +1648,7 @@ function renderWalkList() {
 }
 
 function openInvEditFromWalk(skuId, locField, locLabel) {
+  // Opens the existing inv edit modal — when saved, returns to walk list
   openInvEdit(skuId, locField, locLabel);
 }
 
@@ -1475,6 +1658,8 @@ function backToWalkPicker() {
 }
 
 function beginTentVerify() {
+  // Find every Item with Physical location = Inventory Tent, allocated to a job
+  // Group by job, sorted by job name
   const tentItems = items.filter(item => {
     const loc = (f(item,F.item_location)||'').toLowerCase();
     if (loc !== 'inventory tent') return false;
@@ -1482,6 +1667,7 @@ function beginTentVerify() {
     return Array.isArray(owners) && owners.length > 0;
   });
 
+  // Build job -> items map
   const jobItemsMap = {};
   tentItems.forEach(item => {
     const owners = f(item,F.item_owner);
@@ -1490,21 +1676,23 @@ function beginTentVerify() {
     jobItemsMap[ownerId].push(item);
   });
 
+  // Sort jobs by name
   const jobIds = Object.keys(jobItemsMap).sort((a,b) => {
     const aJob = jobs.find(j=>j.id===a), bJob = jobs.find(j=>j.id===b);
     const aName = aJob?f(aJob,F.job_name)||'':'', bName = bJob?f(bJob,F.job_name)||'':'';
     return aName.localeCompare(bName);
   });
 
+  // Default all items to "found" (checked) — Tyler unchecks what's missing
   const checks = {};
   tentItems.forEach(i => { checks[i.id] = true; });
 
   tentVerifyState = {
     jobIds,
     jobItemsMap,
-    currentJobIdx: -1,
+    currentJobIdx: -1, // -1 = show job picker
     checks,
-    completedJobs: {},
+    completedJobs: {}, // {jobId: true} after each job is saved
   };
   renderTentJobPicker();
 }
@@ -1520,17 +1708,14 @@ function renderTentJobPicker() {
         <div style="font-size:36px;margin-bottom:12px;">📦</div>
         <div style="font-size:16px;font-weight:600;margin-bottom:6px;">Tent is empty</div>
         <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">No items are currently marked Physical location = Inventory Tent.</div>
-        <button class="btn-sm btn-sm-accent" onclick="backToWalkPicker()" style="padding:10px 24px;">← Back to locations</button>
+        <button class="btn-sm btn-sm-accent" onclick="closeWalk()" style="padding:10px 24px;">Done</button>
       </div>`;
     return;
   }
 
   const allDone = jobIds.every(jid => completedJobs[jid]);
   let html = `<div class="detail-section">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-      <div class="detail-section-title" style="margin-bottom:0;">Customer piles at the Tent</div>
-      <button class="btn-sm btn-sm-ghost" style="font-size:12px;padding:5px 10px;" onclick="backToWalkPicker()">← Locations</button>
-    </div>
+    <div class="detail-section-title">Customer piles at the Tent</div>
     <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Tap a customer to verify their items. Tap finished ones again to re-check.</p>`;
 
   jobIds.forEach(jid => {
@@ -1550,7 +1735,7 @@ function renderTentJobPicker() {
   });
 
   html += `</div>
-    ${allDone ? `<button class="btn-sm btn-sm-accent" style="width:100%;padding:12px;" onclick="finishTentVerify()">Finish & see summary →</button>` : `<button class="btn-sm btn-sm-ghost" style="width:100%;padding:10px;" onclick="backToWalkPicker()">← Back to locations</button>`}`;
+    ${allDone ? `<button class="btn-sm btn-sm-accent" style="width:100%;padding:12px;" onclick="finishTentVerify()">Finish & see summary →</button>` : `<button class="btn-sm btn-sm-ghost" style="width:100%;padding:10px;" onclick="closeWalk()">Exit verification</button>`}`;
 
   document.getElementById('walk-body').innerHTML = html;
 }
@@ -1581,6 +1766,7 @@ function renderTentJobVerify() {
     </div>
     <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">All ${jobItems.length} item${jobItems.length===1?'':'s'} assumed present. Uncheck anything missing.</p>`;
 
+  // Sort items: by type tag, then model
   const sorted = [...jobItems].sort((a,b) => {
     const at = f(a,F.item_type)||'', bt = f(b,F.item_type)||'';
     if (at !== bt) return at.localeCompare(bt);
@@ -1625,11 +1811,13 @@ function saveTentJob() {
   const { jobIds, currentJobIdx, completedJobs } = tentVerifyState;
   const jobId = jobIds[currentJobIdx];
   completedJobs[jobId] = true;
+  // Advance to next uncompleted job, or back to picker if all done
   const nextIdx = jobIds.findIndex((jid, i) => i > currentJobIdx && !completedJobs[jid]);
   if (nextIdx >= 0) {
     tentVerifyState.currentJobIdx = nextIdx;
     renderTentJobVerify();
   } else {
+    // Look for any earlier uncompleted jobs
     const earlierIdx = jobIds.findIndex(jid => !completedJobs[jid]);
     if (earlierIdx >= 0) {
       tentVerifyState.currentJobIdx = earlierIdx;
@@ -1682,7 +1870,7 @@ function finishTentVerify() {
     summary += `<div style="font-size:13px;color:var(--accent);margin-bottom:14px;">Everything accounted for. Nice work.</div>`;
   }
 
-  summary += `<button class="btn-sm btn-sm-accent" onclick="backToWalkPicker()" style="padding:10px 24px;">← Back to locations</button></div>`;
+  summary += `<button class="btn-sm btn-sm-accent" onclick="closeWalk()" style="padding:10px 24px;">Done</button></div>`;
   document.getElementById('walk-body').innerHTML = summary;
 }
 
@@ -1693,6 +1881,7 @@ function closeWalk() {
   tentVerifyState = null;
 }
 
+// ── NAV ──
 function showView(name) {
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
