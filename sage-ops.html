@@ -445,7 +445,7 @@ const SKUS_TBL = 'tblZ8EMxOtJlr3Mv2';
 const F = {
   job_name: 'Name', job_type: 'Type', job_status: 'Status',
   job_visit_plan: 'Visit plan', job_next_type: 'Next visit type',
-  job_next_date: 'Next visit date', job_end_date: 'End date', job_items: 'Items',
+  job_next_date: 'Next visit date', job_end_date: 'End Date', job_items: 'Items',
   job_readiness: 'Readiness', job_scheduled: 'Scheduled visit',
   job_comments: 'Comments / Questions', job_materials: 'Per-visit Materials',
   job_detail_notes: 'Detail Notes',
@@ -868,12 +868,12 @@ async function confirmMove() {
   const { jobId, newStart, newEnd } = pendingMove;
   try {
     const updates = { 'Next visit date': newStart };
-    if (newEnd) updates['End date'] = newEnd;
+    if (newEnd) updates['End Date'] = newEnd;
     await patchRecord(JOBS_TBL, jobId, updates);
     const job = jobs.find(j=>j.id===jobId);
     if (job) {
       job.fields['Next visit date'] = newStart;
-      if (newEnd) job.fields['End date'] = newEnd;
+      if (newEnd) job.fields['End Date'] = newEnd;
     }
     closeMoveModal();
     renderCalendar();
@@ -1411,7 +1411,7 @@ async function updateEndDate(jobId, newDate) {
   try {
     // Empty string means clear the field
     const fieldVal = newDate || null;
-    await patchRecord(JOBS_TBL, jobId, { 'End date': fieldVal });
+    await patchRecord(JOBS_TBL, jobId, { 'End Date': fieldVal });
     job.fields[F.job_end_date] = fieldVal;
     renderDetailBody(jobId);
     renderCalendar();
