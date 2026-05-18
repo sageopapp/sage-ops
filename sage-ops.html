@@ -515,6 +515,10 @@
         </div>
       </div>
       <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Contact person <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
+        <input type="text" id="nj-contact" placeholder="e.g. Jane Smith (homeowner)" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+      </div>
+      <div>
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Address <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
         <textarea id="nj-address" rows="2" placeholder="e.g. 123 Main St, Seattle WA 98101" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;font-family:inherit;resize:vertical;"></textarea>
       </div>
@@ -781,6 +785,7 @@ const F = {
   job_comments: 'Comments / Questions', job_materials: 'Per-visit Materials',
   job_detail_notes: 'Detail Notes',
   job_phone: 'Phone number', job_email: 'Email', job_address: 'Address',
+  job_contact: 'Contact person',
   item_model: 'Model number', item_type: 'Type tag', item_qty: 'Quantity',
   item_status: 'Status', item_location: 'Physical location',
   item_loaded: 'Loaded?', item_owner: 'Owner', item_visit: 'Visit consumed at',
@@ -1521,7 +1526,7 @@ function renderDetailBody(jobId) {
   const endDate=f(job,F.job_end_date)||'';
   const readiness=f(job,F.job_readiness)||'', visitPlan=f(job,F.job_visit_plan)||'', comments=f(job,F.job_comments)||'';
   const detailNotes=f(job,F.job_detail_notes)||'';
-  const phone=f(job,F.job_phone)||'', email=f(job,F.job_email)||'', address=f(job,F.job_address)||'';
+  const phone=f(job,F.job_phone)||'', email=f(job,F.job_email)||'', address=f(job,F.job_address)||'', contact=f(job,F.job_contact)||'';
 
   // Get consumable items (those linked to a Stock SKU)
   const jobItems = items.filter(item => {
@@ -1671,6 +1676,12 @@ function renderDetailBody(jobId) {
 
     <div class="detail-section">
       <div class="detail-section-title">Contact</div>
+      <div class="detail-field" style="align-items:center;">
+        <span class="detail-field-label">Contact person</span>
+        <span class="detail-field-val" style="flex:1;max-width:65%;">
+          <input type="text" value="${escapeHtml(contact).replace(/"/g,'&quot;')}" placeholder="—" onchange="updateJobField('${jobId}','Contact person',this.value)" style="width:100%;font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;text-align:right;" />
+        </span>
+      </div>
       <div class="detail-field" style="align-items:flex-start;">
         <span class="detail-field-label" style="padding-top:6px;">Address</span>
         <span class="detail-field-val" style="flex:1;max-width:65%;">
@@ -2354,6 +2365,7 @@ function openNewJobModal() {
   document.getElementById('nj-visit-type').value = '';
   document.getElementById('nj-type').value = '';
   document.getElementById('nj-address').value = '';
+  document.getElementById('nj-contact').value = '';
   document.getElementById('nj-phone').value = '';
   document.getElementById('nj-email').value = '';
   document.getElementById('nj-visit-plan').value = '';
@@ -2384,6 +2396,7 @@ async function saveNewJob() {
   const visitPlan = document.getElementById('nj-visit-plan').value.trim();
   const detailNotes = document.getElementById('nj-detail-notes').value.trim();
   const address = document.getElementById('nj-address').value.trim();
+  const contact = document.getElementById('nj-contact').value.trim();
   const phone = document.getElementById('nj-phone').value.trim();
   const email = document.getElementById('nj-email').value.trim();
 
@@ -2402,6 +2415,7 @@ async function saveNewJob() {
   if (visitPlan) fields['Visit plan'] = visitPlan;
   if (detailNotes) fields['Detail Notes'] = detailNotes;
   if (address) fields['Address'] = address;
+  if (contact) fields['Contact person'] = contact;
   if (phone) fields['Phone number'] = phone;
   if (email) fields['Email'] = email;
 
