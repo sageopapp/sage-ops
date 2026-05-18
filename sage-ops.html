@@ -371,7 +371,10 @@
       <input type="text" id="inv-search" placeholder="Search SKUs..." oninput="renderInventory()" />
       <div class="inv-filter-row">
         <label class="inv-checkbox"><input type="checkbox" id="inv-low-only" onchange="renderInventory()" /> Low stock only</label>
-        <button class="btn-walk" onclick="startWalk()">📋 Count walk</button>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-walk" onclick="openAddSkuModal()" style="background:none;color:var(--accent);border:1px solid var(--accent);">+ Add SKU</button>
+          <button class="btn-walk" onclick="startWalk()">📋 Count walk</button>
+        </div>
       </div>
     </div>
     <div id="inventory-body"></div>
@@ -507,6 +510,110 @@
     <div id="day-jobs-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px;"></div>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeDayJobsModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD SKU MODAL (create new Stock SKU) -->
+<div class="modal-bg" id="add-sku-modal">
+  <div class="modal" style="max-width:520px;">
+    <h3>Add new stock SKU</h3>
+    <p>Add a new item to the stock catalog. Use this when you start stocking something new or find unexpected material that needs to be tracked.</p>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">SKU name *</label>
+        <input type="text" id="sku-name" placeholder="e.g. Lineset 3/4&quot; roll" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Type tag</label>
+          <input type="text" id="sku-type-tag" placeholder="e.g. lineset, lumber, fitting" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+        </div>
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Vendor</label>
+          <input type="text" id="sku-vendor" placeholder="Gensco, Sunset, etc." style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Unit</label>
+          <select id="sku-unit" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+            <option value="each">each</option>
+            <option value="roll">roll</option>
+            <option value="board">board</option>
+            <option value="ft">ft</option>
+            <option value="box">box</option>
+            <option value="bag">bag</option>
+            <option value="pack">pack</option>
+          </select>
+        </div>
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Primary location</label>
+          <select id="sku-primary-loc" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+            <option value="Barn">Barn</option>
+            <option value="Inventory Tent">Inventory Tent</option>
+            <option value="Lumber rack">Lumber rack</option>
+            <option value="Susie">Susie</option>
+            <option value="Shop">Shop</option>
+          </select>
+        </div>
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Reorder threshold</label>
+          <input type="number" id="sku-threshold" placeholder="e.g. 2" min="0" step="1" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+        </div>
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">Starting counts (where it currently lives)</label>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">
+          <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12px;color:var(--text-muted);min-width:60px;">Barn</span><input type="number" id="sku-cnt-barn" placeholder="0" min="0" step="0.1" style="flex:1;padding:6px 8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:13px;outline:none;" /></div>
+          <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12px;color:var(--text-muted);min-width:60px;">Tent</span><input type="number" id="sku-cnt-tent" placeholder="0" min="0" step="0.1" style="flex:1;padding:6px 8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:13px;outline:none;" /></div>
+          <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12px;color:var(--text-muted);min-width:60px;">Lumber</span><input type="number" id="sku-cnt-lumber" placeholder="0" min="0" step="0.1" style="flex:1;padding:6px 8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:13px;outline:none;" /></div>
+          <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12px;color:var(--text-muted);min-width:60px;">Susie</span><input type="number" id="sku-cnt-susie" placeholder="0" min="0" step="0.1" style="flex:1;padding:6px 8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:13px;outline:none;" /></div>
+          <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12px;color:var(--text-muted);min-width:60px;">Shop</span><input type="number" id="sku-cnt-shop" placeholder="0" min="0" step="0.1" style="flex:1;padding:6px 8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:13px;outline:none;" /></div>
+        </div>
+      </div>
+    </div>
+    <div id="sku-error" style="display:none;color:var(--danger);font-size:13px;margin-top:14px;background:var(--danger-light);padding:8px 12px;border-radius:var(--radius-sm);"></div>
+    <div class="modal-btns" style="margin-top:20px;">
+      <button class="btn-cancel" onclick="closeAddSkuModal()">Cancel</button>
+      <button class="btn-sm btn-sm-accent" onclick="saveNewSku()" style="padding:10px 20px;">Add SKU</button>
+    </div>
+  </div>
+</div>
+
+<!-- CUSTOM ITEM MODAL (one-off item for a job, not in catalog) -->
+<div class="modal-bg" id="custom-item-modal">
+  <div class="modal" style="max-width:440px;">
+    <h3>Add custom item</h3>
+    <p>Use this for one-off items not in the stock catalog. Item will be tied to this job only.</p>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Item name *</label>
+        <input type="text" id="ci-name" placeholder="e.g. Custom transition piece" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-end;">
+        <div style="flex:2;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Quantity *</label>
+          <input type="number" id="ci-qty" placeholder="1" min="0.1" step="0.1" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+        </div>
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Unit</label>
+          <select id="ci-unit" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+            <option value="each">each</option>
+            <option value="ft">ft</option>
+            <option value="roll">roll</option>
+            <option value="board">board</option>
+            <option value="box">box</option>
+            <option value="bag">bag</option>
+            <option value="pack">pack</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div id="ci-error" style="display:none;color:var(--danger);font-size:13px;margin-top:14px;background:var(--danger-light);padding:8px 12px;border-radius:var(--radius-sm);"></div>
+    <div class="modal-btns" style="margin-top:20px;">
+      <button class="btn-cancel" onclick="closeCustomItemModal()">Cancel</button>
+      <button class="btn-sm btn-sm-accent" onclick="saveCustomItem()" style="padding:10px 20px;">Add to job</button>
     </div>
   </div>
 </div>
@@ -1506,7 +1613,10 @@ function renderDetailBody(jobId) {
     <div class="detail-section">
       <div class="detail-section-title" style="display:flex;justify-content:space-between;align-items:center;">
         <span>Consumables & materials</span>
-        ${!isComplete?`<button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:4px 10px;" onclick="showAddMat=true;renderDetailBody('${jobId}')">+ Add</button>`:''}
+        ${!isComplete?`<div style="display:flex;gap:6px;">
+          <button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:4px 10px;" onclick="showAddMat=true;renderDetailBody('${jobId}')">+ Stock</button>
+          <button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:4px 10px;" onclick="openCustomItemModal('${jobId}')">+ Custom</button>
+        </div>`:''}
       </div>
       ${matHtml}
       ${addFormHtml}
@@ -1802,6 +1912,131 @@ function showDayJobs(dateStr) {
 
 function closeDayJobsModal() {
   document.getElementById('day-jobs-modal').classList.remove('open');
+}
+
+// ── ADD SKU (create new Stock SKU from app) ──
+let addSkuPrefilledLoc = null; // when called from count walk, prefill location
+
+function openAddSkuModal(prefilledLoc) {
+  document.getElementById('sku-name').value = '';
+  document.getElementById('sku-type-tag').value = '';
+  document.getElementById('sku-vendor').value = '';
+  document.getElementById('sku-unit').value = 'each';
+  document.getElementById('sku-threshold').value = '';
+  document.getElementById('sku-cnt-barn').value = '';
+  document.getElementById('sku-cnt-tent').value = '';
+  document.getElementById('sku-cnt-lumber').value = '';
+  document.getElementById('sku-cnt-susie').value = '';
+  document.getElementById('sku-cnt-shop').value = '';
+  document.getElementById('sku-error').style.display = 'none';
+  // If from count walk, pre-select the right primary location
+  addSkuPrefilledLoc = prefilledLoc || null;
+  if (prefilledLoc) {
+    document.getElementById('sku-primary-loc').value = prefilledLoc;
+  } else {
+    document.getElementById('sku-primary-loc').value = 'Barn';
+  }
+  document.getElementById('add-sku-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('sku-name').focus(), 50);
+}
+
+function closeAddSkuModal() {
+  document.getElementById('add-sku-modal').classList.remove('open');
+  addSkuPrefilledLoc = null;
+}
+
+function skuShowError(msg) {
+  const el = document.getElementById('sku-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+async function saveNewSku() {
+  const name = document.getElementById('sku-name').value.trim();
+  const typeTag = document.getElementById('sku-type-tag').value.trim();
+  const vendor = document.getElementById('sku-vendor').value.trim();
+  const unit = document.getElementById('sku-unit').value;
+  const primaryLoc = document.getElementById('sku-primary-loc').value;
+  const threshold = parseFloat(document.getElementById('sku-threshold').value);
+  const cBarn = parseFloat(document.getElementById('sku-cnt-barn').value);
+  const cTent = parseFloat(document.getElementById('sku-cnt-tent').value);
+  const cLumber = parseFloat(document.getElementById('sku-cnt-lumber').value);
+  const cSusie = parseFloat(document.getElementById('sku-cnt-susie').value);
+  const cShop = parseFloat(document.getElementById('sku-cnt-shop').value);
+
+  if (!name) { skuShowError('Please enter a SKU name.'); return; }
+
+  const fields = { 'Name': name };
+  if (typeTag) fields['Type tag'] = typeTag;
+  if (vendor) fields['Vendor'] = vendor;
+  if (unit) fields['Unit'] = unit;
+  if (primaryLoc) fields['Primary location'] = primaryLoc;
+  if (!isNaN(threshold)) fields['Vendor reorder threshold'] = threshold;
+  if (!isNaN(cBarn)) fields['On-hand (Barn)'] = cBarn;
+  if (!isNaN(cTent)) fields['On-hand (Inventory Tent)'] = cTent;
+  if (!isNaN(cLumber)) fields['On-hand (Lumber rack)'] = cLumber;
+  if (!isNaN(cSusie)) fields['On-hand (Susie)'] = cSusie;
+  if (!isNaN(cShop)) fields['On-hand (Shop)'] = cShop;
+
+  try {
+    const newSku = await createRecord(SKUS_TBL, fields);
+    skus.push(newSku);
+    closeAddSkuModal();
+    renderInventory();
+    // If we came from a count walk, re-render that view too
+    if (walkState) renderWalkList();
+  } catch(e) {
+    skuShowError('Could not save SKU. Check your connection and try again.');
+  }
+}
+
+// ── CUSTOM ITEM (one-off item for a job, not added to catalog) ──
+let customItemJobId = null;
+
+function openCustomItemModal(jobId) {
+  customItemJobId = jobId;
+  document.getElementById('ci-name').value = '';
+  document.getElementById('ci-qty').value = '';
+  document.getElementById('ci-unit').value = 'each';
+  document.getElementById('ci-error').style.display = 'none';
+  document.getElementById('custom-item-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('ci-name').focus(), 50);
+}
+
+function closeCustomItemModal() {
+  document.getElementById('custom-item-modal').classList.remove('open');
+  customItemJobId = null;
+}
+
+function ciShowError(msg) {
+  const el = document.getElementById('ci-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+async function saveCustomItem() {
+  const name = document.getElementById('ci-name').value.trim();
+  const qty = parseFloat(document.getElementById('ci-qty').value);
+  const unit = document.getElementById('ci-unit').value;
+  if (!name) { ciShowError('Please enter an item name.'); return; }
+  if (!qty || qty <= 0) { ciShowError('Please enter a valid quantity.'); return; }
+  if (!customItemJobId) { ciShowError('No job to attach to.'); return; }
+  try {
+    const fields = {
+      'Model number': name,
+      'Quantity': qty,
+      'Status': 'Allocated',
+      'Owner': [customItemJobId],
+    };
+    if (unit) fields['Unit'] = unit;
+    const newItem = await createRecord(ITEMS_TBL, fields);
+    items.push(newItem);
+    const jid = customItemJobId;
+    closeCustomItemModal();
+    renderDetailBody(jid);
+  } catch(e) {
+    ciShowError('Could not save item. Check your connection.');
+  }
 }
 
 // ── NEW JOB ──
@@ -2159,6 +2394,7 @@ function renderWalkList() {
   });
 
   html += `</div>
+    <button class="btn-sm btn-sm-ghost" style="width:100%;padding:10px;margin-bottom:8px;border:1px dashed var(--border-strong);" onclick="openAddSkuModal('${locLabel}')">+ Add new SKU at this location</button>
     <button class="btn-sm btn-sm-accent" style="width:100%;padding:12px;" onclick="backToWalkPicker()">Done →</button>`;
 
   document.getElementById('walk-body').innerHTML = html;
