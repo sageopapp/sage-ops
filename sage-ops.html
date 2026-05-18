@@ -2171,6 +2171,7 @@ function openInvEditFromWalk(skuId, locField, locLabel) {
 
 function backToWalkPicker() {
   walkState = null;
+  tentVerifyState = null;
   startWalk();
 }
 
@@ -2225,7 +2226,10 @@ function renderTentJobPicker() {
         <div style="font-size:36px;margin-bottom:12px;">📦</div>
         <div style="font-size:16px;font-weight:600;margin-bottom:6px;">Tent is empty</div>
         <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">No items are currently marked Physical location = Inventory Tent.</div>
-        <button class="btn-sm btn-sm-accent" onclick="closeWalk()" style="padding:10px 24px;">Done</button>
+        <div style="display:flex;gap:8px;justify-content:center;">
+          <button class="btn-sm btn-sm-ghost" onclick="backToWalkPicker()" style="padding:10px 18px;">← Back to locations</button>
+          <button class="btn-sm btn-sm-accent" onclick="closeWalk()" style="padding:10px 24px;">Done</button>
+        </div>
       </div>`;
     return;
   }
@@ -2252,7 +2256,10 @@ function renderTentJobPicker() {
   });
 
   html += `</div>
-    ${allDone ? `<button class="btn-sm btn-sm-accent" style="width:100%;padding:12px;" onclick="finishTentVerify()">Finish & see summary →</button>` : `<button class="btn-sm btn-sm-ghost" style="width:100%;padding:10px;" onclick="closeWalk()">Exit verification</button>`}`;
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn-sm btn-sm-ghost" style="flex:1;padding:12px;" onclick="backToWalkPicker()">← Back to locations</button>
+      ${allDone ? `<button class="btn-sm btn-sm-accent" style="flex:2;padding:12px;" onclick="finishTentVerify()">Finish & see summary →</button>` : ''}
+    </div>`;
 
   document.getElementById('walk-body').innerHTML = html;
 }
