@@ -624,6 +624,52 @@
   </div>
 </div>
 
+<!-- ADD UNIT FOR CUSTOMER MODAL (in Inventory Tent walk) -->
+<div class="modal-bg" id="add-unit-modal">
+  <div class="modal" style="max-width:480px;">
+    <h3>Add unit for customer</h3>
+    <p>Label and stash a unit for a customer. Will create the customer/job record if new.</p>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Customer *</label>
+        <select id="au-customer" onchange="onAuCustomerChange()" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+          <option value="">— Select —</option>
+        </select>
+        <input type="text" id="au-customer-new" placeholder="New customer name" style="display:none;width:100%;margin-top:6px;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Model number *</label>
+        <input type="text" id="au-model" placeholder="e.g. MUZ-FH12NA" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Quantity</label>
+          <input type="number" id="au-qty" value="1" min="1" step="1" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+        </div>
+        <div style="flex:2;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Location *</label>
+          <select id="au-location" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+            <option value="Inventory Tent">Inventory Tent</option>
+            <option value="Barn">Barn</option>
+            <option value="Shop">Shop</option>
+            <option value="Lumber rack">Lumber rack</option>
+            <option value="Susie">Susie</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Type tag <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
+        <input type="text" id="au-type-tag" placeholder="e.g. outdoor unit, head" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+      </div>
+    </div>
+    <div id="au-error" style="display:none;color:var(--danger);font-size:13px;margin-top:14px;background:var(--danger-light);padding:8px 12px;border-radius:var(--radius-sm);"></div>
+    <div class="modal-btns" style="margin-top:20px;">
+      <button class="btn-cancel" onclick="closeAddUnitModal()">Cancel</button>
+      <button class="btn-sm btn-sm-accent" onclick="saveAddUnit()" style="padding:10px 20px;">Add unit</button>
+    </div>
+  </div>
+</div>
+
 <!-- DELETE JOB CONFIRM MODAL -->
 <div class="modal-bg" id="delete-job-modal">
   <div class="modal">
@@ -1920,6 +1966,105 @@ function closeDayJobsModal() {
   document.getElementById('day-jobs-modal').classList.remove('open');
 }
 
+// ── ADD UNIT FOR CUSTOMER (in Inventory Tent walk) ──
+function openAddUnitModal() {
+  // Populate customer dropdown — unique job names (Active jobs preferred)
+  const sel = document.getElementById('au-customer');
+  // Deduplicate by name (since same customer may have multiple visit records)
+  const seen = new Set();
+  const customerOptions = [];
+  jobs.forEach(j => {
+    const name = f(j, F.job_name);
+    if (!name) return;
+    if (seen.has(name)) return;
+    seen.add(name);
+    customerOptions.push({ id: j.id, name });
+  });
+  customerOptions.sort((a,b) => a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1);
+  sel.innerHTML = '<option value="">— Select customer —</option>' +
+    customerOptions.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('') +
+    '<option value="__new__">+ New customer...</option>';
+  document.getElementById('au-customer-new').value = '';
+  document.getElementById('au-customer-new').style.display = 'none';
+  document.getElementById('au-model').value = '';
+  document.getElementById('au-qty').value = '1';
+  document.getElementById('au-location').value = 'Inventory Tent';
+  document.getElementById('au-type-tag').value = '';
+  document.getElementById('au-error').style.display = 'none';
+  document.getElementById('add-unit-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('au-customer').focus(), 50);
+}
+
+function closeAddUnitModal() {
+  document.getElementById('add-unit-modal').classList.remove('open');
+}
+
+function onAuCustomerChange() {
+  const sel = document.getElementById('au-customer');
+  const newInput = document.getElementById('au-customer-new');
+  if (sel.value === '__new__') {
+    newInput.style.display = 'block';
+    setTimeout(()=>newInput.focus(), 50);
+  } else {
+    newInput.style.display = 'none';
+    newInput.value = '';
+  }
+}
+
+function auShowError(msg) {
+  const el = document.getElementById('au-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+async function saveAddUnit() {
+  const sel = document.getElementById('au-customer');
+  let customerId = sel.value;
+  const newCustName = document.getElementById('au-customer-new').value.trim();
+  const model = document.getElementById('au-model').value.trim();
+  const qty = parseFloat(document.getElementById('au-qty').value) || 1;
+  const location = document.getElementById('au-location').value;
+  const typeTag = document.getElementById('au-type-tag').value.trim();
+
+  // Validation
+  if (!customerId) { auShowError('Please pick a customer or add a new one.'); return; }
+  if (customerId === '__new__' && !newCustName) { auShowError('Please type the new customer name.'); return; }
+  if (!model) { auShowError('Please enter a model number.'); return; }
+  if (!location) { auShowError('Please pick a location.'); return; }
+
+  try {
+    // If new customer, create a Job record first
+    if (customerId === '__new__') {
+      const newJob = await createRecord(JOBS_TBL, {
+        'Name': newCustName,
+        'Status': 'Active',
+      });
+      jobs.push(newJob);
+      customerId = newJob.id;
+    }
+
+    // Create the Item record
+    const itemFields = {
+      'Model number': model,
+      'Quantity': qty,
+      'Status': 'Allocated',
+      'Physical location': location,
+      'Owner': [customerId],
+    };
+    if (typeTag) itemFields['Type tag'] = typeTag;
+    const newItem = await createRecord(ITEMS_TBL, itemFields);
+    items.push(newItem);
+
+    closeAddUnitModal();
+    // Refresh: rebuild tent state and re-render if we're in Tent walk
+    if (tentVerifyState) beginTentVerify();
+    renderJobs();
+    renderInventory();
+  } catch(e) {
+    auShowError('Could not save. Check your connection and try again.');
+  }
+}
+
 // ── ADD SKU (create new Stock SKU from app) ──
 let addSkuPrefilledLoc = null; // when called from count walk, prefill location
 
@@ -2507,6 +2652,7 @@ function renderTentJobPicker() {
         <div style="font-size:36px;margin-bottom:12px;">📦</div>
         <div style="font-size:16px;font-weight:600;margin-bottom:6px;">Tent is empty</div>
         <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">No items are currently marked Physical location = Inventory Tent.</div>
+        <button class="btn-sm btn-sm-ghost" onclick="openAddUnitModal()" style="padding:10px 18px;margin:0 auto 12px;display:block;border:1px dashed var(--border-strong);">+ Add unit for customer</button>
         <div style="display:flex;gap:8px;justify-content:center;">
           <button class="btn-sm btn-sm-ghost" onclick="backToWalkPicker()" style="padding:10px 18px;">← Back to locations</button>
           <button class="btn-sm btn-sm-accent" onclick="closeWalk()" style="padding:10px 24px;">Done</button>
@@ -2537,6 +2683,7 @@ function renderTentJobPicker() {
   });
 
   html += `</div>
+    <button class="btn-sm btn-sm-ghost" style="width:100%;padding:10px;margin-bottom:8px;border:1px dashed var(--border-strong);" onclick="openAddUnitModal()">+ Add unit for customer</button>
     <div style="display:flex;gap:8px;margin-top:8px;">
       <button class="btn-sm btn-sm-ghost" style="flex:1;padding:12px;" onclick="backToWalkPicker()">← Back to locations</button>
       ${allDone ? `<button class="btn-sm btn-sm-accent" style="flex:2;padding:12px;" onclick="finishTentVerify()">Finish & see summary →</button>` : ''}
