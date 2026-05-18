@@ -844,8 +844,10 @@ function onCalTouchStart(e) {
   touchEl = e.currentTarget;
   const touch = e.touches[0];
   const startX = touch.clientX, startY = touch.clientY;
+  const startTime = Date.now();
   const jobId = touchEl.dataset.jobId;
   const fromDate = touchEl.dataset.fromDate;
+  let tapCancelled = false;
   touchTimer = setTimeout(() => {
     // Activated long-press: start drag
     if (navigator.vibrate) navigator.vibrate(30);
@@ -862,21 +864,32 @@ function onCalTouchStart(e) {
     document.addEventListener('touchend', onCalTouchEnd);
     document.addEventListener('touchcancel', onCalTouchEnd);
     touchTimer = null;
-  }, 400);
-  // If user moves before long-press triggers, cancel timer (treat as scroll/click)
+  }, 450);
+  // If user moves substantially before long-press triggers, cancel timer (treat as scroll/click)
   const cancelOnMove = (mv) => {
     const t2 = mv.touches[0];
-    if (Math.abs(t2.clientX-startX) > 6 || Math.abs(t2.clientY-startY) > 6) {
+    if (Math.abs(t2.clientX-startX) > 15 || Math.abs(t2.clientY-startY) > 15) {
       if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; }
+      tapCancelled = true;
       document.removeEventListener('touchmove', cancelOnMove);
     }
   };
   document.addEventListener('touchmove', cancelOnMove, {passive: true, once: false});
-  const cleanupCancel = () => {
+  // If user releases before long-press fires AND didn't move, treat as a tap
+  // and open the detail panel.
+  const onQuickTap = () => {
     document.removeEventListener('touchmove', cancelOnMove);
-    document.removeEventListener('touchend', cleanupCancel);
+    document.removeEventListener('touchend', onQuickTap);
+    if (touchTimer) {
+      clearTimeout(touchTimer);
+      touchTimer = null;
+      if (!tapCancelled && (Date.now() - startTime) < 450) {
+        // It's a tap → open the job detail. setTimeout to let the click event fire naturally
+        // (we don't preventDefault, so the normal click-to-openDetail handler should run)
+      }
+    }
   };
-  document.addEventListener('touchend', cleanupCancel, {once: true});
+  document.addEventListener('touchend', onQuickTap, {once: true});
 }
 
 function onCalTouchMove(e) {
@@ -1053,6 +1066,19 @@ function renderCalendar() {
     span.forEach(seg => {
       if (!byDate[seg.date]) byDate[seg.date] = [];
       byDate[seg.date].push({ job: j, isStart: seg.isStart, isEnd: seg.isEnd, isMid: seg.isMid, fromDate: f(j, F.job_next_date) });
+    });
+  });
+  // Sort each day's jobs deterministically: by start date (so multi-day spans
+  // keep the same row across days), then alphabetically by name as tiebreaker.
+  Object.keys(byDate).forEach(ds => {
+    byDate[ds].sort((a, b) => {
+      const ad = a.fromDate || '';
+      const bd = b.fromDate || '';
+      if (ad !== bd) return ad < bd ? -1 : 1;
+      const an = (f(a.job, F.job_name) || '').toLowerCase();
+      const bn = (f(b.job, F.job_name) || '').toLowerCase();
+      if (an !== bn) return an < bn ? -1 : 1;
+      return 0;
     });
   });
   const firstDay = new Date(calYear,calMonth,1).getDay();
