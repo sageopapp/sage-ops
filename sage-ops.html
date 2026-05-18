@@ -527,11 +527,17 @@
       <div style="display:flex;gap:10px;">
         <div style="flex:1;">
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Type tag</label>
-          <input type="text" id="sku-type-tag" placeholder="e.g. lineset, lumber, fitting" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+          <select id="sku-type-tag" onchange="onTypeTagChange()" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+            <option value="">— Select —</option>
+          </select>
+          <input type="text" id="sku-type-tag-new" placeholder="New type tag" style="display:none;width:100%;margin-top:6px;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
         </div>
         <div style="flex:1;">
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Vendor</label>
-          <input type="text" id="sku-vendor" placeholder="Gensco, Sunset, etc." style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+          <select id="sku-vendor" onchange="onVendorChange()" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+            <option value="">— Select —</option>
+          </select>
+          <input type="text" id="sku-vendor-new" placeholder="New vendor" style="display:none;width:100%;margin-top:6px;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
         </div>
       </div>
       <div style="display:flex;gap:10px;">
@@ -1919,8 +1925,22 @@ let addSkuPrefilledLoc = null; // when called from count walk, prefill location
 
 function openAddSkuModal(prefilledLoc) {
   document.getElementById('sku-name').value = '';
-  document.getElementById('sku-type-tag').value = '';
-  document.getElementById('sku-vendor').value = '';
+  // Populate Type tag dropdown from existing unique values in SKUs
+  const typeTags = [...new Set(skus.map(s => f(s, F.sku_type)).filter(Boolean))].sort();
+  const typeSel = document.getElementById('sku-type-tag');
+  typeSel.innerHTML = '<option value="">— Select —</option>' +
+    typeTags.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('') +
+    '<option value="__new__">+ New type tag...</option>';
+  document.getElementById('sku-type-tag-new').value = '';
+  document.getElementById('sku-type-tag-new').style.display = 'none';
+  // Populate Vendor dropdown from existing unique values
+  const vendors = [...new Set(skus.map(s => f(s, F.sku_vendor)).filter(Boolean))].sort();
+  const vendSel = document.getElementById('sku-vendor');
+  vendSel.innerHTML = '<option value="">— Select —</option>' +
+    vendors.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('') +
+    '<option value="__new__">+ New vendor...</option>';
+  document.getElementById('sku-vendor-new').value = '';
+  document.getElementById('sku-vendor-new').style.display = 'none';
   document.getElementById('sku-unit').value = 'each';
   document.getElementById('sku-threshold').value = '';
   document.getElementById('sku-cnt-barn').value = '';
@@ -1929,7 +1949,6 @@ function openAddSkuModal(prefilledLoc) {
   document.getElementById('sku-cnt-susie').value = '';
   document.getElementById('sku-cnt-shop').value = '';
   document.getElementById('sku-error').style.display = 'none';
-  // If from count walk, pre-select the right primary location
   addSkuPrefilledLoc = prefilledLoc || null;
   if (prefilledLoc) {
     document.getElementById('sku-primary-loc').value = prefilledLoc;
@@ -1938,6 +1957,30 @@ function openAddSkuModal(prefilledLoc) {
   }
   document.getElementById('add-sku-modal').classList.add('open');
   setTimeout(()=>document.getElementById('sku-name').focus(), 50);
+}
+
+function onTypeTagChange() {
+  const sel = document.getElementById('sku-type-tag');
+  const newInput = document.getElementById('sku-type-tag-new');
+  if (sel.value === '__new__') {
+    newInput.style.display = 'block';
+    setTimeout(()=>newInput.focus(), 50);
+  } else {
+    newInput.style.display = 'none';
+    newInput.value = '';
+  }
+}
+
+function onVendorChange() {
+  const sel = document.getElementById('sku-vendor');
+  const newInput = document.getElementById('sku-vendor-new');
+  if (sel.value === '__new__') {
+    newInput.style.display = 'block';
+    setTimeout(()=>newInput.focus(), 50);
+  } else {
+    newInput.style.display = 'none';
+    newInput.value = '';
+  }
 }
 
 function closeAddSkuModal() {
@@ -1953,8 +1996,10 @@ function skuShowError(msg) {
 
 async function saveNewSku() {
   const name = document.getElementById('sku-name').value.trim();
-  const typeTag = document.getElementById('sku-type-tag').value.trim();
-  const vendor = document.getElementById('sku-vendor').value.trim();
+  let typeTag = document.getElementById('sku-type-tag').value;
+  if (typeTag === '__new__') typeTag = document.getElementById('sku-type-tag-new').value.trim();
+  let vendor = document.getElementById('sku-vendor').value;
+  if (vendor === '__new__') vendor = document.getElementById('sku-vendor-new').value.trim();
   const unit = document.getElementById('sku-unit').value;
   const primaryLoc = document.getElementById('sku-primary-loc').value;
   const threshold = parseFloat(document.getElementById('sku-threshold').value);
