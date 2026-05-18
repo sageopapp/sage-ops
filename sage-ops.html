@@ -292,6 +292,47 @@
     nav button { padding: 10px 10px; font-size: 13px; }
     .detail-panel { max-width: 100%; }
   }
+
+  /* New Job — customer name combobox */
+  .nj-combo-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 2px;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 100;
+  }
+  .nj-combo-item {
+    padding: 9px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+  }
+  .nj-combo-item:last-child { border-bottom: none; }
+  .nj-combo-item:hover, .nj-combo-item.active { background: var(--accent-light); color: var(--accent-text); }
+  .nj-combo-item .nj-combo-sub { font-size: 12px; color: var(--text-faint); margin-top: 2px; }
+  .nj-combo-add {
+    padding: 9px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    color: var(--accent);
+    font-weight: 500;
+    border-top: 1px solid var(--border);
+    background: var(--accent-light);
+  }
+  .nj-combo-add:hover { background: #d4ebde; }
+  .nj-combo-empty {
+    padding: 9px 12px;
+    font-size: 13px;
+    color: var(--text-faint);
+    font-style: italic;
+  }
 </style>
 </head>
 <body>
@@ -422,9 +463,10 @@
     <h3>Schedule new job</h3>
     <p>Add a job to the schedule. You can update details, add items, and notes after creating.</p>
     <div style="display:flex;flex-direction:column;gap:14px;">
-      <div>
+      <div style="position:relative;">
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Customer / Job name *</label>
-        <input type="text" id="nj-name" placeholder="e.g. Smith residence" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+        <input type="text" id="nj-name" placeholder="Type to search or add new..." autocomplete="off" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" oninput="njNameInput()" onfocus="njNameFocus()" onblur="njNameBlur()" />
+        <div id="nj-name-dropdown" class="nj-combo-dropdown" style="display:none;"></div>
       </div>
       <div style="display:flex;gap:10px;">
         <div style="flex:1;">
@@ -2230,6 +2272,81 @@ async function saveCustomItem() {
 }
 
 // ── NEW JOB ──
+// ── NEW JOB CUSTOMER COMBOBOX ──
+let njComboActiveIndex = -1;
+let njComboBlurTimer = null;
+
+function njGetUniqueCustomerNames() {
+  const seen = new Set();
+  const names = [];
+  jobs.forEach(j => {
+    const n = (f(j, F.job_name) || '').trim();
+    if (n && !seen.has(n)) {
+      seen.add(n);
+      names.push(n);
+    }
+  });
+  names.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+  return names;
+}
+
+function njRenderCombo(query) {
+  const dropdown = document.getElementById('nj-name-dropdown');
+  const q = (query || '').trim().toLowerCase();
+  const allNames = njGetUniqueCustomerNames();
+  const matches = q ? allNames.filter(n => n.toLowerCase().includes(q)) : allNames;
+  const exactMatch = q && allNames.some(n => n.toLowerCase() === q);
+
+  let html = '';
+  if (matches.length === 0 && !q) {
+    html = '<div class="nj-combo-empty">No existing customers yet — type a name to add one</div>';
+  } else if (matches.length === 0 && q) {
+    // Pure add-new state
+    html = '<div class="nj-combo-add" onmousedown="njComboPickAddNew(event)">+ Add new customer "' + escapeHtml(query.trim()) + '"</div>';
+  } else {
+    matches.slice(0, 20).forEach((name, i) => {
+      html += '<div class="nj-combo-item" data-idx="' + i + '" onmousedown="njComboPick(event, ' + JSON.stringify(name).replace(/"/g, '&quot;') + ')">' + escapeHtml(name) + '</div>';
+    });
+    if (q && !exactMatch) {
+      html += '<div class="nj-combo-add" onmousedown="njComboPickAddNew(event)">+ Add new customer "' + escapeHtml(query.trim()) + '"</div>';
+    }
+  }
+  dropdown.innerHTML = html;
+  dropdown.style.display = 'block';
+  njComboActiveIndex = -1;
+}
+
+function njNameInput() {
+  const val = document.getElementById('nj-name').value;
+  njRenderCombo(val);
+}
+
+function njNameFocus() {
+  if (njComboBlurTimer) { clearTimeout(njComboBlurTimer); njComboBlurTimer = null; }
+  const val = document.getElementById('nj-name').value;
+  njRenderCombo(val);
+}
+
+function njNameBlur() {
+  // Delay so mousedown on a dropdown item fires before we hide it
+  njComboBlurTimer = setTimeout(() => {
+    document.getElementById('nj-name-dropdown').style.display = 'none';
+  }, 150);
+}
+
+function njComboPick(e, name) {
+  e.preventDefault();
+  document.getElementById('nj-name').value = name;
+  document.getElementById('nj-name-dropdown').style.display = 'none';
+}
+
+function njComboPickAddNew(e) {
+  e.preventDefault();
+  // Keep whatever the user typed — it becomes the new name
+  document.getElementById('nj-name-dropdown').style.display = 'none';
+  document.getElementById('nj-name').focus();
+}
+
 function openNewJobModal() {
   document.getElementById('nj-name').value = '';
   document.getElementById('nj-start').value = '';
@@ -2242,12 +2359,14 @@ function openNewJobModal() {
   document.getElementById('nj-visit-plan').value = '';
   document.getElementById('nj-detail-notes').value = '';
   document.getElementById('nj-error').style.display = 'none';
+  document.getElementById('nj-name-dropdown').style.display = 'none';
   document.getElementById('new-job-modal').classList.add('open');
   setTimeout(()=>document.getElementById('nj-name').focus(), 50);
 }
 
 function closeNewJobModal() {
   document.getElementById('new-job-modal').classList.remove('open');
+  document.getElementById('nj-name-dropdown').style.display = 'none';
 }
 
 function njShowError(msg) {
