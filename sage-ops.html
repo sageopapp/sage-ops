@@ -471,7 +471,12 @@
     <div style="display:flex;flex-direction:column;gap:14px;">
       <div>
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Customer / Job name *</label>
-        <input type="text" id="nj-name" placeholder="e.g. Smith residence" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+        <input type="text" id="nj-name" list="nj-name-list" placeholder="e.g. Smith residence" autocomplete="off" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+        <datalist id="nj-name-list"></datalist>
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Contact person <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
+        <input type="text" id="nj-contact" placeholder="Homeowner, GC, property mgr…" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
       </div>
       <div style="display:flex;gap:10px;">
         <div style="flex:1;">
@@ -782,6 +787,7 @@ const F = {
   job_comments: 'Comments / Questions', job_materials: 'Per-visit Materials',
   job_detail_notes: 'Detail Notes',
   job_phone: 'Phone number', job_email: 'Email', job_address: 'Address',
+  job_contact: 'Contact person',
   item_model: 'Model number', item_type: 'Type tag', item_qty: 'Quantity',
   item_status: 'Status', item_location: 'Physical location',
   item_loaded: 'Loaded?', item_owner: 'Owner', item_visit: 'Visit consumed at',
@@ -1533,6 +1539,7 @@ function renderDetailBody(jobId) {
   const readiness=f(job,F.job_readiness)||'', comments=f(job,F.job_comments)||'';
   const detailNotes=f(job,F.job_detail_notes)||'';
   const phone=f(job,F.job_phone)||'', email=f(job,F.job_email)||'', address=f(job,F.job_address)||'';
+  const contact=f(job,F.job_contact)||'';
 
   // Get consumable items (those linked to a Stock SKU)
   const jobItems = items.filter(item => {
@@ -1676,6 +1683,13 @@ function renderDetailBody(jobId) {
 
     <div class="detail-section">
       <div class="detail-section-title">Contact</div>
+      <div class="detail-field" style="align-items:flex-start;">
+      <div class="detail-field" style="align-items:center;">
+        <span class="detail-field-label">Contact</span>
+        <span class="detail-field-val" style="flex:1;max-width:65%;">
+          <input type="text" value="${escapeHtml(contact).replace(/"/g,'&quot;')}" placeholder="Homeowner, GC, property mgr…" onchange="updateJobField('${jobId}','Contact person',this.value)" style="width:100%;font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;text-align:right;" />
+        </span>
+      </div>
       <div class="detail-field" style="align-items:flex-start;">
         <span class="detail-field-label" style="padding-top:6px;">Address</span>
         <span class="detail-field-val" style="flex:1;max-width:65%;">
@@ -2279,6 +2293,7 @@ async function saveCustomItem() {
 // ── NEW JOB ──
 function openNewJobModal() {
   document.getElementById('nj-name').value = '';
+  document.getElementById('nj-contact').value = '';
   document.getElementById('nj-start').value = '';
   document.getElementById('nj-end').value = '';
   document.getElementById('nj-visit-type').value = '';
@@ -2288,6 +2303,21 @@ function openNewJobModal() {
   document.getElementById('nj-email').value = '';
   document.getElementById('nj-detail-notes').value = '';
   document.getElementById('nj-error').style.display = 'none';
+
+  // Populate the customer-name datalist with existing names (deduped, alphabetical)
+  const seen = new Set();
+  const names = [];
+  jobs.forEach(j => {
+    const n = (f(j, F.job_name) || '').trim();
+    if (n && !seen.has(n.toLowerCase())) {
+      seen.add(n.toLowerCase());
+      names.push(n);
+    }
+  });
+  names.sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()));
+  const dl = document.getElementById('nj-name-list');
+  dl.innerHTML = names.map(n=>`<option value="${escapeHtml(n)}"></option>`).join('');
+
   document.getElementById('new-job-modal').classList.add('open');
   setTimeout(()=>document.getElementById('nj-name').focus(), 50);
 }
@@ -2304,6 +2334,7 @@ function njShowError(msg) {
 
 async function saveNewJob() {
   const name = document.getElementById('nj-name').value.trim();
+  const contact = document.getElementById('nj-contact').value.trim();
   const startDate = document.getElementById('nj-start').value;
   const endDate = document.getElementById('nj-end').value;
   const visitType = document.getElementById('nj-visit-type').value;
@@ -2321,6 +2352,7 @@ async function saveNewJob() {
   if (endDate && !startDate) { njShowError('Please set a start date before adding an end date.'); return; }
 
   const fields = { 'Name': name, 'Status': 'Active' };
+  if (contact) fields['Contact person'] = contact;
   if (startDate) fields['Next visit date'] = startDate;
   if (endDate) fields['End Date'] = endDate;
   if (visitType) fields['Next phase'] = visitType;
