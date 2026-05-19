@@ -292,47 +292,6 @@
     nav button { padding: 10px 10px; font-size: 13px; }
     .detail-panel { max-width: 100%; }
   }
-
-  /* New Job — customer name combobox */
-  .nj-combo-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    margin-top: 2px;
-    background: var(--surface);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-sm);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    max-height: 220px;
-    overflow-y: auto;
-    z-index: 100;
-  }
-  .nj-combo-item {
-    padding: 9px 12px;
-    font-size: 14px;
-    cursor: pointer;
-    border-bottom: 1px solid var(--border);
-  }
-  .nj-combo-item:last-child { border-bottom: none; }
-  .nj-combo-item:hover, .nj-combo-item.active { background: var(--accent-light); color: var(--accent-text); }
-  .nj-combo-item .nj-combo-sub { font-size: 12px; color: var(--text-faint); margin-top: 2px; }
-  .nj-combo-add {
-    padding: 9px 12px;
-    font-size: 14px;
-    cursor: pointer;
-    color: var(--accent);
-    font-weight: 500;
-    border-top: 1px solid var(--border);
-    background: var(--accent-light);
-  }
-  .nj-combo-add:hover { background: #d4ebde; }
-  .nj-combo-empty {
-    padding: 9px 12px;
-    font-size: 13px;
-    color: var(--text-faint);
-    font-style: italic;
-  }
 </style>
 </head>
 <body>
@@ -463,10 +422,9 @@
     <h3>Schedule new job</h3>
     <p>Add a job to the schedule. You can update details, add items, and notes after creating.</p>
     <div style="display:flex;flex-direction:column;gap:14px;">
-      <div style="position:relative;">
+      <div>
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Customer / Job name *</label>
-        <input type="text" id="nj-name" placeholder="Type to search or add new..." autocomplete="off" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" oninput="njNameInput()" onfocus="njNameFocus()" onblur="njNameBlur()" />
-        <div id="nj-name-dropdown" class="nj-combo-dropdown" style="display:none;"></div>
+        <input type="text" id="nj-name" placeholder="e.g. Smith residence" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
       </div>
       <div style="display:flex;gap:10px;">
         <div style="flex:1;">
@@ -480,7 +438,7 @@
       </div>
       <div style="display:flex;gap:10px;">
         <div style="flex:1;">
-          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Visit type</label>
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Next phase</label>
           <select id="nj-visit-type" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
             <option value="">— None —</option>
             <option value="Rough-In">Rough-In</option>
@@ -515,10 +473,6 @@
         </div>
       </div>
       <div>
-        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Contact person <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
-        <input type="text" id="nj-contact" placeholder="e.g. Jane Smith (homeowner)" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
-      </div>
-      <div>
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Address <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
         <textarea id="nj-address" rows="2" placeholder="e.g. 123 Main St, Seattle WA 98101" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;font-family:inherit;resize:vertical;"></textarea>
       </div>
@@ -531,10 +485,6 @@
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Email <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
           <input type="email" id="nj-email" placeholder="customer@example.com" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
         </div>
-      </div>
-      <div>
-        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Visit plan <span style="font-weight:400;color:var(--text-faint);">(optional, free text)</span></label>
-        <input type="text" id="nj-visit-plan" placeholder="e.g. Trim-Out Tue 5/26, MXZ-4D30NL + 3 heads" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
       </div>
       <div>
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Jobsite notes <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
@@ -779,13 +729,12 @@ const SKUS_TBL = 'tblZ8EMxOtJlr3Mv2';
 
 const F = {
   job_name: 'Name', job_type: 'Type', job_status: 'Status',
-  job_visit_plan: 'Visit plan', job_next_type: 'Next visit type',
+  job_next_type: 'Next phase',
   job_next_date: 'Next visit date', job_end_date: 'End Date', job_items: 'Items',
   job_readiness: 'Readiness', job_scheduled: 'Scheduled visit',
   job_comments: 'Comments / Questions', job_materials: 'Per-visit Materials',
   job_detail_notes: 'Detail Notes',
   job_phone: 'Phone number', job_email: 'Email', job_address: 'Address',
-  job_contact: 'Contact person',
   item_model: 'Model number', item_type: 'Type tag', item_qty: 'Quantity',
   item_status: 'Status', item_location: 'Physical location',
   item_loaded: 'Loaded?', item_owner: 'Owner', item_visit: 'Visit consumed at',
@@ -1487,7 +1436,7 @@ function renderJobs() {
 
 function jobCardHtml(j, isComplete) {
   const name=f(j,F.job_name)||'Unnamed', status=f(j,F.job_status)||'', type=f(j,F.job_type)||'';
-  const nextDate=f(j,F.job_next_date), scheduled=f(j,F.job_scheduled)||'', readiness=f(j,F.job_readiness)||'', visitPlan=f(j,F.job_visit_plan)||'';
+  const nextDate=f(j,F.job_next_date), scheduled=f(j,F.job_scheduled)||'', readiness=f(j,F.job_readiness)||'';
   const sl=status.toLowerCase();
   const badgeCls=sl.includes('active')?'badge-active':sl.includes('complete')?'badge-complete':'badge-pending';
   const readBadge=!isComplete && readiness.includes('●')&&!readiness.includes('⚠')?'<span class="badge badge-ready">✓ All set</span>':!isComplete && readiness.includes('⚠')?'<span class="badge badge-partial">⚠ Missing parts</span>':'';
@@ -1496,7 +1445,6 @@ function jobCardHtml(j, isComplete) {
     <div class="job-meta-row">
       ${type?`<span>🔧 ${type}</span>`:''}
       ${scheduled?`<span>📅 ${scheduled}</span>`:nextDate?`<span>📅 ${fmtDate(nextDate)}</span>`:''}
-      ${visitPlan?`<span>📝 ${visitPlan}</span>`:''}
     </div>
   </div>`;
 }
@@ -1524,9 +1472,9 @@ function renderDetailBody(jobId) {
   const name=f(job,F.job_name)||'Unnamed', status=f(job,F.job_status)||'', type=f(job,F.job_type)||'';
   const nextDate=f(job,F.job_next_date), nextType=f(job,F.job_next_type)||'', scheduled=f(job,F.job_scheduled)||'';
   const endDate=f(job,F.job_end_date)||'';
-  const readiness=f(job,F.job_readiness)||'', visitPlan=f(job,F.job_visit_plan)||'', comments=f(job,F.job_comments)||'';
+  const readiness=f(job,F.job_readiness)||'', comments=f(job,F.job_comments)||'';
   const detailNotes=f(job,F.job_detail_notes)||'';
-  const phone=f(job,F.job_phone)||'', email=f(job,F.job_email)||'', address=f(job,F.job_address)||'', contact=f(job,F.job_contact)||'';
+  const phone=f(job,F.job_phone)||'', email=f(job,F.job_email)||'', address=f(job,F.job_address)||'';
 
   // Get consumable items (those linked to a Stock SKU)
   const jobItems = items.filter(item => {
@@ -1646,9 +1594,9 @@ function renderDetailBody(jobId) {
         </span>
       </div>
       <div class="detail-field" style="align-items:center;">
-        <span class="detail-field-label">Visit type</span>
+        <span class="detail-field-label">Next phase</span>
         <span class="detail-field-val">
-          <select onchange="updateJobField('${jobId}','Next visit type',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">
+          <select onchange="updateJobField('${jobId}','Next phase',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">
             <option value=""${!nextType?' selected':''}>— None —</option>
             <option value="Rough-In"${nextType==='Rough-In'?' selected':''}>Rough-In</option>
             <option value="Trim-Out"${nextType==='Trim-Out'?' selected':''}>Trim-Out</option>
@@ -1664,24 +1612,12 @@ function renderDetailBody(jobId) {
           </select>
         </span>
       </div>
-      <div class="detail-field" style="align-items:center;">
-        <span class="detail-field-label">Visit plan</span>
-        <span class="detail-field-val" style="flex:1;max-width:60%;">
-          <input type="text" value="${escapeHtml(visitPlan).replace(/"/g,'&quot;')}" placeholder="—" onchange="updateJobField('${jobId}','Visit plan',this.value)" style="width:100%;font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;text-align:right;" />
-        </span>
-      </div>
       ${!nextDate?`<div style="font-size:11px;color:var(--text-faint);padding:4px 0;font-style:italic;">Set a start date before setting end date.</div>`:''}
       ${endDate && nextDate ? `<div style="font-size:11px;color:var(--text-muted);padding:4px 0;">${(() => { const sd=parseDate(nextDate),ed=parseDate(endDate); if (!sd||!ed) return ''; const days=Math.round((ed-sd)/86400000)+1; return days>0?`Multi-day job: ${days} day${days===1?'':'s'} (${fmtDate(nextDate)} → ${fmtDate(endDate)})`:'⚠ End date is before start date'; })()}</div>`:''}
     </div>
 
     <div class="detail-section">
       <div class="detail-section-title">Contact</div>
-      <div class="detail-field" style="align-items:center;">
-        <span class="detail-field-label">Contact person</span>
-        <span class="detail-field-val" style="flex:1;max-width:65%;">
-          <input type="text" value="${escapeHtml(contact).replace(/"/g,'&quot;')}" placeholder="—" onchange="updateJobField('${jobId}','Contact person',this.value)" style="width:100%;font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;text-align:right;" />
-        </span>
-      </div>
       <div class="detail-field" style="align-items:flex-start;">
         <span class="detail-field-label" style="padding-top:6px;">Address</span>
         <span class="detail-field-val" style="flex:1;max-width:65%;">
@@ -1966,7 +1902,7 @@ async function updateStartDate(jobId, newDate) {
   }
 }
 
-// ── GENERIC JOB FIELD UPDATE (Status, Type, Next visit type, Visit plan) ──
+// ── GENERIC JOB FIELD UPDATE (Status, Type, Next phase, etc.) ──
 async function updateJobField(jobId, fieldName, newValue) {
   const job = jobs.find(j=>j.id===jobId);
   if (!job) return;
@@ -2283,81 +2219,6 @@ async function saveCustomItem() {
 }
 
 // ── NEW JOB ──
-// ── NEW JOB CUSTOMER COMBOBOX ──
-let njComboActiveIndex = -1;
-let njComboBlurTimer = null;
-
-function njGetUniqueCustomerNames() {
-  const seen = new Set();
-  const names = [];
-  jobs.forEach(j => {
-    const n = (f(j, F.job_name) || '').trim();
-    if (n && !seen.has(n)) {
-      seen.add(n);
-      names.push(n);
-    }
-  });
-  names.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-  return names;
-}
-
-function njRenderCombo(query) {
-  const dropdown = document.getElementById('nj-name-dropdown');
-  const q = (query || '').trim().toLowerCase();
-  const allNames = njGetUniqueCustomerNames();
-  const matches = q ? allNames.filter(n => n.toLowerCase().includes(q)) : allNames;
-  const exactMatch = q && allNames.some(n => n.toLowerCase() === q);
-
-  let html = '';
-  if (matches.length === 0 && !q) {
-    html = '<div class="nj-combo-empty">No existing customers yet — type a name to add one</div>';
-  } else if (matches.length === 0 && q) {
-    // Pure add-new state
-    html = '<div class="nj-combo-add" onmousedown="njComboPickAddNew(event)">+ Add new customer "' + escapeHtml(query.trim()) + '"</div>';
-  } else {
-    matches.slice(0, 20).forEach((name, i) => {
-      html += '<div class="nj-combo-item" data-idx="' + i + '" onmousedown="njComboPick(event, ' + JSON.stringify(name).replace(/"/g, '&quot;') + ')">' + escapeHtml(name) + '</div>';
-    });
-    if (q && !exactMatch) {
-      html += '<div class="nj-combo-add" onmousedown="njComboPickAddNew(event)">+ Add new customer "' + escapeHtml(query.trim()) + '"</div>';
-    }
-  }
-  dropdown.innerHTML = html;
-  dropdown.style.display = 'block';
-  njComboActiveIndex = -1;
-}
-
-function njNameInput() {
-  const val = document.getElementById('nj-name').value;
-  njRenderCombo(val);
-}
-
-function njNameFocus() {
-  if (njComboBlurTimer) { clearTimeout(njComboBlurTimer); njComboBlurTimer = null; }
-  const val = document.getElementById('nj-name').value;
-  njRenderCombo(val);
-}
-
-function njNameBlur() {
-  // Delay so mousedown on a dropdown item fires before we hide it
-  njComboBlurTimer = setTimeout(() => {
-    document.getElementById('nj-name-dropdown').style.display = 'none';
-  }, 150);
-}
-
-function njComboPick(e, name) {
-  e.preventDefault();
-  document.getElementById('nj-name').value = name;
-  document.getElementById('nj-name-dropdown').style.display = 'none';
-}
-
-function njComboPickAddNew(e) {
-  e.preventDefault();
-  // Keep whatever the user typed — it becomes the new name
-  document.getElementById('nj-name-dropdown').style.display = 'none';
-  document.getElementById('nj-name').focus();
-}
-
 function openNewJobModal() {
   document.getElementById('nj-name').value = '';
   document.getElementById('nj-start').value = '';
@@ -2365,20 +2226,16 @@ function openNewJobModal() {
   document.getElementById('nj-visit-type').value = '';
   document.getElementById('nj-type').value = '';
   document.getElementById('nj-address').value = '';
-  document.getElementById('nj-contact').value = '';
   document.getElementById('nj-phone').value = '';
   document.getElementById('nj-email').value = '';
-  document.getElementById('nj-visit-plan').value = '';
   document.getElementById('nj-detail-notes').value = '';
   document.getElementById('nj-error').style.display = 'none';
-  document.getElementById('nj-name-dropdown').style.display = 'none';
   document.getElementById('new-job-modal').classList.add('open');
   setTimeout(()=>document.getElementById('nj-name').focus(), 50);
 }
 
 function closeNewJobModal() {
   document.getElementById('new-job-modal').classList.remove('open');
-  document.getElementById('nj-name-dropdown').style.display = 'none';
 }
 
 function njShowError(msg) {
@@ -2393,10 +2250,8 @@ async function saveNewJob() {
   const endDate = document.getElementById('nj-end').value;
   const visitType = document.getElementById('nj-visit-type').value;
   const jobType = document.getElementById('nj-type').value;
-  const visitPlan = document.getElementById('nj-visit-plan').value.trim();
   const detailNotes = document.getElementById('nj-detail-notes').value.trim();
   const address = document.getElementById('nj-address').value.trim();
-  const contact = document.getElementById('nj-contact').value.trim();
   const phone = document.getElementById('nj-phone').value.trim();
   const email = document.getElementById('nj-email').value.trim();
 
@@ -2410,12 +2265,10 @@ async function saveNewJob() {
   const fields = { 'Name': name, 'Status': 'Active' };
   if (startDate) fields['Next visit date'] = startDate;
   if (endDate) fields['End Date'] = endDate;
-  if (visitType) fields['Next visit type'] = visitType;
+  if (visitType) fields['Next phase'] = visitType;
   if (jobType) fields['Type'] = jobType;
-  if (visitPlan) fields['Visit plan'] = visitPlan;
   if (detailNotes) fields['Detail Notes'] = detailNotes;
   if (address) fields['Address'] = address;
-  if (contact) fields['Contact person'] = contact;
   if (phone) fields['Phone number'] = phone;
   if (email) fields['Email'] = email;
 
