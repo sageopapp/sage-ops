@@ -720,6 +720,46 @@
   </div>
 </div>
 
+<!-- REMOVE EQUIPMENT MODAL (from Job Detail) -->
+<div class="modal-bg" id="remove-equip-modal">
+  <div class="modal" style="max-width:440px;">
+    <h3>Remove <span id="re-model">this unit</span></h3>
+    <p id="re-sub">Take this unit off the job. Where is it going?</p>
+    <div id="re-step1" style="display:flex;flex-direction:column;gap:10px;">
+      <button class="btn-sm btn-sm-accent" style="width:100%;padding:14px;text-align:left;" onclick="reChooseStock()">
+        ↩︎ Back to stock<br><span style="font-weight:400;font-size:12px;opacity:0.85;">Unassign from this job — unit stays in inventory</span>
+      </button>
+      <button class="btn-sm" style="width:100%;padding:14px;text-align:left;background:var(--surface);color:var(--danger);border:1px solid var(--danger);" onclick="reChooseWriteoff()">
+        ✕ Out of inventory<br><span style="font-weight:400;font-size:12px;opacity:0.85;">Damaged, returned to vendor, or sold — archive the unit</span>
+      </button>
+    </div>
+    <div id="re-step-stock" style="display:none;">
+      <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Stock location</label>
+      <select id="re-location" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);margin-bottom:16px;">
+        <option value="Inventory Tent" selected>Inventory Tent</option>
+        <option value="Barn">Barn</option>
+        <option value="Shop">Shop</option>
+        <option value="Susie">Susie</option>
+      </select>
+      <div class="modal-btns">
+        <button class="btn-cancel" onclick="reBackToStep1()">← Back</button>
+        <button class="btn-sm btn-sm-accent" style="padding:10px 20px;" onclick="reConfirmStock()">Return to stock</button>
+      </div>
+    </div>
+    <div id="re-step-writeoff" style="display:none;">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">This will archive the unit (Status → Archived) and unassign it from the job. It won't be permanently deleted — you can find it in Airtable if needed.</p>
+      <div class="modal-btns">
+        <button class="btn-cancel" onclick="reBackToStep1()">← Back</button>
+        <button class="btn-sm" style="padding:10px 20px;background:var(--danger);color:white;border:1px solid var(--danger);" onclick="reConfirmWriteoff()">Archive unit</button>
+      </div>
+    </div>
+    <div id="re-error" style="display:none;color:var(--danger);font-size:13px;margin-top:14px;background:var(--danger-light);padding:8px 12px;border-radius:var(--radius-sm);"></div>
+    <div class="modal-btns" id="re-step1-cancel" style="margin-top:16px;">
+      <button class="btn-cancel" onclick="closeRemoveEquipModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- DELETE JOB CONFIRM MODAL -->
 <div class="modal-bg" id="delete-job-modal">
   <div class="modal">
@@ -1759,7 +1799,7 @@ function renderDetailBody(jobId) {
 
     <div class="detail-section">
       <div class="detail-section-title">Equipment (${equipment.length} items)</div>
-      ${equipment.length ? equipment.map(i=>`<div class="mat-row"><div class="mat-info"><div class="mat-name">${f(i,F.item_model)||'Unknown'}</div><div class="mat-qty">${f(i,F.item_type)||''} · ${f(i,F.item_status)||''}</div></div><button class="mat-del" onclick="deleteEquipment('${i.id}')" title="Remove from job">×</button></div>`).join('') : `<div style="font-size:13px;color:var(--text-faint);padding:8px 0;">No equipment linked</div>`}
+      ${equipment.length ? equipment.map(i=>`<div class="mat-row"><div class="mat-info"><div class="mat-name">${f(i,F.item_model)||'Unknown'}</div><div class="mat-qty">${f(i,F.item_type)||''} · ${f(i,F.item_status)||''}</div></div><button class="mat-del" onclick="openRemoveEquipModal('${i.id}')" title="Remove from job" style="font-size:11px;width:auto;padding:0 8px;border-radius:var(--radius-sm);">Remove</button></div>`).join('') : `<div style="font-size:13px;color:var(--text-faint);padding:8px 0;">No equipment linked</div>`}
     </div>
 
     ${!isComplete ? `<button class="btn-complete" onclick="startComplete('${jobId}')">Mark job complete →</button>` : `
@@ -1831,19 +1871,98 @@ async function deleteMaterial(itemId) {
   } catch(e) { alert('Could not remove material.'); }
 }
 
-async function deleteEquipment(itemId) {
+let removeEquipId = null;
+
+function openRemoveEquipModal(itemId) {
+  removeEquipId = itemId;
   const item = items.find(i=>i.id===itemId);
   const model = item ? (f(item,F.item_model)||'this unit') : 'this unit';
   const loaded = item && f(item,F.item_loaded);
-  let msg = `Remove ${model} from this job?`;
-  if (loaded) msg += '\n\nNote: this unit is currently marked Loaded. Removing it will not adjust any on-hand counts.';
-  if (!confirm(msg)) return;
+  document.getElementById('re-model').textContent = model;
+  document.getElementById('re-sub').textContent = loaded
+    ? 'This unit is marked Loaded. Take it off the job — where is it going?'
+    : 'Take this unit off the job. Where is it going?';
+  // reset to step 1
+  document.getElementById('re-step1').style.display = 'flex';
+  document.getElementById('re-step-stock').style.display = 'none';
+  document.getElementById('re-step-writeoff').style.display = 'none';
+  document.getElementById('re-step1-cancel').style.display = 'flex';
+  document.getElementById('re-error').style.display = 'none';
+  document.getElementById('re-location').value = 'Inventory Tent';
+  document.getElementById('remove-equip-modal').classList.add('open');
+}
+
+function closeRemoveEquipModal() {
+  document.getElementById('remove-equip-modal').classList.remove('open');
+  removeEquipId = null;
+}
+
+function reBackToStep1() {
+  document.getElementById('re-step1').style.display = 'flex';
+  document.getElementById('re-step-stock').style.display = 'none';
+  document.getElementById('re-step-writeoff').style.display = 'none';
+  document.getElementById('re-step1-cancel').style.display = 'flex';
+  document.getElementById('re-error').style.display = 'none';
+}
+
+function reChooseStock() {
+  document.getElementById('re-step1').style.display = 'none';
+  document.getElementById('re-step-stock').style.display = 'block';
+  document.getElementById('re-step1-cancel').style.display = 'none';
+}
+
+function reChooseWriteoff() {
+  document.getElementById('re-step1').style.display = 'none';
+  document.getElementById('re-step-writeoff').style.display = 'block';
+  document.getElementById('re-step1-cancel').style.display = 'none';
+}
+
+function reShowError(msg) {
+  const el = document.getElementById('re-error');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+async function reConfirmStock() {
+  if (!removeEquipId) return;
+  const location = document.getElementById('re-location').value;
   try {
-    await deleteRecord(ITEMS_TBL, itemId);
-    items = items.filter(i=>i.id!==itemId);
+    await patchRecord(ITEMS_TBL, removeEquipId, {
+      'Owner': [],
+      'Status': 'Stock',
+      'Physical location': location,
+      'Loaded?': false
+    });
+    const item = items.find(i=>i.id===removeEquipId);
+    if (item) {
+      item.fields['Owner'] = [];
+      item.fields['Status'] = 'Stock';
+      item.fields['Physical location'] = location;
+      item.fields['Loaded?'] = false;
+    }
+    closeRemoveEquipModal();
     renderDetailBody(currentJobId);
     renderLoadList();
-  } catch(e) { alert('Could not remove equipment.'); }
+  } catch(e) { reShowError('Could not return unit to stock.'); }
+}
+
+async function reConfirmWriteoff() {
+  if (!removeEquipId) return;
+  try {
+    await patchRecord(ITEMS_TBL, removeEquipId, {
+      'Owner': [],
+      'Status': 'Archived',
+      'Loaded?': false
+    });
+    const item = items.find(i=>i.id===removeEquipId);
+    if (item) {
+      item.fields['Owner'] = [];
+      item.fields['Status'] = 'Archived';
+      item.fields['Loaded?'] = false;
+    }
+    closeRemoveEquipModal();
+    renderDetailBody(currentJobId);
+    renderLoadList();
+  } catch(e) { reShowError('Could not archive unit.'); }
 }
 
 // ── COMPLETE JOB ──
