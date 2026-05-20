@@ -63,20 +63,13 @@
   .app-header .brand-logo { height: 60px; width: auto; display: block; filter: brightness(0) invert(1); }
   .header-right { display: flex; align-items: center; gap: 10px; }
   .app-header .last-synced { color: rgba(255,255,255,0.78); font-size: 12px; }
-  .app-header .sync-btn {
-    background: var(--action);
-    color: white;
-    border: 1px solid var(--action);
-  }
-  .app-header .sync-btn:hover {
-    background: var(--action-text);
-    border-color: var(--action-text);
-  }
+  .app-header .sync-btn,
   .app-header .logout-btn {
     background: rgba(255,255,255,0.12);
     color: white;
     border: 1px solid rgba(255,255,255,0.25);
   }
+  .app-header .sync-btn:hover,
   .app-header .logout-btn:hover {
     background: rgba(255,255,255,0.22);
   }
@@ -393,7 +386,7 @@
       <button class="cal-arrow" onclick="changeMonth(1)">›</button>
     </div>
     <div style="text-align:center;margin-bottom: 12px;">
-      <button class="btn-sm btn-sm-ghost" onclick="openNewJobModal()" style="padding: 5px 12px;font-size:12px;">+ New Job</button>
+      <button class="btn-sm btn-sm-action" onclick="openNewJobModal()" style="padding: 5px 12px;font-size:12px;">+ New Job</button>
     </div>
     <div class="cal-grid" id="cal-labels"></div>
     <div class="cal-grid" id="cal-body"></div>
@@ -416,7 +409,7 @@
 
   <div id="view-jobs" class="view">
     <div style="text-align:center;margin-bottom: 12px;">
-      <button class="btn-sm btn-sm-ghost" onclick="openNewJobModal()" style="padding: 5px 12px;font-size:12px;">+ New Job</button>
+      <button class="btn-sm btn-sm-action" onclick="openNewJobModal()" style="padding: 5px 12px;font-size:12px;">+ New Job</button>
     </div>
     <div class="stats" id="jobs-stats"></div>
     <div id="jobs-body"></div>
@@ -428,7 +421,7 @@
       <div class="inv-filter-row">
         <label class="inv-checkbox"><input type="checkbox" id="inv-low-only" onchange="renderInventory()" /> Low stock only</label>
         <div style="display:flex;gap:8px;">
-          <button class="btn-walk" onclick="openAddSkuModal()" style="background:none;color:var(--accent);border:1px solid var(--accent);">+ Add SKU</button>
+          <button class="btn-walk" onclick="openAddSkuModal()" style="background:var(--action);color:white;border:1px solid var(--action);">+ Add SKU</button>
           <button class="btn-walk" onclick="startWalk()">📋 Count walk</button>
         </div>
       </div>
@@ -901,6 +894,9 @@ async function syncData() {
   showError('');
   try {
     [jobs, items, skus] = await Promise.all([fetchAll(JOBS_TBL), fetchAll(ITEMS_TBL), fetchAll(SKUS_TBL)]);
+    // Fresh data from Airtable is now authoritative — drop any stale optimistic
+    // load-state overrides so the checkbox and location can't diverge.
+    checkedLocally = {};
     renderAll();
     document.getElementById('last-synced').textContent = 'Synced ' + new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
     if (currentJobId) renderDetailBody(currentJobId);
@@ -1437,7 +1433,16 @@ function renderLoadList() {
       jobItems.forEach(item=>{
         const iid=item.id;
         const isLoaded=checkedLocally[iid]!==undefined?checkedLocally[iid]:f(item,F.item_loaded)===true;
-        const model=f(item,F.item_model)||'Unknown', type=f(item,F.item_type)||'', qty=f(item,F.item_qty)??1, loc=f(item,F.item_location)||'', status=f(item,F.item_status)||'';
+        const model=f(item,F.item_model)||'Unknown', type=f(item,F.item_type)||'', qty=f(item,F.item_qty)??1, status=f(item,F.item_status)||'';
+        // Location follows the same source of truth as the checkbox: if an optimistic
+        // override is active, reflect it; otherwise use the stored field. This prevents
+        // the "unchecked but still says Rig" divergence.
+        let loc;
+        if (checkedLocally[iid]!==undefined) {
+          loc = checkedLocally[iid] ? 'Rig' : (f(item,F.item_location)==='Rig' ? 'Inventory Tent' : (f(item,F.item_location)||''));
+        } else {
+          loc = f(item,F.item_location)||'';
+        }
         const locClass=loc.toLowerCase()==='rig'?'item-loc rig':'item-loc';
         html+=`<div class="item-row${isLoaded?' done':''}" data-item-id="${iid}">
           <div class="item-check${isLoaded?' checked':''}" onclick="toggleLoaded('${iid}')" title="Mark as loaded">
@@ -2676,7 +2681,7 @@ function renderWalkList() {
   let html = `<div class="detail-section">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <div style="font-size:12px;color:var(--text-muted);">${relevant.length} SKU${relevant.length===1?'':'s'}</div>
-      <button class="btn-sm btn-sm-ghost" style="font-size:12px;padding:5px 10px;" onclick="backToWalkPicker()">← Locations</button>
+      <button class="btn-sm btn-sm-action" style="font-size:12px;padding:5px 10px;" onclick="backToWalkPicker()">← Locations</button>
     </div>
     ${lumberNote}`;
 
