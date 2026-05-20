@@ -1736,7 +1736,7 @@ function renderDetailBody(jobId) {
 
     <div class="detail-section">
       <div class="detail-section-title">Equipment (${equipment.length} items)</div>
-      ${equipment.length ? equipment.map(i=>`<div class="mat-row"><div class="mat-info"><div class="mat-name">${f(i,F.item_model)||'Unknown'}</div><div class="mat-qty">${f(i,F.item_type)||''} · ${f(i,F.item_status)||''}</div></div></div>`).join('') : `<div style="font-size:13px;color:var(--text-faint);padding:8px 0;">No equipment linked</div>`}
+      ${equipment.length ? equipment.map(i=>`<div class="mat-row"><div class="mat-info"><div class="mat-name">${f(i,F.item_model)||'Unknown'}</div><div class="mat-qty">${f(i,F.item_type)||''} · ${f(i,F.item_status)||''}</div></div><button class="mat-del" onclick="deleteEquipment('${i.id}')" title="Remove from job">×</button></div>`).join('') : `<div style="font-size:13px;color:var(--text-faint);padding:8px 0;">No equipment linked</div>`}
     </div>
 
     ${!isComplete ? `<button class="btn-complete" onclick="startComplete('${jobId}')">Mark job complete →</button>` : `
@@ -1806,6 +1806,21 @@ async function deleteMaterial(itemId) {
     renderDetailBody(currentJobId);
     renderLoadList();
   } catch(e) { alert('Could not remove material.'); }
+}
+
+async function deleteEquipment(itemId) {
+  const item = items.find(i=>i.id===itemId);
+  const model = item ? (f(item,F.item_model)||'this unit') : 'this unit';
+  const loaded = item && f(item,F.item_loaded);
+  let msg = `Remove ${model} from this job?`;
+  if (loaded) msg += '\n\nNote: this unit is currently marked Loaded. Removing it will not adjust any on-hand counts.';
+  if (!confirm(msg)) return;
+  try {
+    await deleteRecord(ITEMS_TBL, itemId);
+    items = items.filter(i=>i.id!==itemId);
+    renderDetailBody(currentJobId);
+    renderLoadList();
+  } catch(e) { alert('Could not remove equipment.'); }
 }
 
 // ── COMPLETE JOB ──
