@@ -228,7 +228,7 @@
   /* CONFIRM MODAL */
   .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; padding: 24px; }
   .modal-bg.open { display: flex; }
-  .modal { background: var(--surface); border-radius: var(--radius); padding: 28px; max-width: 480px; width: 100%; }
+  .modal { background: var(--surface); border-radius: var(--radius); padding: 28px; max-width: 480px; width: 100%; max-height: calc(100vh - 48px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .modal h3 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
   .modal p { font-size: 14px; color: var(--text-muted); margin-bottom: 20px; }
   .modal-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
@@ -466,9 +466,12 @@
 </div>
 
 <!-- NEW JOB MODAL -->
-<div class="modal-bg" id="new-job-modal">
+<div class="modal-bg" id="new-job-modal" onclick="if(event.target===this)closeNewJobModal()">
   <div class="modal" style="max-width:520px;">
-    <h3>Schedule new job</h3>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+      <h3>Schedule new job</h3>
+      <button class="detail-close" onclick="closeNewJobModal()" title="Cancel" style="margin-top:-4px;">×</button>
+    </div>
     <p>Add a job to the schedule. You can update details, add items, and notes after creating.</p>
     <div style="display:flex;flex-direction:column;gap:14px;">
       <div>
