@@ -1847,6 +1847,22 @@ async function saveMaterial(jobId) {
   const sku = skus.find(s=>s.id===skuId);
   if (!sku) return;
   const skuName = f(sku,F.sku_name)||'Material';
+  // Derive a sensible Physical location: the SKU location bucket with the most on-hand.
+  function skuPrimaryLocation(s) {
+    const buckets = [
+      ['Barn', f(s, F.sku_barn)],
+      ['Inventory Tent', f(s, F.sku_tent)],
+      ['Susie', f(s, F.sku_susie)],
+      ['Lumber rack', f(s, F.sku_lumber)],
+      ['Shop', f(s, F.sku_shop)],
+    ];
+    let best = null, bestQty = 0;
+    buckets.forEach(([label, qty]) => {
+      const n = Number(qty) || 0;
+      if (n > bestQty) { bestQty = n; best = label; }
+    });
+    return best; // null if no stock anywhere
+  }
   try {
     const fields = {
       'Model number': skuName,
@@ -1855,6 +1871,8 @@ async function saveMaterial(jobId) {
       'Owner': [jobId],
       'Stock SKU': [skuId],
     };
+    const loc = skuPrimaryLocation(sku);
+    if (loc) fields['Physical location'] = loc;
     if (chosenUnit) fields['Unit'] = chosenUnit;
     const newItem = await createRecord(ITEMS_TBL, fields);
     items.push(newItem);
