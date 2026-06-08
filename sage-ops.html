@@ -822,7 +822,10 @@
       <div style="display:flex;gap:10px;">
         <div style="flex:2;">
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Vendor</label>
-          <input type="text" id="sku-edit-vendor" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+          <select id="sku-edit-vendor" onchange="onSkuEditVendorChange()" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+            <option value="">— Select —</option>
+          </select>
+          <input type="text" id="sku-edit-vendor-new" placeholder="New vendor" style="display:none;width:100%;margin-top:6px;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
         </div>
         <div style="flex:1;">
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Unit</label>
@@ -2485,6 +2488,18 @@ function onVendorChange() {
   }
 }
 
+function onSkuEditVendorChange() {
+  const sel = document.getElementById('sku-edit-vendor');
+  const newInput = document.getElementById('sku-edit-vendor-new');
+  if (sel.value === '__new__') {
+    newInput.style.display = 'block';
+    setTimeout(()=>newInput.focus(), 50);
+  } else {
+    newInput.style.display = 'none';
+    newInput.value = '';
+  }
+}
+
 function closeAddSkuModal() {
   document.getElementById('add-sku-modal').classList.remove('open');
   addSkuPrefilledLoc = null;
@@ -2886,7 +2901,15 @@ function openSkuEdit(skuId) {
   if (!sku) return;
   skuEditId = skuId;
   document.getElementById('sku-edit-name').value = f(sku, F.sku_name) || '';
-  document.getElementById('sku-edit-vendor').value = f(sku, F.sku_vendor) || '';
+  // Populate vendor dropdown from existing unique values, then select this SKU's vendor
+  const vendors = [...new Set(skus.map(s => f(s, F.sku_vendor)).filter(Boolean))].sort();
+  const vendSel = document.getElementById('sku-edit-vendor');
+  const currentVendor = f(sku, F.sku_vendor) || '';
+  vendSel.innerHTML = '<option value="">— Select —</option>' +
+    vendors.map(v => `<option value="${escapeHtml(v)}"${v===currentVendor?' selected':''}>${escapeHtml(v)}</option>`).join('') +
+    '<option value="__new__">+ New vendor...</option>';
+  document.getElementById('sku-edit-vendor-new').value = '';
+  document.getElementById('sku-edit-vendor-new').style.display = 'none';
   document.getElementById('sku-edit-threshold').value = f(sku, F.sku_threshold) ?? '';
   document.getElementById('sku-edit-unit').value = f(sku, F.sku_unit) || '';
   document.getElementById('sku-edit-barn').value = f(sku, F.sku_barn) ?? '';
@@ -2915,7 +2938,14 @@ async function saveSkuEdit() {
   const name = document.getElementById('sku-edit-name').value.trim();
   if (!name) { skuEditShowError('Name is required.'); return; }
 
-  const vendor = document.getElementById('sku-edit-vendor').value.trim();
+  const vendorSelVal = document.getElementById('sku-edit-vendor').value;
+  const vendorNewVal = document.getElementById('sku-edit-vendor-new').value.trim();
+  let vendor;
+  if (vendorSelVal === '__new__') {
+    vendor = vendorNewVal; // may be empty — that's fine, treated as clearing vendor
+  } else {
+    vendor = vendorSelVal;
+  }
   const thresholdStr = document.getElementById('sku-edit-threshold').value;
   const unit = document.getElementById('sku-edit-unit').value;
   // Validate each location count (empty = clear; numeric = set)
