@@ -436,13 +436,13 @@
       </div>
       <div class="loc-tabs" id="loc-tabs">
         <button class="loc-tab active" data-loc="all" onclick="setInvLocation('all')">All</button>
-        <button class="loc-tab" data-loc="On-hand (Unit Tent)" onclick="setInvLocation('On-hand (Unit Tent)')">Unit</button>
-        <button class="loc-tab" data-loc="On-hand (Susie)" onclick="setInvLocation('On-hand (Susie)')">Susie</button>
         <button class="loc-tab" data-loc="On-hand (Barn)" onclick="setInvLocation('On-hand (Barn)')">Barn</button>
-        <button class="loc-tab" data-loc="On-hand (Rig)" onclick="setInvLocation('On-hand (Rig)')">Rig</button>
+        <button class="loc-tab" data-loc="On-hand (Unit Tent)" onclick="setInvLocation('On-hand (Unit Tent)')">Unit</button>
         <button class="loc-tab" data-loc="On-hand (Ducting Tent)" onclick="setInvLocation('On-hand (Ducting Tent)')">Ducting</button>
         <button class="loc-tab" data-loc="On-hand (Lumber Rack)" onclick="setInvLocation('On-hand (Lumber Rack)')">Lumber</button>
+        <button class="loc-tab" data-loc="On-hand (Susie)" onclick="setInvLocation('On-hand (Susie)')">Susie</button>
         <button class="loc-tab" data-loc="On-hand (Shop)" onclick="setInvLocation('On-hand (Shop)')">Shop</button>
+        <button class="loc-tab" data-loc="On-hand (Rig)" onclick="setInvLocation('On-hand (Rig)')">Rig</button>
       </div>
       <div id="inv-tab-actions" style="display:none;margin-top:8px;gap:8px;flex-wrap:wrap;">
         <button class="btn-sm btn-sm-ghost" onclick="openAddUnitModal()" style="font-size:12px;padding:5px 10px;background:var(--action);color:white;border:1px solid var(--action);">+ Add unit</button>
@@ -744,6 +744,27 @@
     <div class="modal-btns" style="margin-top:20px;">
       <button class="btn-cancel" onclick="closeAddUnitModal()">Cancel</button>
       <button class="btn-sm btn-sm-accent" onclick="saveAddUnit()" style="padding:10px 20px;">Add unit</button>
+    </div>
+  </div>
+</div>
+
+<!-- UNLOAD PICKER MODAL (consumable returning from Rig to stock location) -->
+<div class="modal-bg" id="unload-modal" onclick="if(event.target===this)closeUnloadPicker()">
+  <div class="modal" style="max-width:440px;">
+    <h3 id="unload-title">Unload from Rig</h3>
+    <p id="unload-sub" style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">Where is this going back to?</p>
+    <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Return location</label>
+    <select id="unload-location" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);margin-bottom:18px;">
+      <option value="Unit Tent" selected>Unit Tent</option>
+      <option value="Barn">Barn</option>
+      <option value="Susie">Susie</option>
+      <option value="Lumber Rack">Lumber Rack</option>
+      <option value="Shop">Shop</option>
+      <option value="Ducting Tent">Ducting Tent</option>
+    </select>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeUnloadPicker()">Cancel</button>
+      <button class="btn-sm btn-sm-accent" onclick="confirmUnload()" style="padding:10px 20px;">Unload here</button>
     </div>
   </div>
 </div>
@@ -1680,26 +1701,115 @@ function renderLoadList() {
   body.innerHTML = html;
 }
 
+// Map a location label (e.g. "Barn") to the SKU on-hand field name (e.g. "On-hand (Barn)")
+function locationToSkuField(label) {
+  if (!label) return null;
+  const map = {
+    'Barn': 'On-hand (Barn)',
+    'Unit Tent': 'On-hand (Unit Tent)',
+    'Susie': 'On-hand (Susie)',
+    'Lumber Rack': 'On-hand (Lumber Rack)',
+    'Shop': 'On-hand (Shop)',
+    'Ducting Tent': 'On-hand (Ducting Tent)',
+    'Rig': 'On-hand (Rig)',
+  };
+  return map[label] || null;
+}
+
+// For consumables: determine source location for decrement. Prefer the item's
+// own Physical location (if set and valid); fall back to skuPrimaryLocation.
+function consumableSourceLocation(item, sku) {
+  const itemLoc = f(item, F.item_location) || '';
+  const validLocs = ['Barn','Unit Tent','Susie','Lumber Rack','Shop','Ducting Tent'];
+  if (validLocs.includes(itemLoc)) return itemLoc;
+  // Fallback: the SKU's primary location (the bucket with the most on-hand)
+  const buckets = [
+    ['Barn', f(sku, F.sku_barn)],
+    ['Unit Tent', f(sku, F.sku_tent)],
+    ['Susie', f(sku, F.sku_susie)],
+    ['Lumber Rack', f(sku, F.sku_lumber)],
+    ['Shop', f(sku, F.sku_shop)],
+    ['Ducting Tent', f(sku, F.sku_ducting)],
+  ];
+  let best = null, bestQty = 0;
+  buckets.forEach(([label, qty]) => {
+    const n = Number(qty) || 0;
+    if (n > bestQty) { bestQty = n; best = label; }
+  });
+  return best; // may be null if no stock anywhere
+}
+
+// Apply a SKU count change: source location -N, destination location +N
+async function applySkuMove(sku, fromLabel, toLabel, qty) {
+  const fromField = locationToSkuField(fromLabel);
+  const toField = locationToSkuField(toLabel);
+  if (!fromField || !toField || !qty || qty <= 0) return;
+  const fromCurrent = Number(f(sku, fromField)) || 0;
+  const toCurrent = Number(f(sku, toField)) || 0;
+  const updates = {};
+  updates[fromField] = Math.max(0, fromCurrent - qty);
+  updates[toField] = toCurrent + qty;
+  await patchRecord(SKUS_TBL, sku.id, updates);
+  // Update local cache
+  sku.fields[fromField] = updates[fromField];
+  sku.fields[toField] = updates[toField];
+}
+
 async function toggleLoaded(itemId) {
   const rows = document.querySelectorAll(`[data-item-id="${itemId}"]`);
   if (!rows.length) return;
   const firstCheck = rows[0].querySelector('.item-check');
   const wasLoaded = firstCheck.classList.contains('checked');
   const newVal = !wasLoaded;
-  // Show loading state on all instances
+  const item = items.find(i => i.id === itemId);
+  if (!item) return;
+
+  // Determine consumable vs equipment
+  const skuLinks = f(item, F.item_sku);
+  const isConsumable = Array.isArray(skuLinks) && skuLinks.length > 0;
+  const sku = isConsumable
+    ? skus.find(s => s.id === (typeof skuLinks[0] === 'string' ? skuLinks[0] : skuLinks[0].id))
+    : null;
+  const qty = Number(f(item, F.item_qty)) || 1;
+
+  // UNLOAD path (newVal === false) for consumables: ask where it's going back to BEFORE making any changes
+  if (!newVal && isConsumable && sku) {
+    openUnloadPicker(itemId);
+    return; // The picker handles the rest; restore checkbox state visually in case
+  }
+
+  // Show loading state on all row instances
   rows.forEach(row => {
     const c = row.querySelector('.item-check');
     c.classList.add('loading'); c.classList.remove('checked');
   });
+
   try {
-    const fields = newVal
-      ? {'Loaded?':true,'Status':'Loaded','Physical location':'Rig'}
-      : {'Loaded?':false,'Status':'Allocated','Physical location':'Unit Tent'};
-    await patchRecord(ITEMS_TBL, itemId, fields);
-    checkedLocally[itemId]=newVal;
-    const item=items.find(i=>i.id===itemId);
-    if (item) { item.fields['Loaded?']=newVal; item.fields['Status']=newVal?'Loaded':'Allocated'; item.fields['Physical location']=newVal?'Rig':'Unit Tent'; }
+    if (newVal) {
+      // LOAD path
+      if (isConsumable && sku) {
+        const sourceLoc = consumableSourceLocation(item, sku);
+        if (sourceLoc) {
+          await applySkuMove(sku, sourceLoc, 'Rig', qty);
+        }
+      }
+      const fields = { 'Loaded?': true, 'Status': 'Loaded', 'Physical location': 'Rig' };
+      await patchRecord(ITEMS_TBL, itemId, fields);
+      checkedLocally[itemId] = true;
+      item.fields['Loaded?'] = true;
+      item.fields['Status'] = 'Loaded';
+      item.fields['Physical location'] = 'Rig';
+    } else {
+      // UNLOAD path for equipment only (consumable unload handled by picker above)
+      const fields = { 'Loaded?': false, 'Status': 'Allocated', 'Physical location': 'Unit Tent' };
+      await patchRecord(ITEMS_TBL, itemId, fields);
+      checkedLocally[itemId] = false;
+      item.fields['Loaded?'] = false;
+      item.fields['Status'] = 'Allocated';
+      item.fields['Physical location'] = 'Unit Tent';
+    }
     renderLoadList();
+    if (typeof renderInventory === 'function') renderInventory();
   } catch(e) {
     rows.forEach(row => {
       const c = row.querySelector('.item-check');
@@ -1707,6 +1817,67 @@ async function toggleLoaded(itemId) {
       if (wasLoaded) c.classList.add('checked');
     });
     showError('Could not update item.');
+  }
+}
+
+// ── UNLOAD PICKER (consumables only) ──
+let unloadItemId = null;
+
+function openUnloadPicker(itemId) {
+  unloadItemId = itemId;
+  const item = items.find(i => i.id === itemId);
+  if (!item) return;
+  const model = f(item, F.item_model) || 'this item';
+  const qty = Number(f(item, F.item_qty)) || 1;
+  document.getElementById('unload-title').textContent = `Unload ${model}`;
+  document.getElementById('unload-sub').textContent = `Returning ${qty} from Rig — where is it going?`;
+  document.getElementById('unload-location').value = 'Unit Tent';
+  document.getElementById('unload-modal').classList.add('open');
+}
+
+function closeUnloadPicker() {
+  document.getElementById('unload-modal').classList.remove('open');
+  unloadItemId = null;
+}
+
+async function confirmUnload() {
+  if (!unloadItemId) return;
+  const item = items.find(i => i.id === unloadItemId);
+  if (!item) { closeUnloadPicker(); return; }
+  const skuLinks = f(item, F.item_sku);
+  const sku = (Array.isArray(skuLinks) && skuLinks.length)
+    ? skus.find(s => s.id === (typeof skuLinks[0] === 'string' ? skuLinks[0] : skuLinks[0].id))
+    : null;
+  const qty = Number(f(item, F.item_qty)) || 1;
+  const returnLoc = document.getElementById('unload-location').value;
+
+  // Show loading state on UI rows
+  const rows = document.querySelectorAll(`[data-item-id="${unloadItemId}"]`);
+  rows.forEach(row => {
+    const c = row.querySelector('.item-check');
+    if (c) { c.classList.add('loading'); c.classList.remove('checked'); }
+  });
+
+  try {
+    if (sku) {
+      await applySkuMove(sku, 'Rig', returnLoc, qty);
+    }
+    const fields = { 'Loaded?': false, 'Status': 'Allocated', 'Physical location': returnLoc };
+    await patchRecord(ITEMS_TBL, unloadItemId, fields);
+    checkedLocally[unloadItemId] = false;
+    item.fields['Loaded?'] = false;
+    item.fields['Status'] = 'Allocated';
+    item.fields['Physical location'] = returnLoc;
+    closeUnloadPicker();
+    renderLoadList();
+    if (typeof renderInventory === 'function') renderInventory();
+  } catch(e) {
+    rows.forEach(row => {
+      const c = row.querySelector('.item-check');
+      if (c) { c.classList.remove('loading'); c.classList.add('checked'); } // revert visually
+    });
+    closeUnloadPicker();
+    showError('Could not unload item.');
   }
 }
 
