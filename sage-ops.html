@@ -466,7 +466,7 @@
 <div class="modal-bg" id="complete-modal">
   <div class="modal">
     <h3>Confirm job complete</h3>
-    <p>Review and adjust quantities actually used — inventory will be updated accordingly.</p>
+    <p>This will mark all items as Installed and close the job. Inventory already moved at load — no count changes here.</p>
     <div id="modal-items"></div>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeModal()">Cancel</button>
@@ -2339,27 +2339,35 @@ async function reConfirmWriteoff() {
 // ── COMPLETE JOB ──
 function startComplete(jobId) {
   completeJobId = jobId;
-  const job = jobs.find(j=>j.id===jobId);
   const jobItems = items.filter(item => {
     const owners=f(item,F.item_owner); if (!Array.isArray(owners)) return false;
     return owners.some(o=>(typeof o==='string'?o:o.id)===jobId);
   });
-  const consumables = jobItems.filter(i => { const skuLinks=f(i,F.item_sku); return Array.isArray(skuLinks)&&skuLinks.length>0; });
+  // Items that will be flipped to Installed (skip already-installed)
+  const pending = jobItems.filter(i => {
+    const s = (f(i,F.item_status)||'').toLowerCase();
+    return s !== 'installed' && s !== 'archived';
+  });
 
   let html = '';
-  if (!consumables.length) {
-    html = `<div style="font-size:14px;color:var(--text-muted);padding:12px 0 20px;">No consumables tracked for this job.</div>`;
+  if (!jobItems.length) {
+    html = `<div style="font-size:14px;color:var(--text-muted);padding:12px 0 20px;">No items on this job.</div>`;
   } else {
-    consumables.forEach(item => {
-      const iid=item.id, model=f(item,F.item_model)||'Item', qty=f(item,F.item_qty)??1, unit=f(item,'Unit')||'';
-      html += `<div class="modal-item">
-        <div class="modal-item-name">${model}</div>
-        <div class="modal-item-qty">
-          <input type="number" id="confirm-qty-${iid}" value="${qty}" min="0" step="0.1" />
-          <span class="modal-item-unit">${unit}</span>
-        </div>
+    html = `<div style="font-size:13px;color:var(--text-muted);padding:4px 0 12px;">${pending.length} item${pending.length===1?'':'s'} will be marked Installed:</div>`;
+    pending.forEach(item => {
+      const model = f(item,F.item_model) || 'Item';
+      const qty = f(item,F.item_qty) ?? 1;
+      const unit = f(item,'Unit') || '';
+      const skuLinks = f(item,F.item_sku);
+      const isConsumable = Array.isArray(skuLinks) && skuLinks.length > 0;
+      const qtyText = isConsumable ? ` · qty ${qty}${unit?' '+unit:''}` : '';
+      html += `<div style="padding:6px 0;font-size:14px;border-bottom:1px solid var(--border);">
+        <span style="font-weight:500;">${escapeHtml(model)}</span><span style="color:var(--text-muted);font-size:13px;">${qtyText}</span>
       </div>`;
     });
+    if (!pending.length) {
+      html += `<div style="font-size:13px;color:var(--text-faint);padding:6px 0;">All items already marked Installed — completing the job will just update its status.</div>`;
+    }
   }
   document.getElementById('modal-items').innerHTML = html;
   document.getElementById('complete-modal').classList.add('open');
@@ -2369,37 +2377,23 @@ function closeModal() { document.getElementById('complete-modal').classList.remo
 
 async function confirmComplete() {
   if (!completeJobId) return;
-  const job = jobs.find(j=>j.id===completeJobId);
   const jobItems = items.filter(item => {
     const owners=f(item,F.item_owner); if (!Array.isArray(owners)) return false;
     return owners.some(o=>(typeof o==='string'?o:o.id)===completeJobId);
   });
-  const consumables = jobItems.filter(i=>{ const skuLinks=f(i,F.item_sku); return Array.isArray(skuLinks)&&skuLinks.length>0; });
 
   try {
-    // Deduct inventory for each consumable
-    for (const item of consumables) {
-      const qtyInput = document.getElementById('confirm-qty-'+item.id);
-      const usedQty = qtyInput ? parseFloat(qtyInput.value)||0 : f(item,F.item_qty)||0;
-      const skuLinks = f(item,F.item_sku);
-      if (!Array.isArray(skuLinks)||!skuLinks.length) continue;
-      const skuId = typeof skuLinks[0]==='string'?skuLinks[0]:skuLinks[0].id;
-      const sku = skus.find(s=>s.id===skuId); if (!sku) continue;
-      // Find where stock lives and deduct from that location
-      const barn = f(sku,F.sku_barn)||0, tent = f(sku,F.sku_tent)||0, susie = f(sku,F.sku_susie)||0, lumber = f(sku,F.sku_lumber)||0, shop = f(sku,F.sku_shop)||0, ducting = f(sku,F.sku_ducting)||0;
-      const total = barn+tent+susie+lumber+shop+ducting;
-      let remaining = usedQty;
-      const updates = {};
-      // Deduct proportionally from each location that has stock
-      if (barn>0 && remaining>0) { const d=Math.min(barn,remaining); updates['On-hand (Barn)']=Math.max(0,barn-d); remaining-=d; }
-      if (tent>0 && remaining>0) { const d=Math.min(tent,remaining); updates['On-hand (Unit Tent)']=Math.max(0,tent-d); remaining-=d; }
-      if (susie>0 && remaining>0) { const d=Math.min(susie,remaining); updates['On-hand (Susie)']=Math.max(0,susie-d); remaining-=d; }
-      if (lumber>0 && remaining>0) { const d=Math.min(lumber,remaining); updates['On-hand (Lumber Rack)']=Math.max(0,lumber-d); remaining-=d; }
-      if (shop>0 && remaining>0) { const d=Math.min(shop,remaining); updates['On-hand (Shop)']=Math.max(0,shop-d); remaining-=d; }
-      if (ducting>0 && remaining>0) { const d=Math.min(ducting,remaining); updates['On-hand (Ducting Tent)']=Math.max(0,ducting-d); remaining-=d; }
-      if (Object.keys(updates).length) await patchRecord(SKUS_TBL, skuId, updates);
-      // Mark item as installed
-      await patchRecord(ITEMS_TBL, item.id, {'Status':'Installed','Physical location':'installed'});
+    // No SKU count changes here. Load → Rig already moved inventory at load time.
+    // Rig counts get reconciled via the weekly rig walk.
+    // Just mark items as Installed (lifecycle complete).
+    for (const item of jobItems) {
+      const status = (f(item,F.item_status)||'').toLowerCase();
+      // Skip items already installed or archived — no need to re-patch
+      if (status === 'installed' || status === 'archived') continue;
+      await patchRecord(ITEMS_TBL, item.id, {'Status':'Installed','Loaded?':false});
+      // Update local cache
+      item.fields['Status'] = 'Installed';
+      item.fields['Loaded?'] = false;
     }
     // Mark job complete
     await patchRecord(JOBS_TBL, completeJobId, {'Status':'Complete'});
@@ -2411,7 +2405,7 @@ async function confirmComplete() {
 
 // ── REVERT JOB TO ACTIVE ──
 async function revertComplete(jobId) {
-  if (!confirm('Revert this job back to Active?\n\nThis will:\n• Set job status to Active\n• Flip any Installed items back to Allocated (so they reappear on the Load List)\n\nIt does NOT restore inventory that was deducted. Adjust counts manually in Inventory if needed.')) return;
+  if (!confirm('Revert this job back to Active?\n\nThis will set job status to Active and flip Installed items back to Allocated. Inventory counts are not touched (Rig is reconciled weekly).')) return;
   try {
     // Flip items: Installed → Allocated, Physical location installed → Unit Tent
     const jobItems = items.filter(item => {
@@ -2421,7 +2415,11 @@ async function revertComplete(jobId) {
     for (const item of jobItems) {
       const status = (f(item,F.item_status)||'').toLowerCase();
       if (status === 'installed') {
-        await patchRecord(ITEMS_TBL, item.id, {'Status':'Allocated','Physical location':'Unit Tent','Loaded?':false});
+        // Flip back to Allocated. Preserve Physical location — don't assume Unit Tent.
+        // (Under the new model, the item may have last been on the Rig.)
+        await patchRecord(ITEMS_TBL, item.id, {'Status':'Allocated','Loaded?':false});
+        item.fields['Status'] = 'Allocated';
+        item.fields['Loaded?'] = false;
       }
     }
     await patchRecord(JOBS_TBL, jobId, {'Status':'Active'});
