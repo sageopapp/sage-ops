@@ -285,7 +285,7 @@
   .sku-edit-btn { background: none; border: 1px solid var(--border); border-radius: 50%; width: 30px; height: 30px; padding: 0; cursor: pointer; color: var(--text-muted); font-size: 14px; line-height: 1; display: flex; align-items: center; justify-content: center; margin-left: 4px; transition: all 0.15s; }
   .sku-edit-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
   .sku-edit-btn.small { width: 26px; height: 26px; font-size: 12px; }
-  #inv-edit-val, #walk-val { flex: 1; padding: 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 22px; text-align: center; font-weight: 600; outline: none; }
+  #inv-edit-val, #walk-val { flex: 1 1 0; min-width: 0; width: auto; box-sizing: border-box; padding: 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 22px; text-align: center; font-weight: 600; outline: none; }
   #inv-edit-val:focus, #walk-val:focus { border-color: var(--accent); }
 
   /* WALK MODE */
@@ -960,9 +960,9 @@
   <div class="modal">
     <h3 id="inv-edit-title">Edit count</h3>
     <p id="inv-edit-subtitle"></p>
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;width:100%;box-sizing:border-box;">
       <button class="inv-step" onclick="invStep(-1)">−</button>
-      <input type="number" id="inv-edit-val" step="1" min="0" />
+      <input type="number" id="inv-edit-val" step="1" min="0" style="flex:1 1 0;min-width:0;width:auto;" />
       <button class="inv-step" onclick="invStep(1)">+</button>
     </div>
     <div class="modal-btns">
