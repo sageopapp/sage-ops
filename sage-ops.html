@@ -2845,13 +2845,91 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     return (f(a,F.sku_name)||'').localeCompare(f(b,F.sku_name)||'');
   });
 
-  if (!filtered.length) {
+  // ── Equipment section: only on the Unit Tent tab ──
+  let equipHtml = '';
+  if (currentInvLocation === 'On-hand (Unit Tent)') {
+    // Pull all Items physically in the Unit Tent (regardless of status),
+    // excluding consumables (SKU-linked items are tracked as counts, not individual units).
+    const tentItems = items.filter(item => {
+      const loc = f(item, F.item_location);
+      if (loc !== 'Unit Tent') return false;
+      const skuLinks = f(item, F.item_sku);
+      // Equipment has no SKU link; consumables have one. Show only equipment here.
+      return !Array.isArray(skuLinks) || skuLinks.length === 0;
+    });
+    // Sort: Stock first (available to assign), then Allocated, then anything else; alphabetical within
+    function statusRank(s) {
+      const v = (s||'').toLowerCase();
+      if (v === 'stock') return 0;
+      if (v === 'allocated') return 1;
+      if (v === 'loaded') return 2;
+      return 3;
+    }
+    tentItems.sort((a,b) => {
+      const ra = statusRank(f(a,F.item_status));
+      const rb = statusRank(f(b,F.item_status));
+      if (ra !== rb) return ra - rb;
+      return (f(a,F.item_model)||'').localeCompare(f(b,F.item_model)||'');
+    });
+    // Count by status for the section header summary
+    let stockN = 0, allocN = 0, otherN = 0;
+    tentItems.forEach(it => {
+      const st = (f(it,F.item_status)||'').toLowerCase();
+      if (st === 'stock') stockN++;
+      else if (st === 'allocated') allocN++;
+      else otherN++;
+    });
+    const summaryBits = [];
+    if (stockN) summaryBits.push(`${stockN} stock`);
+    if (allocN) summaryBits.push(`${allocN} allocated`);
+    if (otherN) summaryBits.push(`${otherN} other`);
+    const summaryText = summaryBits.length ? summaryBits.join(' · ') : 'No equipment in tent';
+    equipHtml += `<div class="inv-summary" style="margin-top:4px;">Equipment in Unit Tent · ${escapeHtml(summaryText)}</div>`;
+    tentItems.forEach(item => {
+      const iid = item.id;
+      const model = f(item, F.item_model) || 'Unnamed unit';
+      const typeTag = f(item, F.item_type) || '';
+      const status = f(item, F.item_status) || '';
+      const statusLower = status.toLowerCase();
+      const owners = f(item, F.item_owner);
+      let ownerName = '';
+      if (Array.isArray(owners) && owners.length) {
+        ownerName = (typeof owners[0] === 'string') ? '' : (owners[0].name || '');
+      }
+      // Visual style: Stock = sage blue accent, Allocated = neutral, Loaded = amber
+      let statusBadge = '';
+      if (statusLower === 'stock') {
+        statusBadge = `<span style="font-size:11px;padding:2px 8px;border-radius:99px;background:var(--accent-light);color:var(--accent-text);font-weight:500;">Stock</span>`;
+      } else if (statusLower === 'allocated') {
+        statusBadge = `<span style="font-size:11px;padding:2px 8px;border-radius:99px;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);">Allocated${ownerName?' · '+escapeHtml(ownerName):''}</span>`;
+      } else if (statusLower === 'loaded') {
+        statusBadge = `<span style="font-size:11px;padding:2px 8px;border-radius:99px;background:var(--warn-light);color:var(--warn);font-weight:500;">Loaded${ownerName?' · '+escapeHtml(ownerName):''}</span>`;
+      } else if (status) {
+        statusBadge = `<span style="font-size:11px;padding:2px 8px;border-radius:99px;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);">${escapeHtml(status)}</span>`;
+      }
+      equipHtml += `<div class="inv-card" style="padding:12px 14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+          <div style="min-width:0;flex:1;">
+            <div class="inv-name">${escapeHtml(model)}</div>
+            ${typeTag?`<div class="inv-meta">${escapeHtml(typeTag)}</div>`:''}
+          </div>
+          <div style="flex-shrink:0;">${statusBadge}</div>
+        </div>
+      </div>`;
+    });
+  }
+
+  // Empty-state handling: if equipment exists, show it even if no SKUs match
+  if (!filtered.length && !equipHtml) {
     body.innerHTML = `<div class="empty"><div class="icon">📦</div>No SKUs match</div>`;
     return;
   }
 
   const lowCount = skus.filter(s => { const fl=f(s,F.sku_order_flag); return fl && String(fl).includes('order'); }).length;
-  let html = `<div class="inv-summary">${skus.length} SKUs${lowCount?` · <span class="inv-low-pill">⚠ ${lowCount} low</span>`:''}</div>`;
+  let html = equipHtml;
+  if (filtered.length) {
+    html += `<div class="inv-summary"${equipHtml?' style="margin-top:14px;"':''}>${skus.length} SKUs${lowCount?` · <span class="inv-low-pill">⚠ ${lowCount} low</span>`:''}</div>`;
+  }
 
   filtered.forEach(sku => {
     const sid = sku.id;
