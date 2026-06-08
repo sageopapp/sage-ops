@@ -256,10 +256,16 @@
   .inv-checkbox input { cursor: pointer; }
   .btn-walk { background: var(--accent); color: white; border: none; border-radius: var(--radius-sm); padding: 8px 14px; font-size: 13px; font-weight: 500; cursor: pointer; }
   .btn-walk:hover { background: var(--accent-text); }
+  .loc-tabs { display: flex; gap: 6px; margin-top: 12px; padding-bottom: 6px; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+  .loc-tabs::-webkit-scrollbar { height: 4px; }
+  .loc-tabs::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+  .loc-tab { flex-shrink: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 500; color: var(--text-muted); cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+  .loc-tab:hover { border-color: var(--accent); color: var(--accent); }
+  .loc-tab.active { background: var(--accent); color: white; border-color: var(--accent); }
   .inv-summary { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
   .inv-low-pill { background: var(--warn-light); color: var(--warn); padding: 2px 8px; border-radius: 99px; font-weight: 500; }
   .inv-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px; }
-  .inv-card.low { border-color: var(--warn); border-left-width: 3px; }
+  .inv-card.low { border-color: var(--danger); border-left-width: 3px; }
   .inv-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
   .inv-card-title { flex: 1; min-width: 0; }
   .inv-name { font-size: 15px; font-weight: 600; }
@@ -273,8 +279,12 @@
   .inv-loc:hover { border-color: var(--accent); }
   .inv-loc-label { font-size: 11px; color: var(--text-muted); }
   .inv-loc-val { font-size: 15px; font-weight: 600; color: var(--text); }
-  .inv-step { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--surface); font-size: 22px; cursor: pointer; color: var(--text); line-height: 1; }
-  .inv-step:hover { border-color: var(--accent); color: var(--accent); }
+  .inv-step { width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--bg); font-size: 24px; font-weight: 500; cursor: pointer; color: var(--text); line-height: 1; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .inv-step:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+  .inv-step:active { transform: scale(0.95); }
+  .sku-edit-btn { background: none; border: 1px solid var(--border); border-radius: 50%; width: 30px; height: 30px; padding: 0; cursor: pointer; color: var(--text-muted); font-size: 14px; line-height: 1; display: flex; align-items: center; justify-content: center; margin-left: 4px; transition: all 0.15s; }
+  .sku-edit-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+  .sku-edit-btn.small { width: 26px; height: 26px; font-size: 12px; }
   #inv-edit-val, #walk-val { flex: 1; padding: 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 22px; text-align: center; font-weight: 600; outline: none; }
   #inv-edit-val:focus, #walk-val:focus { border-color: var(--accent); }
 
@@ -422,8 +432,20 @@
         <label class="inv-checkbox"><input type="checkbox" id="inv-low-only" onchange="renderInventory()" /> Low stock only</label>
         <div style="display:flex;gap:8px;">
           <button class="btn-walk" onclick="openAddSkuModal()" style="background:var(--action);color:white;border:1px solid var(--action);">+ Add SKU</button>
-          <button class="btn-walk" onclick="startWalk()">📋 Count walk</button>
         </div>
+      </div>
+      <div class="loc-tabs" id="loc-tabs">
+        <button class="loc-tab active" data-loc="all" onclick="setInvLocation('all')">All</button>
+        <button class="loc-tab" data-loc="On-hand (Unit Tent)" onclick="setInvLocation('On-hand (Unit Tent)')">Unit</button>
+        <button class="loc-tab" data-loc="On-hand (Susie)" onclick="setInvLocation('On-hand (Susie)')">Susie</button>
+        <button class="loc-tab" data-loc="On-hand (Barn)" onclick="setInvLocation('On-hand (Barn)')">Barn</button>
+        <button class="loc-tab" data-loc="On-hand (Rig)" onclick="setInvLocation('On-hand (Rig)')">Rig</button>
+        <button class="loc-tab" data-loc="On-hand (Ducting Tent)" onclick="setInvLocation('On-hand (Ducting Tent)')">Ducting</button>
+        <button class="loc-tab" data-loc="On-hand (Lumber Rack)" onclick="setInvLocation('On-hand (Lumber Rack)')">Lumber</button>
+        <button class="loc-tab" data-loc="On-hand (Shop)" onclick="setInvLocation('On-hand (Shop)')">Shop</button>
+      </div>
+      <div id="inv-tab-actions" style="display:none;margin-top:8px;">
+        <button class="btn-sm btn-sm-ghost" onclick="startTentVerifyFromTab()" style="font-size:12px;padding:5px 10px;">✓ Verify pile (job-allocated items)</button>
       </div>
     </div>
     <div id="inventory-body"></div>
@@ -610,10 +632,11 @@
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Primary location</label>
           <select id="sku-primary-loc" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
             <option value="Barn">Barn</option>
-            <option value="Inventory Tent">Inventory Tent</option>
-            <option value="Lumber rack">Lumber rack</option>
+            <option value="Unit Tent">Unit Tent</option>
+            <option value="Lumber Rack">Lumber Rack</option>
             <option value="Susie">Susie</option>
             <option value="Shop">Shop</option>
+            <option value="Ducting Tent">Ducting Tent</option>
           </select>
         </div>
         <div style="flex:1;">
@@ -629,6 +652,7 @@
           <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12px;color:var(--text-muted);min-width:60px;">Lumber</span><input type="number" id="sku-cnt-lumber" placeholder="0" min="0" step="0.1" style="flex:1;padding:6px 8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:13px;outline:none;" /></div>
           <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12px;color:var(--text-muted);min-width:60px;">Susie</span><input type="number" id="sku-cnt-susie" placeholder="0" min="0" step="0.1" style="flex:1;padding:6px 8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:13px;outline:none;" /></div>
           <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12px;color:var(--text-muted);min-width:60px;">Shop</span><input type="number" id="sku-cnt-shop" placeholder="0" min="0" step="0.1" style="flex:1;padding:6px 8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:13px;outline:none;" /></div>
+          <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12px;color:var(--text-muted);min-width:60px;">Ducting</span><input type="number" id="sku-cnt-ducting" placeholder="0" min="0" step="0.1" style="flex:1;padding:6px 8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:13px;outline:none;" /></div>
         </div>
       </div>
     </div>
@@ -677,7 +701,7 @@
   </div>
 </div>
 
-<!-- ADD UNIT FOR CUSTOMER MODAL (in Inventory Tent walk) -->
+<!-- ADD UNIT FOR CUSTOMER MODAL (in Unit Tent walk) -->
 <div class="modal-bg" id="add-unit-modal">
   <div class="modal" style="max-width:480px;">
     <h3>Add unit for customer</h3>
@@ -702,11 +726,12 @@
         <div style="flex:2;">
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Location *</label>
           <select id="au-location" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
-            <option value="Inventory Tent">Inventory Tent</option>
+            <option value="Unit Tent">Unit Tent</option>
             <option value="Barn">Barn</option>
             <option value="Shop">Shop</option>
-            <option value="Lumber rack">Lumber rack</option>
+            <option value="Lumber Rack">Lumber Rack</option>
             <option value="Susie">Susie</option>
+            <option value="Ducting Tent">Ducting Tent</option>
           </select>
         </div>
       </div>
@@ -739,10 +764,12 @@
     <div id="re-step-stock" style="display:none;">
       <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Stock location</label>
       <select id="re-location" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);margin-bottom:16px;">
-        <option value="Inventory Tent" selected>Inventory Tent</option>
+        <option value="Unit Tent" selected>Unit Tent</option>
         <option value="Barn">Barn</option>
         <option value="Shop">Shop</option>
         <option value="Susie">Susie</option>
+        <option value="Lumber Rack">Lumber Rack</option>
+        <option value="Ducting Tent">Ducting Tent</option>
       </select>
       <div class="modal-btns">
         <button class="btn-cancel" onclick="reBackToStep1()">← Back</button>
@@ -774,6 +801,88 @@
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeDeleteJobModal()">Cancel</button>
       <button class="btn-danger" onclick="confirmDeleteJob()">Delete permanently</button>
+    </div>
+  </div>
+</div>
+
+<!-- SKU EDIT MODAL (rename, vendor, threshold, unit, location counts, delete) -->
+<div class="modal-bg" id="sku-edit-modal" onclick="if(event.target===this)closeSkuEdit()">
+  <div class="modal" style="max-width:520px;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+      <h3>Edit SKU</h3>
+      <button class="detail-close" onclick="closeSkuEdit()" title="Cancel" style="margin-top:-4px;">×</button>
+    </div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">Update name, vendor, threshold, unit, and counts at any location.</p>
+
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Name *</label>
+        <input type="text" id="sku-edit-name" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div style="flex:2;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Vendor</label>
+          <input type="text" id="sku-edit-vendor" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+        </div>
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Unit</label>
+          <select id="sku-edit-unit" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+            <option value="">—</option>
+            <option value="each">each</option>
+            <option value="package">package</option>
+            <option value="packages">packages</option>
+            <option value="roll">roll</option>
+            <option value="rolls">rolls</option>
+            <option value="board">board</option>
+            <option value="boards">boards</option>
+          </select>
+        </div>
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Reorder &lt;</label>
+          <input type="number" id="sku-edit-threshold" step="1" min="0" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+        </div>
+      </div>
+
+      <div style="margin-top:6px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.04em;">Location counts</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div>
+            <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:3px;">Barn</label>
+            <input type="number" id="sku-edit-barn" step="1" min="0" style="width:100%;padding:7px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:3px;">Unit Tent</label>
+            <input type="number" id="sku-edit-tent" step="1" min="0" style="width:100%;padding:7px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:3px;">Susie</label>
+            <input type="number" id="sku-edit-susie" step="1" min="0" style="width:100%;padding:7px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:3px;">Lumber Rack</label>
+            <input type="number" id="sku-edit-lumber" step="1" min="0" style="width:100%;padding:7px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:3px;">Shop</label>
+            <input type="number" id="sku-edit-shop" step="1" min="0" style="width:100%;padding:7px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:3px;">Ducting Tent</label>
+            <input type="number" id="sku-edit-ducting" step="1" min="0" style="width:100%;padding:7px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text-faint);margin-top:6px;">Rig is managed by the load list and not editable here.</div>
+      </div>
+    </div>
+
+    <div id="sku-edit-error" style="display:none;color:var(--danger);font-size:13px;margin-top:14px;background:var(--danger-light);padding:8px 12px;border-radius:var(--radius-sm);"></div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:22px;gap:12px;">
+      <button class="btn-sm" style="padding:10px 16px;background:var(--surface);color:var(--danger);border:1px solid var(--danger);" onclick="deleteSkuFromEdit()">🗑 Delete SKU</button>
+      <div style="display:flex;gap:10px;">
+        <button class="btn-cancel" onclick="closeSkuEdit()">Cancel</button>
+        <button class="btn-sm btn-sm-accent" style="padding:10px 20px;" onclick="saveSkuEdit()">Save</button>
+      </div>
     </div>
   </div>
 </div>
@@ -837,9 +946,9 @@ const F = {
   item_status: 'Status', item_location: 'Physical location',
   item_loaded: 'Loaded?', item_owner: 'Owner', item_visit: 'Visit consumed at',
   item_sku: 'Stock SKU', item_comments: 'Comments',
-  sku_name: 'Name', sku_barn: 'On-hand (Barn)', sku_tent: 'On-hand (Inventory Tent)',
-  sku_susie: 'On-hand (Susie)', sku_lumber: 'On-hand (Lumber rack)', sku_rig: 'On-hand (Rig)',
-  sku_shop: 'On-hand (Shop)', sku_threshold: 'Vendor reorder threshold',
+  sku_name: 'Name', sku_barn: 'On-hand (Barn)', sku_tent: 'On-hand (Unit Tent)',
+  sku_susie: 'On-hand (Susie)', sku_lumber: 'On-hand (Lumber Rack)', sku_rig: 'On-hand (Rig)',
+  sku_shop: 'On-hand (Shop)', sku_ducting: 'On-hand (Ducting Tent)', sku_threshold: 'Vendor reorder threshold',
   sku_total: 'Total on-hand', sku_order_flag: 'Order needed?', sku_vendor: 'Vendor',
   sku_unit: 'Unit', sku_type: 'Type tag',
 };
@@ -856,11 +965,12 @@ let walkState = null; // {locField, locLabel, index, total}
 let tentVerifyState = null; // {itemIds, index, results}
 const LOCATIONS = [
   { field: 'On-hand (Barn)', label: 'Barn' },
-  { field: 'On-hand (Inventory Tent)', label: 'Inventory Tent' },
+  { field: 'On-hand (Unit Tent)', label: 'Unit Tent' },
   { field: 'On-hand (Susie)', label: 'Susie' },
-  { field: 'On-hand (Lumber rack)', label: 'Lumber rack' },
+  { field: 'On-hand (Lumber Rack)', label: 'Lumber Rack' },
   { field: 'On-hand (Rig)', label: 'Rig' },
   { field: 'On-hand (Shop)', label: 'Shop' },
+  { field: 'On-hand (Ducting Tent)', label: 'Ducting Tent' },
 ];
 
 function getKey() { return localStorage.getItem('sage_pat') || ''; }
@@ -1482,7 +1592,7 @@ function renderLoadList() {
         // the "unchecked but still says Rig" divergence.
         let loc;
         if (checkedLocally[iid]!==undefined) {
-          loc = checkedLocally[iid] ? 'Rig' : (f(item,F.item_location)==='Rig' ? 'Inventory Tent' : (f(item,F.item_location)||''));
+          loc = checkedLocally[iid] ? 'Rig' : (f(item,F.item_location)==='Rig' ? 'Unit Tent' : (f(item,F.item_location)||''));
         } else {
           loc = f(item,F.item_location)||'';
         }
@@ -1516,11 +1626,11 @@ async function toggleLoaded(itemId) {
   try {
     const fields = newVal
       ? {'Loaded?':true,'Status':'Loaded','Physical location':'Rig'}
-      : {'Loaded?':false,'Status':'Allocated','Physical location':'Inventory Tent'};
+      : {'Loaded?':false,'Status':'Allocated','Physical location':'Unit Tent'};
     await patchRecord(ITEMS_TBL, itemId, fields);
     checkedLocally[itemId]=newVal;
     const item=items.find(i=>i.id===itemId);
-    if (item) { item.fields['Loaded?']=newVal; item.fields['Status']=newVal?'Loaded':'Allocated'; item.fields['Physical location']=newVal?'Rig':'Inventory Tent'; }
+    if (item) { item.fields['Loaded?']=newVal; item.fields['Status']=newVal?'Loaded':'Allocated'; item.fields['Physical location']=newVal?'Rig':'Unit Tent'; }
     renderLoadList();
   } catch(e) {
     rows.forEach(row => {
@@ -1851,10 +1961,11 @@ async function saveMaterial(jobId) {
   function skuPrimaryLocation(s) {
     const buckets = [
       ['Barn', f(s, F.sku_barn)],
-      ['Inventory Tent', f(s, F.sku_tent)],
+      ['Unit Tent', f(s, F.sku_tent)],
       ['Susie', f(s, F.sku_susie)],
-      ['Lumber rack', f(s, F.sku_lumber)],
+      ['Lumber Rack', f(s, F.sku_lumber)],
       ['Shop', f(s, F.sku_shop)],
+      ['Ducting Tent', f(s, F.sku_ducting)],
     ];
     let best = null, bestQty = 0;
     buckets.forEach(([label, qty]) => {
@@ -1909,7 +2020,7 @@ function openRemoveEquipModal(itemId) {
   document.getElementById('re-step-writeoff').style.display = 'none';
   document.getElementById('re-step1-cancel').style.display = 'flex';
   document.getElementById('re-error').style.display = 'none';
-  document.getElementById('re-location').value = 'Inventory Tent';
+  document.getElementById('re-location').value = 'Unit Tent';
   document.getElementById('remove-equip-modal').classList.add('open');
 }
 
@@ -2036,15 +2147,17 @@ async function confirmComplete() {
       const skuId = typeof skuLinks[0]==='string'?skuLinks[0]:skuLinks[0].id;
       const sku = skus.find(s=>s.id===skuId); if (!sku) continue;
       // Find where stock lives and deduct from that location
-      const barn = f(sku,F.sku_barn)||0, tent = f(sku,F.sku_tent)||0, susie = f(sku,F.sku_susie)||0, lumber = f(sku,F.sku_lumber)||0;
-      const total = barn+tent+susie+lumber;
+      const barn = f(sku,F.sku_barn)||0, tent = f(sku,F.sku_tent)||0, susie = f(sku,F.sku_susie)||0, lumber = f(sku,F.sku_lumber)||0, shop = f(sku,F.sku_shop)||0, ducting = f(sku,F.sku_ducting)||0;
+      const total = barn+tent+susie+lumber+shop+ducting;
       let remaining = usedQty;
       const updates = {};
       // Deduct proportionally from each location that has stock
       if (barn>0 && remaining>0) { const d=Math.min(barn,remaining); updates['On-hand (Barn)']=Math.max(0,barn-d); remaining-=d; }
-      if (tent>0 && remaining>0) { const d=Math.min(tent,remaining); updates['On-hand (Inventory Tent)']=Math.max(0,tent-d); remaining-=d; }
+      if (tent>0 && remaining>0) { const d=Math.min(tent,remaining); updates['On-hand (Unit Tent)']=Math.max(0,tent-d); remaining-=d; }
       if (susie>0 && remaining>0) { const d=Math.min(susie,remaining); updates['On-hand (Susie)']=Math.max(0,susie-d); remaining-=d; }
-      if (lumber>0 && remaining>0) { const d=Math.min(lumber,remaining); updates['On-hand (Lumber rack)']=Math.max(0,lumber-d); remaining-=d; }
+      if (lumber>0 && remaining>0) { const d=Math.min(lumber,remaining); updates['On-hand (Lumber Rack)']=Math.max(0,lumber-d); remaining-=d; }
+      if (shop>0 && remaining>0) { const d=Math.min(shop,remaining); updates['On-hand (Shop)']=Math.max(0,shop-d); remaining-=d; }
+      if (ducting>0 && remaining>0) { const d=Math.min(ducting,remaining); updates['On-hand (Ducting Tent)']=Math.max(0,ducting-d); remaining-=d; }
       if (Object.keys(updates).length) await patchRecord(SKUS_TBL, skuId, updates);
       // Mark item as installed
       await patchRecord(ITEMS_TBL, item.id, {'Status':'Installed','Physical location':'installed'});
@@ -2061,7 +2174,7 @@ async function confirmComplete() {
 async function revertComplete(jobId) {
   if (!confirm('Revert this job back to Active?\n\nThis will:\n• Set job status to Active\n• Flip any Installed items back to Allocated (so they reappear on the Load List)\n\nIt does NOT restore inventory that was deducted. Adjust counts manually in Inventory if needed.')) return;
   try {
-    // Flip items: Installed → Allocated, Physical location installed → Inventory Tent
+    // Flip items: Installed → Allocated, Physical location installed → Unit Tent
     const jobItems = items.filter(item => {
       const owners=f(item,F.item_owner); if (!Array.isArray(owners)) return false;
       return owners.some(o=>(typeof o==='string'?o:o.id)===jobId);
@@ -2069,7 +2182,7 @@ async function revertComplete(jobId) {
     for (const item of jobItems) {
       const status = (f(item,F.item_status)||'').toLowerCase();
       if (status === 'installed') {
-        await patchRecord(ITEMS_TBL, item.id, {'Status':'Allocated','Physical location':'Inventory Tent','Loaded?':false});
+        await patchRecord(ITEMS_TBL, item.id, {'Status':'Allocated','Physical location':'Unit Tent','Loaded?':false});
       }
     }
     await patchRecord(JOBS_TBL, jobId, {'Status':'Active'});
@@ -2209,7 +2322,7 @@ function closeDayJobsModal() {
   document.getElementById('day-jobs-modal').classList.remove('open');
 }
 
-// ── ADD UNIT FOR CUSTOMER (in Inventory Tent walk) ──
+// ── ADD UNIT FOR CUSTOMER (in Unit Tent walk) ──
 function openAddUnitModal() {
   // Populate customer dropdown — unique job names (Active jobs preferred)
   const sel = document.getElementById('au-customer');
@@ -2231,7 +2344,7 @@ function openAddUnitModal() {
   document.getElementById('au-customer-new').style.display = 'none';
   document.getElementById('au-model').value = '';
   document.getElementById('au-qty').value = '1';
-  document.getElementById('au-location').value = 'Inventory Tent';
+  document.getElementById('au-location').value = 'Unit Tent';
   document.getElementById('au-type-tag').value = '';
   document.getElementById('au-error').style.display = 'none';
   document.getElementById('add-unit-modal').classList.add('open');
@@ -2336,6 +2449,7 @@ function openAddSkuModal(prefilledLoc) {
   document.getElementById('sku-cnt-lumber').value = '';
   document.getElementById('sku-cnt-susie').value = '';
   document.getElementById('sku-cnt-shop').value = '';
+  document.getElementById('sku-cnt-ducting').value = '';
   document.getElementById('sku-error').style.display = 'none';
   addSkuPrefilledLoc = prefilledLoc || null;
   if (prefilledLoc) {
@@ -2396,6 +2510,7 @@ async function saveNewSku() {
   const cLumber = parseFloat(document.getElementById('sku-cnt-lumber').value);
   const cSusie = parseFloat(document.getElementById('sku-cnt-susie').value);
   const cShop = parseFloat(document.getElementById('sku-cnt-shop').value);
+  const cDucting = parseFloat(document.getElementById('sku-cnt-ducting').value);
 
   if (!name) { skuShowError('Please enter a SKU name.'); return; }
 
@@ -2406,10 +2521,11 @@ async function saveNewSku() {
   if (primaryLoc) fields['Primary location'] = primaryLoc;
   if (!isNaN(threshold)) fields['Vendor reorder threshold'] = threshold;
   if (!isNaN(cBarn)) fields['On-hand (Barn)'] = cBarn;
-  if (!isNaN(cTent)) fields['On-hand (Inventory Tent)'] = cTent;
-  if (!isNaN(cLumber)) fields['On-hand (Lumber rack)'] = cLumber;
+  if (!isNaN(cTent)) fields['On-hand (Unit Tent)'] = cTent;
+  if (!isNaN(cLumber)) fields['On-hand (Lumber Rack)'] = cLumber;
   if (!isNaN(cSusie)) fields['On-hand (Susie)'] = cSusie;
   if (!isNaN(cShop)) fields['On-hand (Shop)'] = cShop;
+  if (!isNaN(cDucting)) fields['On-hand (Ducting Tent)'] = cDucting;
 
   try {
     const newSku = await createRecord(SKUS_TBL, fields);
@@ -2662,6 +2778,29 @@ async function saveNoteEdit() {
 }
 
 // ── INVENTORY ──
+let currentInvLocation = 'all'; // 'all' or 'On-hand (Barn)', 'On-hand (Unit Tent)', etc.
+
+function setInvLocation(loc) {
+  currentInvLocation = loc;
+  // Update tab UI
+  document.querySelectorAll('.loc-tab').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-loc') === loc);
+  });
+  // Show Verify Pile button only on Unit Tent tab
+  const tabActions = document.getElementById('inv-tab-actions');
+  if (tabActions) tabActions.style.display = (loc === 'On-hand (Unit Tent)') ? 'block' : 'none';
+  renderInventory();
+}
+
+function startTentVerifyFromTab() {
+  // Tent Verify is entered by calling beginWalk() on the Unit Tent location.
+  // beginWalk has a built-in special case that routes Unit Tent → Tent Verify flow.
+  const tentIdx = LOCATIONS.findIndex(l => l.field === 'On-hand (Unit Tent)');
+  if (tentIdx >= 0 && typeof beginWalk === 'function') {
+    beginWalk(tentIdx);
+  }
+}
+
 function renderInventory() {  const body = document.getElementById('inventory-body');
   if (!body) return;
   const searchEl = document.getElementById('inv-search');
@@ -2675,7 +2814,21 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     const flag = f(s,F.sku_order_flag);
     return flag && String(flag).includes('order');
   });
-  filtered.sort((a,b) => (f(a,F.sku_name)||'').localeCompare(f(b,F.sku_name)||''));
+  // Location tab filter: only show SKUs that have a non-zero, non-null count at this location
+  if (currentInvLocation !== 'all') {
+    filtered = filtered.filter(s => {
+      const v = f(s, currentInvLocation);
+      return v !== null && v !== undefined && Number(v) > 0;
+    });
+  }
+  // Sort: low-stock SKUs first, then alphabetical within each group
+  filtered.sort((a,b) => {
+    const aLow = (() => { const fl=f(a,F.sku_order_flag); return fl && String(fl).includes('order'); })();
+    const bLow = (() => { const fl=f(b,F.sku_order_flag); return fl && String(fl).includes('order'); })();
+    if (aLow && !bLow) return -1;
+    if (!aLow && bLow) return 1;
+    return (f(a,F.sku_name)||'').localeCompare(f(b,F.sku_name)||'');
+  });
 
   if (!filtered.length) {
     body.innerHTML = `<div class="empty"><div class="icon">📦</div>No SKUs match</div>`;
@@ -2715,6 +2868,7 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
         <div class="inv-card-right">
           ${isLow?'<span class="inv-low-badge">⚠ order</span>':''}
           <div class="inv-total">${total}<span class="inv-total-label">total</span></div>
+          <button class="sku-edit-btn" onclick="openSkuEdit('${sid}')" title="Edit SKU details">✎</button>
         </div>
       </div>
       <div class="inv-locs">${locsHtml}</div>
@@ -2722,6 +2876,145 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
   });
 
   body.innerHTML = html;
+}
+
+// ── SKU EDIT MODAL ──
+let skuEditId = null;
+
+function openSkuEdit(skuId) {
+  const sku = skus.find(s=>s.id===skuId);
+  if (!sku) return;
+  skuEditId = skuId;
+  document.getElementById('sku-edit-name').value = f(sku, F.sku_name) || '';
+  document.getElementById('sku-edit-vendor').value = f(sku, F.sku_vendor) || '';
+  document.getElementById('sku-edit-threshold').value = f(sku, F.sku_threshold) ?? '';
+  document.getElementById('sku-edit-unit').value = f(sku, F.sku_unit) || '';
+  document.getElementById('sku-edit-barn').value = f(sku, F.sku_barn) ?? '';
+  document.getElementById('sku-edit-tent').value = f(sku, F.sku_tent) ?? '';
+  document.getElementById('sku-edit-susie').value = f(sku, F.sku_susie) ?? '';
+  document.getElementById('sku-edit-lumber').value = f(sku, F.sku_lumber) ?? '';
+  document.getElementById('sku-edit-shop').value = f(sku, F.sku_shop) ?? '';
+  document.getElementById('sku-edit-ducting').value = f(sku, F.sku_ducting) ?? '';
+  document.getElementById('sku-edit-error').style.display = 'none';
+  document.getElementById('sku-edit-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('sku-edit-name').focus(), 50);
+}
+
+function closeSkuEdit() {
+  document.getElementById('sku-edit-modal').classList.remove('open');
+  skuEditId = null;
+}
+
+function skuEditShowError(msg) {
+  const el = document.getElementById('sku-edit-error');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+async function saveSkuEdit() {
+  if (!skuEditId) return;
+  const name = document.getElementById('sku-edit-name').value.trim();
+  if (!name) { skuEditShowError('Name is required.'); return; }
+
+  const vendor = document.getElementById('sku-edit-vendor').value.trim();
+  const thresholdStr = document.getElementById('sku-edit-threshold').value;
+  const unit = document.getElementById('sku-edit-unit').value;
+  // Validate each location count (empty = clear; numeric = set)
+  function numField(id) {
+    const v = document.getElementById(id).value;
+    if (v === '' || v === null) return null;
+    const n = parseFloat(v);
+    if (isNaN(n) || n < 0) return undefined; // invalid
+    return n;
+  }
+  const barn = numField('sku-edit-barn');
+  const tent = numField('sku-edit-tent');
+  const susie = numField('sku-edit-susie');
+  const lumber = numField('sku-edit-lumber');
+  const shop = numField('sku-edit-shop');
+  const ducting = numField('sku-edit-ducting');
+  if ([barn,tent,susie,lumber,shop,ducting].some(v=>v===undefined)) {
+    skuEditShowError('Counts must be 0 or greater (or blank).'); return;
+  }
+  let threshold = null;
+  if (thresholdStr !== '') {
+    threshold = parseFloat(thresholdStr);
+    if (isNaN(threshold) || threshold < 0) { skuEditShowError('Reorder threshold must be 0 or greater.'); return; }
+  }
+
+  const fields = {
+    'Name': name,
+    'Vendor': vendor || null,
+    'Vendor reorder threshold': threshold,
+    'Unit': unit || null,
+    'On-hand (Barn)': barn,
+    'On-hand (Unit Tent)': tent,
+    'On-hand (Susie)': susie,
+    'On-hand (Lumber Rack)': lumber,
+    'On-hand (Shop)': shop,
+    'On-hand (Ducting Tent)': ducting,
+  };
+
+  try {
+    await patchRecord(SKUS_TBL, skuEditId, fields);
+    // Update local cache
+    const sku = skus.find(s=>s.id===skuEditId);
+    if (sku) {
+      sku.fields['Name'] = name;
+      sku.fields['Vendor'] = vendor || undefined;
+      sku.fields['Vendor reorder threshold'] = threshold;
+      sku.fields['Unit'] = unit || undefined;
+      sku.fields['On-hand (Barn)'] = barn;
+      sku.fields['On-hand (Unit Tent)'] = tent;
+      sku.fields['On-hand (Susie)'] = susie;
+      sku.fields['On-hand (Lumber Rack)'] = lumber;
+      sku.fields['On-hand (Shop)'] = shop;
+      sku.fields['On-hand (Ducting Tent)'] = ducting;
+    }
+    closeSkuEdit();
+    renderInventory();
+    // If currently in a walk view, re-render that too
+    if (typeof renderWalkList === 'function' && walkState) {
+      renderWalkList();
+    }
+  } catch(e) {
+    skuEditShowError('Could not save changes. Try again.');
+  }
+}
+
+async function deleteSkuFromEdit() {
+  if (!skuEditId) return;
+  const sku = skus.find(s=>s.id===skuEditId);
+  if (!sku) return;
+  const name = f(sku, F.sku_name) || 'this SKU';
+  // Safety net: block deletion if any Items reference this SKU
+  const inUse = items.filter(item => {
+    const skuLinks = f(item, F.item_sku);
+    if (!Array.isArray(skuLinks)) return false;
+    return skuLinks.some(l => (typeof l==='string'?l:l.id) === skuEditId);
+  });
+  if (inUse.length > 0) {
+    // Count distinct jobs using it for a more useful message
+    const jobIds = new Set();
+    inUse.forEach(item => {
+      const owners = f(item, F.item_owner);
+      if (Array.isArray(owners)) owners.forEach(o => jobIds.add(typeof o==='string'?o:o.id));
+    });
+    const jobsCount = jobIds.size;
+    skuEditShowError(`Can't delete — this SKU is used by ${inUse.length} item${inUse.length===1?'':'s'} across ${jobsCount} job${jobsCount===1?'':'s'}. Remove from jobs first.`);
+    return;
+  }
+  if (!confirm(`Delete ${name} from inventory? This can't be undone.`)) return;
+  try {
+    await deleteRecord(SKUS_TBL, skuEditId);
+    skus = skus.filter(s => s.id !== skuEditId);
+    closeSkuEdit();
+    renderInventory();
+    if (typeof renderWalkList === 'function' && walkState) {
+      renderWalkList();
+    }
+  } catch(e) {
+    skuEditShowError('Could not delete. Try again.');
+  }
 }
 
 function openInvEdit(skuId, locField, locLabel) {
@@ -2769,14 +3062,14 @@ async function saveInvEdit() {
 function startWalk() {
   // Ask which location to walk
   const opts = LOCATIONS.map((l,i)=>{
-    const isTent = l.field === 'On-hand (Inventory Tent)';
+    const isTent = l.field === 'On-hand (Unit Tent)';
     return `<button class="walk-loc-btn" onclick="beginWalk(${i})">${l.label}${isTent?'<div style="font-size:11px;color:var(--text-faint);font-weight:400;margin-top:2px;">verify items</div>':''}</button>`;
   }).join('');
   document.getElementById('walk-title').textContent = 'Count walk';
   document.getElementById('walk-body').innerHTML = `
     <div class="detail-section">
       <div class="detail-section-title">Which location?</div>
-      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Walk through every SKU at the chosen location and update counts. Inventory Tent verifies job-allocated items instead.</p>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Walk through every SKU at the chosen location and update counts. Unit Tent verifies job-allocated items instead.</p>
       <div class="walk-loc-grid">${opts}</div>
     </div>`;
   document.getElementById('walk-panel').classList.add('open');
@@ -2785,8 +3078,8 @@ function startWalk() {
 
 function beginWalk(locIdx) {
   const loc = LOCATIONS[locIdx];
-  // Special case: Inventory Tent verifies job-allocated Items, not SKU counts
-  if (loc.field === 'On-hand (Inventory Tent)') {
+  // Special case: Unit Tent verifies job-allocated Items, not SKU counts
+  if (loc.field === 'On-hand (Unit Tent)') {
     beginTentVerify();
     return;
   }
@@ -2805,7 +3098,7 @@ function renderWalkList() {
     return v !== null && v !== undefined;
   }).sort((a,b) => (f(a,F.sku_name)||'').localeCompare(f(b,F.sku_name)||''));
 
-  const isLumber = locField === 'On-hand (Lumber rack)';
+  const isLumber = locField === 'On-hand (Lumber Rack)';
   const lumberNote = isLumber ? `<div class="walk-lumber-note">📏 Count full 16' sticks only. Cut pieces and offcuts don't count here.</div>` : '';
 
   if (!relevant.length) {
@@ -2838,6 +3131,7 @@ function renderWalkList() {
         ${vendor?`<div class="walk-sku-row-meta">${vendor}</div>`:''}
       </div>
       <div class="walk-sku-row-val">${v}${showUnit?` <span style="font-size:10px;color:var(--text-faint);font-weight:400;">${unit}${v===1?'':'s'}</span>`:''}</div>
+      <button class="sku-edit-btn small" onclick="event.stopPropagation();openSkuEdit('${sid}')" title="Edit SKU details">✎</button>
     </div>`;
   });
 
@@ -2860,7 +3154,7 @@ function backToWalkPicker() {
 }
 
 function beginTentVerify() {
-  // Find every Item with Physical location = Inventory Tent, allocated to a job
+  // Find every Item with Physical location = Unit Tent, allocated to a job
   // Group by job, sorted by job name
   const tentItems = items.filter(item => {
     const loc = (f(item,F.item_location)||'').toLowerCase();
@@ -2902,14 +3196,14 @@ function beginTentVerify() {
 function renderTentJobPicker() {
   if (!tentVerifyState) return;
   const { jobIds, jobItemsMap, completedJobs } = tentVerifyState;
-  document.getElementById('walk-title').textContent = 'Verify Inventory Tent';
+  document.getElementById('walk-title').textContent = 'Verify Unit Tent';
 
   if (!jobIds.length) {
     document.getElementById('walk-body').innerHTML = `
       <div class="detail-section" style="text-align:center;padding:32px 16px;">
         <div style="font-size:36px;margin-bottom:12px;">📦</div>
         <div style="font-size:16px;font-weight:600;margin-bottom:6px;">Tent is empty</div>
-        <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">No items are currently marked Physical location = Inventory Tent.</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">No items are currently marked Physical location = Unit Tent.</div>
         <button class="btn-sm btn-sm-ghost" onclick="openAddUnitModal()" style="padding:10px 18px;margin:0 auto 12px;display:block;border:1px dashed var(--border-strong);">+ Add unit for customer</button>
         <div style="display:flex;gap:8px;justify-content:center;">
           <button class="btn-sm btn-sm-action" onclick="backToWalkPicker()" style="padding:10px 18px;">← Back to locations</button>
