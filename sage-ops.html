@@ -960,9 +960,9 @@
   <div class="modal">
     <h3 id="inv-edit-title">Edit count</h3>
     <p id="inv-edit-subtitle"></p>
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;width:100%;box-sizing:border-box;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;width:100%;box-sizing:border-box;overflow:hidden;">
       <button class="inv-step" onclick="invStep(-1)">−</button>
-      <input type="number" id="inv-edit-val" step="1" min="0" style="flex:1 1 0;min-width:0;width:auto;" />
+      <input type="text" inputmode="decimal" pattern="[0-9]*" id="inv-edit-val" style="flex:1 1 0;min-width:0;width:auto;" />
       <button class="inv-step" onclick="invStep(1)">+</button>
     </div>
     <div class="modal-btns">
