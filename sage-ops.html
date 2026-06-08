@@ -3198,6 +3198,8 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
 
     let locsHtml = '';
     LOCATIONS.forEach(loc => {
+      // When on a specific location tab, only render that location's chip
+      if (currentInvLocation !== 'all' && loc.field !== currentInvLocation) return;
       const v = f(sku, loc.field);
       // Show all locations that have a value (including 0). Hide null/undefined.
       if (v === null || v === undefined) return;
