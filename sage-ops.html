@@ -444,7 +444,8 @@
         <button class="loc-tab" data-loc="On-hand (Lumber Rack)" onclick="setInvLocation('On-hand (Lumber Rack)')">Lumber</button>
         <button class="loc-tab" data-loc="On-hand (Shop)" onclick="setInvLocation('On-hand (Shop)')">Shop</button>
       </div>
-      <div id="inv-tab-actions" style="display:none;margin-top:8px;">
+      <div id="inv-tab-actions" style="display:none;margin-top:8px;gap:8px;flex-wrap:wrap;">
+        <button class="btn-sm btn-sm-ghost" onclick="openAddUnitModal()" style="font-size:12px;padding:5px 10px;background:var(--action);color:white;border:1px solid var(--action);">+ Add unit</button>
         <button class="btn-sm btn-sm-ghost" onclick="startTentVerifyFromTab()" style="font-size:12px;padding:5px 10px;">✓ Verify pile (job-allocated items)</button>
       </div>
     </div>
@@ -701,16 +702,16 @@
   </div>
 </div>
 
-<!-- ADD UNIT FOR CUSTOMER MODAL (in Unit Tent walk) -->
+<!-- ADD UNIT MODAL — to a customer/job or directly to stock -->
 <div class="modal-bg" id="add-unit-modal">
   <div class="modal" style="max-width:480px;">
-    <h3>Add unit for customer</h3>
-    <p>Label and stash a unit for a customer. Will create the customer/job record if new.</p>
+    <h3>Add unit</h3>
+    <p>Add equipment to inventory. Leave customer blank to add directly as Stock (unallocated).</p>
     <div style="display:flex;flex-direction:column;gap:14px;">
       <div>
-        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Customer *</label>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Customer <span style="font-weight:400;color:var(--text-faint);">(optional — blank = Stock)</span></label>
         <select id="au-customer" onchange="onAuCustomerChange()" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
-          <option value="">— Select —</option>
+          <option value="">— None (Stock) —</option>
         </select>
         <input type="text" id="au-customer-new" placeholder="New customer name" style="display:none;width:100%;margin-top:6px;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
       </div>
@@ -801,6 +802,71 @@
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeDeleteJobModal()">Cancel</button>
       <button class="btn-danger" onclick="confirmDeleteJob()">Delete permanently</button>
+    </div>
+  </div>
+</div>
+
+<!-- EQUIPMENT EDIT MODAL (edit individual equipment unit) -->
+<div class="modal-bg" id="equip-edit-modal" onclick="if(event.target===this)closeEquipEdit()">
+  <div class="modal" style="max-width:520px;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+      <h3>Edit equipment unit</h3>
+      <button class="detail-close" onclick="closeEquipEdit()" title="Cancel" style="margin-top:-4px;">×</button>
+    </div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">Update model, type, status, owner, and location. Use Status = Stock with no owner for unallocated inventory.</p>
+
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Model number *</label>
+        <input type="text" id="equip-edit-model" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Type</label>
+          <select id="equip-edit-type" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+            <option value="">—</option>
+          </select>
+        </div>
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Status</label>
+          <select id="equip-edit-status" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+            <option value="Stock">Stock</option>
+            <option value="Allocated">Allocated</option>
+            <option value="Loaded">Loaded</option>
+            <option value="Installed">Installed</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Location</label>
+          <select id="equip-edit-location" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+            <option value="Unit Tent">Unit Tent</option>
+            <option value="Barn">Barn</option>
+            <option value="Susie">Susie</option>
+            <option value="Lumber Rack">Lumber Rack</option>
+            <option value="Shop">Shop</option>
+            <option value="Ducting Tent">Ducting Tent</option>
+            <option value="Rig">Rig</option>
+          </select>
+        </div>
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Owner (job)</label>
+          <select id="equip-edit-owner" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+            <option value="">— None (Stock) —</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div id="equip-edit-error" style="display:none;color:var(--danger);font-size:13px;margin-top:14px;background:var(--danger-light);padding:8px 12px;border-radius:var(--radius-sm);"></div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:22px;gap:12px;">
+      <button class="btn-sm" style="padding:10px 16px;background:var(--surface);color:var(--danger);border:1px solid var(--danger);" onclick="deleteEquipFromEdit()">🗑 Remove unit</button>
+      <div style="display:flex;gap:10px;">
+        <button class="btn-cancel" onclick="closeEquipEdit()">Cancel</button>
+        <button class="btn-sm btn-sm-accent" style="padding:10px 20px;" onclick="saveEquipEdit()">Save</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2327,7 +2393,7 @@ function closeDayJobsModal() {
 
 // ── ADD UNIT FOR CUSTOMER (in Unit Tent walk) ──
 function openAddUnitModal() {
-  // Populate customer dropdown — unique job names (Active jobs preferred)
+  // Populate customer dropdown — unique job names (filtering out the "Stock" fake-job workaround)
   const sel = document.getElementById('au-customer');
   // Deduplicate by name (since same customer may have multiple visit records)
   const seen = new Set();
@@ -2335,12 +2401,14 @@ function openAddUnitModal() {
   jobs.forEach(j => {
     const name = f(j, F.job_name);
     if (!name) return;
+    // Exclude the legacy "Stock" pseudo-job — it's not a real customer
+    if (name.trim().toLowerCase() === 'stock') return;
     if (seen.has(name)) return;
     seen.add(name);
     customerOptions.push({ id: j.id, name });
   });
   customerOptions.sort((a,b) => a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1);
-  sel.innerHTML = '<option value="">— Select customer —</option>' +
+  sel.innerHTML = '<option value="">— None (Stock) —</option>' +
     customerOptions.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('') +
     '<option value="__new__">+ New customer...</option>';
   document.getElementById('au-customer-new').value = '';
@@ -2351,7 +2419,7 @@ function openAddUnitModal() {
   document.getElementById('au-type-tag').value = '';
   document.getElementById('au-error').style.display = 'none';
   document.getElementById('add-unit-modal').classList.add('open');
-  setTimeout(()=>document.getElementById('au-customer').focus(), 50);
+  setTimeout(()=>document.getElementById('au-model').focus(), 50);
 }
 
 function closeAddUnitModal() {
@@ -2386,7 +2454,7 @@ async function saveAddUnit() {
   const typeTag = document.getElementById('au-type-tag').value.trim();
 
   // Validation
-  if (!customerId) { auShowError('Please pick a customer or add a new one.'); return; }
+  // customerId === '' is allowed — that means add as Stock (no owner)
   if (customerId === '__new__' && !newCustName) { auShowError('Please type the new customer name.'); return; }
   if (!model) { auShowError('Please enter a model number.'); return; }
   if (!location) { auShowError('Please pick a location.'); return; }
@@ -2402,14 +2470,15 @@ async function saveAddUnit() {
       customerId = newJob.id;
     }
 
-    // Create the Item record
+    // Build Item fields. Stock = no owner, status Stock. Allocated = owner + status Allocated.
+    const isStock = !customerId;
     const itemFields = {
       'Model number': model,
       'Quantity': qty,
-      'Status': 'Allocated',
+      'Status': isStock ? 'Stock' : 'Allocated',
       'Physical location': location,
-      'Owner': [customerId],
     };
+    if (!isStock) itemFields['Owner'] = [customerId];
     if (typeTag) itemFields['Type tag'] = typeTag;
     const newItem = await createRecord(ITEMS_TBL, itemFields);
     items.push(newItem);
@@ -2803,7 +2872,7 @@ function setInvLocation(loc) {
   });
   // Show Verify Pile button only on Unit Tent tab
   const tabActions = document.getElementById('inv-tab-actions');
-  if (tabActions) tabActions.style.display = (loc === 'On-hand (Unit Tent)') ? 'block' : 'none';
+  if (tabActions) tabActions.style.display = (loc === 'On-hand (Unit Tent)') ? 'flex' : 'none';
   renderInventory();
 }
 
@@ -2858,16 +2927,19 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
       return !Array.isArray(skuLinks) || skuLinks.length === 0;
     });
     // Sort: Stock first (available to assign), then Allocated, then anything else; alphabetical within
-    function statusRank(s) {
-      const v = (s||'').toLowerCase();
-      if (v === 'stock') return 0;
-      if (v === 'allocated') return 1;
-      if (v === 'loaded') return 2;
+    function statusRank(item) {
+      const s = (f(item,F.item_status)||'').toLowerCase();
+      const owns = f(item, F.item_owner);
+      const onm = (Array.isArray(owns) && owns.length && typeof owns[0] !== 'string') ? (owns[0].name||'') : '';
+      const effective = ((onm||'').trim().toLowerCase() === 'stock') ? 'stock' : s;
+      if (effective === 'stock') return 0;
+      if (effective === 'allocated') return 1;
+      if (effective === 'loaded') return 2;
       return 3;
     }
     tentItems.sort((a,b) => {
-      const ra = statusRank(f(a,F.item_status));
-      const rb = statusRank(f(b,F.item_status));
+      const ra = statusRank(a);
+      const rb = statusRank(b);
       if (ra !== rb) return ra - rb;
       return (f(a,F.item_model)||'').localeCompare(f(b,F.item_model)||'');
     });
@@ -2875,8 +2947,12 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     let stockN = 0, allocN = 0, otherN = 0;
     tentItems.forEach(it => {
       const st = (f(it,F.item_status)||'').toLowerCase();
-      if (st === 'stock') stockN++;
-      else if (st === 'allocated') allocN++;
+      const owns = f(it, F.item_owner);
+      const onm = (Array.isArray(owns) && owns.length && typeof owns[0] !== 'string') ? (owns[0].name||'') : '';
+      const fakeStock = (onm||'').trim().toLowerCase() === 'stock';
+      const effective = fakeStock ? 'stock' : st;
+      if (effective === 'stock') stockN++;
+      else if (effective === 'allocated') allocN++;
       else otherN++;
     });
     const summaryBits = [];
@@ -2896,18 +2972,28 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
       if (Array.isArray(owners) && owners.length) {
         ownerName = (typeof owners[0] === 'string') ? '' : (owners[0].name || '');
       }
-      // Visual style: Stock = sage blue accent, Allocated = neutral, Loaded = amber
+      // Detect "fake Stock job" workaround — owner literally named "Stock" means
+      // the unit was added as inventory but got mis-tagged as Allocated. Treat as Stock.
+      const ownerIsFakeStock = (ownerName || '').trim().toLowerCase() === 'stock';
+      const effectiveStatus = ownerIsFakeStock ? 'stock' : statusLower;
       let statusBadge = '';
-      if (statusLower === 'stock') {
-        statusBadge = `<span style="font-size:11px;padding:2px 8px;border-radius:99px;background:var(--accent-light);color:var(--accent-text);font-weight:500;">Stock</span>`;
-      } else if (statusLower === 'allocated') {
-        statusBadge = `<span style="font-size:11px;padding:2px 8px;border-radius:99px;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);">Allocated${ownerName?' · '+escapeHtml(ownerName):''}</span>`;
-      } else if (statusLower === 'loaded') {
-        statusBadge = `<span style="font-size:11px;padding:2px 8px;border-radius:99px;background:var(--warn-light);color:var(--warn);font-weight:500;">Loaded${ownerName?' · '+escapeHtml(ownerName):''}</span>`;
+      if (effectiveStatus === 'stock') {
+        statusBadge = `<span style="font-size:11px;padding:3px 9px;border-radius:99px;background:var(--accent-light);color:var(--accent-text);font-weight:600;">Stock</span>`;
+      } else if (effectiveStatus === 'allocated') {
+        // Show customer name as the primary identifier, "Allocated" as small label below
+        statusBadge = `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
+          <span style="font-size:13px;font-weight:600;color:var(--text);">${escapeHtml(ownerName || 'Allocated')}</span>
+          ${ownerName ? '<span style="font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.04em;font-weight:500;">Allocated</span>' : ''}
+        </div>`;
+      } else if (effectiveStatus === 'loaded') {
+        statusBadge = `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
+          <span style="font-size:13px;font-weight:600;color:var(--warn);">${escapeHtml(ownerName || 'Loaded')}</span>
+          <span style="font-size:10px;color:var(--warn);text-transform:uppercase;letter-spacing:0.04em;font-weight:600;">Loaded</span>
+        </div>`;
       } else if (status) {
-        statusBadge = `<span style="font-size:11px;padding:2px 8px;border-radius:99px;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);">${escapeHtml(status)}</span>`;
+        statusBadge = `<span style="font-size:11px;padding:3px 9px;border-radius:99px;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);">${escapeHtml(status)}</span>`;
       }
-      equipHtml += `<div class="inv-card" style="padding:12px 14px;">
+      equipHtml += `<div class="inv-card" style="padding:12px 14px;cursor:pointer;" onclick="openEquipEdit('${iid}')">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
           <div style="min-width:0;flex:1;">
             <div class="inv-name">${escapeHtml(model)}</div>
@@ -2969,6 +3055,123 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
   });
 
   body.innerHTML = html;
+}
+
+// ── EQUIPMENT EDIT MODAL ──
+let equipEditId = null;
+
+function openEquipEdit(itemId) {
+  const item = items.find(i => i.id === itemId);
+  if (!item) return;
+  equipEditId = itemId;
+  document.getElementById('equip-edit-model').value = f(item, F.item_model) || '';
+  // Populate Type dropdown from existing unique type tags
+  const typeTags = [...new Set(items.map(it => f(it, F.item_type)).filter(Boolean))].sort();
+  const currentType = f(item, F.item_type) || '';
+  const typeSel = document.getElementById('equip-edit-type');
+  typeSel.innerHTML = '<option value="">—</option>' +
+    typeTags.map(t => `<option value="${escapeHtml(t)}"${t===currentType?' selected':''}>${escapeHtml(t)}</option>`).join('');
+  // Status
+  const currentStatus = f(item, F.item_status) || 'Stock';
+  document.getElementById('equip-edit-status').value = currentStatus;
+  // Location
+  const currentLoc = f(item, F.item_location) || 'Unit Tent';
+  document.getElementById('equip-edit-location').value = currentLoc;
+  // Owner dropdown — populated from active (non-complete) jobs + "None", excluding Stock fake-job
+  const ownerSel = document.getElementById('equip-edit-owner');
+  const activeJobs = jobs.filter(j => {
+    if ((f(j,F.job_status)||'').toLowerCase() === 'complete') return false;
+    if ((f(j,F.job_name)||'').trim().toLowerCase() === 'stock') return false;
+    return true;
+  });
+  activeJobs.sort((a,b) => (f(a,F.job_name)||'').localeCompare(f(b,F.job_name)||''));
+  const owners = f(item, F.item_owner);
+  const currentOwnerId = (Array.isArray(owners) && owners.length)
+    ? (typeof owners[0] === 'string' ? owners[0] : owners[0].id)
+    : '';
+  ownerSel.innerHTML = '<option value="">— None (Stock) —</option>' +
+    activeJobs.map(j => {
+      const jn = f(j, F.job_name) || 'Unnamed';
+      return `<option value="${j.id}"${j.id===currentOwnerId?' selected':''}>${escapeHtml(jn)}</option>`;
+    }).join('');
+  document.getElementById('equip-edit-error').style.display = 'none';
+  document.getElementById('equip-edit-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('equip-edit-model').focus(), 50);
+}
+
+function closeEquipEdit() {
+  document.getElementById('equip-edit-modal').classList.remove('open');
+  equipEditId = null;
+}
+
+function equipEditShowError(msg) {
+  const el = document.getElementById('equip-edit-error');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+async function saveEquipEdit() {
+  if (!equipEditId) return;
+  const model = document.getElementById('equip-edit-model').value.trim();
+  if (!model) { equipEditShowError('Model number is required.'); return; }
+  const type = document.getElementById('equip-edit-type').value;
+  const status = document.getElementById('equip-edit-status').value;
+  const location = document.getElementById('equip-edit-location').value;
+  const ownerId = document.getElementById('equip-edit-owner').value;
+  // Sanity: Stock status with an owner is contradictory — gentle warning, allow if user insists is too risky.
+  if (status === 'Stock' && ownerId) {
+    equipEditShowError('Stock status cannot have an owner. Either change status to Allocated, or clear the owner.');
+    return;
+  }
+  const fields = {
+    'Model number': model,
+    'Type tag': type || null,
+    'Status': status,
+    'Physical location': location,
+    'Owner': ownerId ? [ownerId] : null,
+  };
+  try {
+    await patchRecord(ITEMS_TBL, equipEditId, fields);
+    // Update local cache
+    const item = items.find(i => i.id === equipEditId);
+    if (item) {
+      item.fields['Model number'] = model;
+      item.fields['Type tag'] = type || undefined;
+      item.fields['Status'] = status;
+      item.fields['Physical location'] = location;
+      if (ownerId) {
+        const job = jobs.find(j => j.id === ownerId);
+        item.fields['Owner'] = [{ id: ownerId, name: job ? (f(job, F.job_name) || '') : '' }];
+      } else {
+        item.fields['Owner'] = undefined;
+      }
+    }
+    closeEquipEdit();
+    renderInventory();
+  } catch(e) {
+    equipEditShowError('Could not save changes. Try again.');
+  }
+}
+
+async function deleteEquipFromEdit() {
+  if (!equipEditId) return;
+  const item = items.find(i => i.id === equipEditId);
+  if (!item) return;
+  const model = f(item, F.item_model) || 'this unit';
+  const status = (f(item, F.item_status) || '').toLowerCase();
+  // Safety net: block delete if Loaded or Installed (those are real lifecycle states, not data hygiene)
+  if (status === 'loaded' || status === 'installed') {
+    equipEditShowError(`Can't remove a ${status} unit. Change status first if this is a data correction.`);
+    return;
+  }
+  if (!confirm(`Remove ${model} from inventory? This can't be undone.`)) return;
+  try {
+    await deleteRecord(ITEMS_TBL, equipEditId);
+    items = items.filter(i => i.id !== equipEditId);
+    closeEquipEdit();
+    renderInventory();
+  } catch(e) {
+    equipEditShowError('Could not delete. Try again.');
+  }
 }
 
 // ── SKU EDIT MODAL ──
