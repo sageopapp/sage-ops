@@ -687,12 +687,12 @@
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Unit</label>
           <select id="ci-unit" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
             <option value="each">each</option>
-            <option value="ft">ft</option>
+            <option value="feet">feet</option>
             <option value="roll">roll</option>
-            <option value="board">board</option>
-            <option value="box">box</option>
+            <option value="package">package</option>
             <option value="bag">bag</option>
-            <option value="pack">pack</option>
+            <option value="box">box</option>
+            <option value="pair">pair</option>
           </select>
         </div>
       </div>
@@ -1763,6 +1763,17 @@ async function applySkuMove(sku, fromLabel, toLabel, qty) {
   sku.fields[toField] = updates[toField];
 }
 
+// Detect length-based units (tracked by linear feet, not whole units).
+// For these items: skip SKU count math on Load → Rig and on Unload. The
+// weekly rig walk reconciles physical board/roll counts. The job's spec
+// stays in feet (e.g., "60 feet of 1/2 lineset") regardless of how the
+// SKU is physically counted (rolls, boards).
+function isLengthBasedUnit(unit) {
+  if (!unit) return false;
+  const u = String(unit).trim().toLowerCase();
+  return u === 'feet' || u === 'ft' || u === 'foot' || u === 'linear feet' || u === 'linear ft';
+}
+
 async function toggleLoaded(itemId) {
   const rows = document.querySelectorAll(`[data-item-id="${itemId}"]`);
   if (!rows.length) return;
@@ -1779,9 +1790,12 @@ async function toggleLoaded(itemId) {
     ? skus.find(s => s.id === (typeof skuLinks[0] === 'string' ? skuLinks[0] : skuLinks[0].id))
     : null;
   const qty = Number(f(item, F.item_qty)) || 1;
+  const itemUnit = f(item, 'Unit') || '';
+  const lengthBased = isLengthBasedUnit(itemUnit);
 
-  // UNLOAD path (newVal === false) for consumables: ask where it's going back to BEFORE making any changes
-  if (!newVal && isConsumable && sku) {
+  // UNLOAD path (newVal === false) for consumables: ask where it's going back to BEFORE making any changes.
+  // SKIP the picker for length-based items — no SKU math means nothing to reverse.
+  if (!newVal && isConsumable && sku && !lengthBased) {
     openUnloadPicker(itemId);
     return; // The picker handles the rest; restore checkbox state visually in case
   }
@@ -1795,7 +1809,9 @@ async function toggleLoaded(itemId) {
   try {
     if (newVal) {
       // LOAD path
-      if (isConsumable && sku) {
+      // SKU count math only for non-length-based consumables. Length-based items
+      // (lumber, lineset, cable in feet) are reconciled via the weekly rig walk.
+      if (isConsumable && sku && !lengthBased) {
         const sourceLoc = consumableSourceLocation(item, sku);
         if (sourceLoc) {
           await applySkuMove(sku, sourceLoc, 'Rig', qty);
@@ -1982,8 +1998,12 @@ function renderDetailBody(jobId) {
   if (consumables.length) {
     consumables.forEach(item => {
       const iid=item.id, model=f(item,F.item_model)||'', qty=f(item,F.item_qty)??1, unit=f(item,'Unit')||'';
+      // Show "60 feet · Lineset 1/2 roll" when a unit is set; otherwise "Qty: 1" as before.
+      const qtyDisplay = unit
+        ? `<span style="font-weight:600;color:var(--text);">${qty} ${escapeHtml(unit)}</span>`
+        : `Qty: ${qty}`;
       matHtml += `<div class="mat-row">
-        <div class="mat-info"><div class="mat-name">${model}</div><div class="mat-qty">Qty: ${qty}${unit?' '+unit:''}</div></div>
+        <div class="mat-info"><div class="mat-name">${model}</div><div class="mat-qty">${qtyDisplay}</div></div>
         <button class="mat-del" onclick="deleteMaterial('${iid}')" title="Remove">×</button>
       </div>`;
     });
@@ -2007,13 +2027,13 @@ function renderDetailBody(jobId) {
         <input type="number" id="mat-qty" placeholder="Quantity" min="0.1" step="0.1" style="flex:1;margin-bottom:0;" />
         <select id="mat-qty-unit" style="width:auto;margin-bottom:0;padding:8px 8px;">
           <option value="">—</option>
-          <option value="ft">ft</option>
-          <option value="roll">roll</option>
           <option value="each">each</option>
-          <option value="board">board</option>
-          <option value="box">box</option>
+          <option value="feet">feet</option>
+          <option value="roll">roll</option>
+          <option value="package">package</option>
           <option value="bag">bag</option>
-          <option value="pack">pack</option>
+          <option value="box">box</option>
+          <option value="pair">pair</option>
         </select>
       </div>
       <div class="add-mat-btns">
