@@ -1038,7 +1038,7 @@ const F = {
   sku_name: 'Name', sku_barn: 'On-hand (Barn)', sku_tent: 'On-hand (Unit Tent)',
   sku_susie: 'On-hand (Susie)', sku_lumber: 'On-hand (Lumber Rack)', sku_rig: 'On-hand (Rig)',
   sku_shop: 'On-hand (Shop)', sku_ducting: 'On-hand (Ducting Tent)', sku_threshold: 'Vendor reorder threshold',
-  sku_total: 'Total on-hand', sku_order_flag: 'Order needed?', sku_vendor: 'Vendor',
+  sku_total: 'Total on-hand', sku_available: 'Available on-hand', sku_order_flag: 'Order needed?', sku_vendor: 'Vendor',
   sku_unit: 'Unit', sku_type: 'Type tag',
 };
 
@@ -3191,6 +3191,8 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     const vendor = f(sku,F.sku_vendor)||'';
     const threshold = f(sku,F.sku_threshold);
     const total = f(sku,F.sku_total) ?? 0;
+    const available = f(sku,F.sku_available) ?? total; // fall back to total if Available field missing
+    const onRig = total - available; // implied Rig count
     const flag = f(sku,F.sku_order_flag);
     const isLow = flag && String(flag).includes('order');
 
@@ -3216,7 +3218,17 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
         </div>
         <div class="inv-card-right">
           ${isLow?'<span class="inv-low-badge">⚠ order</span>':''}
-          <div class="inv-total">${total}<span class="inv-total-label">total</span></div>
+          ${(() => {
+            // Headline number depends on current tab:
+            //  - 'all': show Available (what's available for new jobs); note if any on rig
+            //  - any specific location tab: show that location's count
+            if (currentInvLocation === 'all') {
+              return `<div class="inv-total">${available}<span class="inv-total-label">available${onRig>0?` · +${onRig} on rig`:''}</span></div>`;
+            }
+            const tabVal = f(sku, currentInvLocation) ?? 0;
+            const tabLabel = (LOCATIONS.find(l => l.field === currentInvLocation) || {}).label || '';
+            return `<div class="inv-total">${tabVal}<span class="inv-total-label">${escapeHtml(tabLabel.toLowerCase())}</span></div>`;
+          })()}
           <button class="sku-edit-btn" onclick="openSkuEdit('${sid}')" title="Edit SKU details">✎</button>
         </div>
       </div>
