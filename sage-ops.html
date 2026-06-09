@@ -398,6 +398,7 @@
     <div style="text-align:center;margin-bottom: 12px;">
       <button class="btn-sm btn-sm-action" onclick="openNewJobModal()" style="padding: 5px 12px;font-size:12px;">+ New Job</button>
     </div>
+    <div class="loc-tabs" id="island-tabs-cal" style="display:none;margin-bottom:10px;"></div>
     <div class="cal-grid" id="cal-labels"></div>
     <div class="cal-grid" id="cal-body"></div>
   </div>
@@ -421,6 +422,7 @@
     <div style="text-align:center;margin-bottom: 12px;">
       <button class="btn-sm btn-sm-action" onclick="openNewJobModal()" style="padding: 5px 12px;font-size:12px;">+ New Job</button>
     </div>
+    <div class="loc-tabs" id="island-tabs" style="display:none;margin-bottom:10px;"></div>
     <div class="stats" id="jobs-stats"></div>
     <div id="jobs-body"></div>
   </div>
@@ -550,6 +552,21 @@
             <option value="Walk">Walk</option>
           </select>
         </div>
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Island <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
+        <select id="nj-island" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+          <option value="">— Select —</option>
+          <option value="Lopez">Lopez</option>
+          <option value="San Juan">San Juan</option>
+          <option value="Orcas">Orcas</option>
+          <option value="Shaw">Shaw</option>
+          <option value="Decatur">Decatur</option>
+          <option value="Center">Center</option>
+          <option value="Blakely">Blakely</option>
+          <option value="Mainland">Mainland</option>
+          <option value="Other">Other</option>
+        </select>
       </div>
       <div>
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Address <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
@@ -1038,7 +1055,7 @@ const F = {
   job_comments: 'Comments / Questions', job_materials: 'Per-visit Materials',
   job_detail_notes: 'Detail Notes',
   job_phone: 'Phone number', job_email: 'Email', job_address: 'Address',
-  job_contact: 'Contact person',
+  job_contact: 'Contact person', job_island: 'Island',
   item_model: 'Model number', item_type: 'Type tag', item_qty: 'Quantity',
   item_status: 'Status', item_location: 'Physical location',
   item_loaded: 'Loaded?', item_owner: 'Owner', item_visit: 'Visit consumed at',
@@ -1538,11 +1555,12 @@ function jobSpanDates(job) {
 }
 
 function renderCalendar() {
+  renderIslandTabs();
   document.getElementById('cal-title').textContent = MONTHS[calMonth] + ' ' + calYear;
   document.getElementById('cal-labels').innerHTML = DAYS.map(d=>`<div class="cal-day-label">${d}</div>`).join('');
   // Build byDate map — each job appears on every date in its span, with positioning info
   const byDate = {};
-  jobs.forEach(j => {
+  islandFilteredJobs().forEach(j => {
     const span = jobSpanDates(j);
     span.forEach(seg => {
       if (!byDate[seg.date]) byDate[seg.date] = [];
@@ -1906,10 +1924,49 @@ async function confirmUnload() {
 }
 
 // ── JOBS ──
+let currentIslandFilter = 'all';
+
+function setIslandFilter(island) {
+  currentIslandFilter = island;
+  renderJobs();
+  renderCalendar();
+}
+
+// Render island filter chips into both the Jobs and Schedule containers.
+// Chips appear only when at least one job has an island set.
+function renderIslandTabs() {
+  const ISLAND_ORDER = ['Lopez','San Juan','Orcas','Shaw','Decatur','Center','Blakely','Mainland','Other'];
+  const islandsInData = ISLAND_ORDER.filter(isl => jobs.some(j => (f(j,F.job_island)||'') === isl));
+  // Reset filter if the selected island no longer has any jobs
+  if (currentIslandFilter !== 'all' && !islandsInData.includes(currentIslandFilter)) currentIslandFilter = 'all';
+  const chipsHtml = islandsInData.length
+    ? `<button class="loc-tab${currentIslandFilter==='all'?' active':''}" onclick="setIslandFilter('all')">All</button>` +
+      islandsInData.map(isl =>
+        `<button class="loc-tab${currentIslandFilter===isl?' active':''}" onclick="setIslandFilter('${isl.replace(/'/g,"\\'")}')">${escapeHtml(isl)}</button>`
+      ).join('')
+    : '';
+  ['island-tabs','island-tabs-cal'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (chipsHtml) { el.style.display = ''; el.innerHTML = chipsHtml; }
+    else { el.style.display = 'none'; el.innerHTML = ''; }
+  });
+}
+
+// Jobs visible under the current island filter
+function islandFilteredJobs() {
+  return currentIslandFilter === 'all'
+    ? jobs
+    : jobs.filter(j => (f(j,F.job_island)||'') === currentIslandFilter);
+}
+
 function renderJobs() {
-  const active=jobs.filter(j=>(f(j,F.job_status)||'').toLowerCase()!=='complete');
-  const complete=jobs.filter(j=>(f(j,F.job_status)||'').toLowerCase()==='complete');
-  const withDate=jobs.filter(j=>f(j,F.job_next_date));
+  renderIslandTabs();
+  const visible = islandFilteredJobs();
+
+  const active=visible.filter(j=>(f(j,F.job_status)||'').toLowerCase()!=='complete');
+  const complete=visible.filter(j=>(f(j,F.job_status)||'').toLowerCase()==='complete');
+  const withDate=visible.filter(j=>f(j,F.job_next_date));
   document.getElementById('jobs-stats').innerHTML=`
     <div class="stat"><div class="stat-label">Active</div><div class="stat-val">${active.length}</div></div>
     <div class="stat"><div class="stat-label">Scheduled</div><div class="stat-val">${withDate.length}</div></div>
@@ -1920,7 +1977,7 @@ function renderJobs() {
     if (da&&db) return da-db; if (da) return -1; if (db) return 1;
     return (f(a,F.job_name)||'').localeCompare(f(b,F.job_name)||'');
   });
-  if (!sorted.length && !showCompleted) { document.getElementById('jobs-body').innerHTML=`<div class="empty"><div class="icon">📭</div>No active jobs</div>`; return; }
+  if (!sorted.length && !showCompleted) { document.getElementById('jobs-body').innerHTML=`<div class="empty"><div class="icon">📭</div>No ${currentIslandFilter==='all'?'active jobs':'active jobs on '+escapeHtml(currentIslandFilter)}</div>`; return; }
 
   let html = '';
   if (showCompleted && complete.length) {
@@ -1940,6 +1997,7 @@ function renderJobs() {
 function jobCardHtml(j, isComplete) {
   const name=f(j,F.job_name)||'Unnamed', status=f(j,F.job_status)||'', type=f(j,F.job_next_type)||'';
   const nextDate=f(j,F.job_next_date), scheduled=f(j,F.job_scheduled)||'', readiness=f(j,F.job_readiness)||'';
+  const island=f(j,F.job_island)||'';
   const sl=status.toLowerCase();
   const badgeCls=sl.includes('active')?'badge-active':sl.includes('complete')?'badge-complete':'badge-pending';
   const readBadge=!isComplete && readiness.includes('●')&&!readiness.includes('⚠')?'<span class="badge badge-ready">✓ All set</span>':!isComplete && readiness.includes('⚠')?'<span class="badge badge-partial">⚠ Missing parts</span>':'';
@@ -1947,6 +2005,7 @@ function jobCardHtml(j, isComplete) {
     <div class="job-card-top"><div class="job-name">${name}</div><div class="job-badges">${readBadge}<span class="badge ${badgeCls}">${status||'Unknown'}</span></div></div>
     <div class="job-meta-row">
       ${type?`<span>🔧 ${type}</span>`:''}
+      ${island?`<span>🏝 ${island}</span>`:''}
       ${scheduled?`<span>📅 ${scheduled}</span>`:nextDate?`<span>📅 ${fmtDate(nextDate)}</span>`:''}
     </div>
   </div>`;
@@ -1979,6 +2038,7 @@ function renderDetailBody(jobId) {
   const detailNotes=f(job,F.job_detail_notes)||'';
   const phone=f(job,F.job_phone)||'', email=f(job,F.job_email)||'', address=f(job,F.job_address)||'';
   const contact=f(job,F.job_contact)||'';
+  const island=f(job,F.job_island)||'';
 
   // Get consumable items (those linked to a Stock SKU)
   const jobItems = items.filter(item => {
@@ -2151,6 +2211,23 @@ function renderDetailBody(jobId) {
           </select>
         </span>
       </div>
+      <div class="detail-field" style="align-items:center;">
+        <span class="detail-field-label">Island</span>
+        <span class="detail-field-val">
+          <select onchange="updateJobField('${jobId}','Island',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">
+            <option value=""${!island?' selected':''}>— None —</option>
+            <option value="Lopez"${island==='Lopez'?' selected':''}>Lopez</option>
+            <option value="San Juan"${island==='San Juan'?' selected':''}>San Juan</option>
+            <option value="Orcas"${island==='Orcas'?' selected':''}>Orcas</option>
+            <option value="Shaw"${island==='Shaw'?' selected':''}>Shaw</option>
+            <option value="Decatur"${island==='Decatur'?' selected':''}>Decatur</option>
+            <option value="Center"${island==='Center'?' selected':''}>Center</option>
+            <option value="Blakely"${island==='Blakely'?' selected':''}>Blakely</option>
+            <option value="Mainland"${island==='Mainland'?' selected':''}>Mainland</option>
+            <option value="Other"${island==='Other'?' selected':''}>Other</option>
+          </select>
+        </span>
+      </div>
       ${!nextDate?`<div style="font-size:11px;color:var(--text-faint);padding:4px 0;font-style:italic;">Set a start date before setting end date.</div>`:''}
       ${endDate && nextDate ? `<div style="font-size:11px;color:var(--text-muted);padding:4px 0;">${(() => { const sd=parseDate(nextDate),ed=parseDate(endDate); if (!sd||!ed) return ''; const days=Math.round((ed-sd)/86400000)+1; return days>0?`Multi-day job: ${days} day${days===1?'':'s'} (${fmtDate(nextDate)} → ${fmtDate(endDate)})`:'⚠ End date is before start date'; })()}</div>`:''}
     </div>
@@ -2167,7 +2244,7 @@ function renderDetailBody(jobId) {
         <span class="detail-field-label" style="padding-top:6px;">Address</span>
         <span class="detail-field-val" style="flex:1;max-width:65%;">
           <textarea rows="2" placeholder="—" onchange="updateJobField('${jobId}','Address',this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;font-family:inherit;resize:vertical;text-align:right;">${escapeHtml(address)}</textarea>
-          ${address?`<div style="text-align:right;margin-top:4px;"><a href="https://maps.apple.com/?q=${encodeURIComponent(address)}" target="_blank" style="font-size:12px;color:var(--info);text-decoration:none;font-weight:500;">→ Directions</a></div>`:''}
+          ${address?`<div style="text-align:right;margin-top:4px;"><a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}" target="_blank" style="font-size:12px;color:var(--info);text-decoration:none;font-weight:500;">→ Directions</a></div>`:''}
         </span>
       </div>
       <div class="detail-field" style="align-items:center;">
@@ -2911,6 +2988,7 @@ function openNewJobModal() {
   document.getElementById('nj-visit-type').value = '';
   document.getElementById('nj-type').value = '';
   document.getElementById('nj-address').value = '';
+  document.getElementById('nj-island').value = '';
   document.getElementById('nj-phone').value = '';
   document.getElementById('nj-email').value = '';
   document.getElementById('nj-detail-notes').value = '';
@@ -2953,6 +3031,7 @@ async function saveNewJob() {
   const jobType = document.getElementById('nj-type').value;
   const detailNotes = document.getElementById('nj-detail-notes').value.trim();
   const address = document.getElementById('nj-address').value.trim();
+  const island = document.getElementById('nj-island').value;
   const phone = document.getElementById('nj-phone').value.trim();
   const email = document.getElementById('nj-email').value.trim();
 
@@ -2971,6 +3050,7 @@ async function saveNewJob() {
   if (jobType) fields['Type'] = jobType;
   if (detailNotes) fields['Detail Notes'] = detailNotes;
   if (address) fields['Address'] = address;
+  if (island) fields['Island'] = island;
   if (phone) fields['Phone number'] = phone;
   if (email) fields['Email'] = email;
 
