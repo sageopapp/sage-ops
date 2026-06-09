@@ -2013,10 +2013,41 @@ function renderDetailBody(jobId) {
 
   let addFormHtml = '';
   if (showAddMat) {
-    const skuOptions = skus.map(s=>{
-      const sn = f(s,F.sku_name)||'SKU';
-      const su = f(s,F.sku_unit)||'';
-      return `<option value="${s.id}" data-unit="${escapeHtml(su)}">${escapeHtml(sn)}${su?' ('+escapeHtml(su)+')':''}</option>`;
+    // Group SKUs by primary location (bucket with most on-hand), in Tony's tab order.
+    // Alphabetical within each group. Zero-stock SKUs go in a "No stock" group at the end.
+    const GROUP_ORDER = ['Barn', 'Unit Tent', 'Ducting Tent', 'Lumber Rack', 'Susie', 'Shop'];
+    function skuGroupLabel(s) {
+      const buckets = [
+        ['Barn', f(s, F.sku_barn)],
+        ['Unit Tent', f(s, F.sku_tent)],
+        ['Susie', f(s, F.sku_susie)],
+        ['Lumber Rack', f(s, F.sku_lumber)],
+        ['Shop', f(s, F.sku_shop)],
+        ['Ducting Tent', f(s, F.sku_ducting)],
+      ];
+      let best = null, bestQty = 0;
+      buckets.forEach(([label, q]) => {
+        const n = Number(q) || 0;
+        if (n > bestQty) { bestQty = n; best = label; }
+      });
+      return best; // null = no stock anywhere
+    }
+    const groups = {};
+    skus.forEach(s => {
+      const label = skuGroupLabel(s) || 'No stock';
+      (groups[label] = groups[label] || []).push(s);
+    });
+    const orderedLabels = GROUP_ORDER.filter(l => groups[l]);
+    if (groups['No stock']) orderedLabels.push('No stock');
+    const skuOptions = orderedLabels.map(label => {
+      const opts = groups[label]
+        .sort((a,b)=>(f(a,F.sku_name)||'').toLowerCase().localeCompare((f(b,F.sku_name)||'').toLowerCase()))
+        .map(s=>{
+          const sn = f(s,F.sku_name)||'SKU';
+          const su = f(s,F.sku_unit)||'';
+          return `<option value="${s.id}" data-unit="${escapeHtml(su)}">${escapeHtml(sn)}${su?' ('+escapeHtml(su)+')':''}</option>`;
+        }).join('');
+      return `<optgroup label="${escapeHtml(label)}">${opts}</optgroup>`;
     }).join('');
     addFormHtml = `<div class="add-mat-form">
       <select id="mat-sku" onchange="updateMatQtyUnit()">
