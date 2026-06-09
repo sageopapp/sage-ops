@@ -599,6 +599,10 @@
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">SKU name *</label>
         <input type="text" id="sku-name" placeholder="e.g. Lineset 3/4&quot; roll" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
       </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Item number <span style="font-weight:400;color:var(--text-faint);">(vendor / order code, optional)</span></label>
+        <input type="text" id="sku-itemnumber" placeholder="e.g. CCB1, YYY866Y" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+      </div>
       <div style="display:flex;gap:10px;">
         <div style="flex:1;">
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Type tag</label>
@@ -905,6 +909,10 @@
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Name *</label>
         <input type="text" id="sku-edit-name" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
       </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Item number <span style="font-weight:400;color:var(--text-faint);">(vendor / order code)</span></label>
+        <input type="text" id="sku-edit-itemnumber" placeholder="e.g. CCB1, YYY866Y" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+      </div>
       <div style="display:flex;gap:10px;">
         <div style="flex:2;">
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Vendor</label>
@@ -1038,7 +1046,7 @@ const F = {
   sku_name: 'Name', sku_barn: 'On-hand (Barn)', sku_tent: 'On-hand (Unit Tent)',
   sku_susie: 'On-hand (Susie)', sku_lumber: 'On-hand (Lumber Rack)', sku_rig: 'On-hand (Rig)',
   sku_shop: 'On-hand (Shop)', sku_ducting: 'On-hand (Ducting Tent)', sku_threshold: 'Vendor reorder threshold',
-  sku_total: 'Total on-hand', sku_available: 'Available on-hand', sku_order_flag: 'Order needed?', sku_vendor: 'Vendor',
+  sku_total: 'Total on-hand', sku_available: 'Available on-hand', sku_order_flag: 'Order needed?', sku_vendor: 'Vendor', sku_itemnumber: 'Item number',
   sku_unit: 'Unit', sku_type: 'Type tag',
 };
 
@@ -2666,6 +2674,7 @@ let addSkuPrefilledLoc = null; // when called from count walk, prefill location
 
 function openAddSkuModal(prefilledLoc) {
   document.getElementById('sku-name').value = '';
+  document.getElementById('sku-itemnumber').value = '';
   // Populate Type tag dropdown from existing unique values in SKUs
   const typeTags = [...new Set(skus.map(s => f(s, F.sku_type)).filter(Boolean))].sort();
   const typeSel = document.getElementById('sku-type-tag');
@@ -2763,10 +2772,12 @@ async function saveNewSku() {
   const cSusie = parseFloat(document.getElementById('sku-cnt-susie').value);
   const cShop = parseFloat(document.getElementById('sku-cnt-shop').value);
   const cDucting = parseFloat(document.getElementById('sku-cnt-ducting').value);
+  const itemNumber = document.getElementById('sku-itemnumber').value.trim();
 
   if (!name) { skuShowError('Please enter a SKU name.'); return; }
 
   const fields = { 'Name': name };
+  if (itemNumber) fields['Item number'] = itemNumber;
   if (typeTag) fields['Type tag'] = typeTag;
   if (vendor) fields['Vendor'] = vendor;
   if (unit) fields['Unit'] = unit;
@@ -3189,6 +3200,7 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     const sid = sku.id;
     const name = f(sku,F.sku_name)||'Unnamed';
     const vendor = f(sku,F.sku_vendor)||'';
+    const itemNumber = f(sku,F.sku_itemnumber)||'';
     const threshold = f(sku,F.sku_threshold);
     const total = f(sku,F.sku_total) ?? 0;
     const available = f(sku,F.sku_available) ?? total; // fall back to total if Available field missing
@@ -3214,7 +3226,7 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
       <div class="inv-card-top">
         <div class="inv-card-title">
           <div class="inv-name">${name}</div>
-          <div class="inv-meta">${vendor||'—'}${threshold!=null?` · reorder &lt; ${threshold}`:''}</div>
+          <div class="inv-meta">${itemNumber?`<span style="font-weight:600;color:var(--text);">${escapeHtml(itemNumber)}</span> · `:''}${vendor||'—'}${threshold!=null?` · reorder &lt; ${threshold}`:''}</div>
         </div>
         <div class="inv-card-right">
           ${isLow?'<span class="inv-low-badge">⚠ order</span>':''}
@@ -3364,6 +3376,7 @@ function openSkuEdit(skuId) {
   if (!sku) return;
   skuEditId = skuId;
   document.getElementById('sku-edit-name').value = f(sku, F.sku_name) || '';
+  document.getElementById('sku-edit-itemnumber').value = f(sku, F.sku_itemnumber) || '';
   // Populate vendor dropdown from existing unique values, then select this SKU's vendor
   const vendors = [...new Set(skus.map(s => f(s, F.sku_vendor)).filter(Boolean))].sort();
   const vendSel = document.getElementById('sku-edit-vendor');
@@ -3400,6 +3413,7 @@ async function saveSkuEdit() {
   if (!skuEditId) return;
   const name = document.getElementById('sku-edit-name').value.trim();
   if (!name) { skuEditShowError('Name is required.'); return; }
+  const itemNumber = document.getElementById('sku-edit-itemnumber').value.trim();
 
   const vendorSelVal = document.getElementById('sku-edit-vendor').value;
   const vendorNewVal = document.getElementById('sku-edit-vendor-new').value.trim();
@@ -3436,6 +3450,7 @@ async function saveSkuEdit() {
 
   const fields = {
     'Name': name,
+    'Item number': itemNumber || null,
     'Vendor': vendor || null,
     'Vendor reorder threshold': threshold,
     'Unit': unit || null,
@@ -3453,6 +3468,7 @@ async function saveSkuEdit() {
     const sku = skus.find(s=>s.id===skuEditId);
     if (sku) {
       sku.fields['Name'] = name;
+      sku.fields['Item number'] = itemNumber || undefined;
       sku.fields['Vendor'] = vendor || undefined;
       sku.fields['Vendor reorder threshold'] = threshold;
       sku.fields['Unit'] = unit || undefined;
