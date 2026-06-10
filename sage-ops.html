@@ -649,15 +649,7 @@
       <div style="display:flex;gap:10px;">
         <div style="flex:1;">
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Unit</label>
-          <select id="sku-unit" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
-            <option value="each">each</option>
-            <option value="roll">roll</option>
-            <option value="board">board</option>
-            <option value="ft">ft</option>
-            <option value="box">box</option>
-            <option value="bag">bag</option>
-            <option value="pack">pack</option>
-          </select>
+          <select id="sku-unit" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);"></select>
         </div>
         <div style="flex:1;">
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Primary location</label>
@@ -727,16 +719,7 @@
       </div>
       <div style="flex:1;">
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Unit</label>
-        <select id="ord-unit" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
-          <option value="">—</option>
-          <option value="each">each</option>
-          <option value="feet">feet</option>
-          <option value="roll">roll</option>
-          <option value="package">package</option>
-          <option value="bag">bag</option>
-          <option value="box">box</option>
-          <option value="pair">pair</option>
-        </select>
+        <select id="ord-unit" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);"></select>
       </div>
     </div>
 
@@ -782,15 +765,7 @@
         </div>
         <div style="flex:1;">
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Unit</label>
-          <select id="ci-unit" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
-            <option value="each">each</option>
-            <option value="feet">feet</option>
-            <option value="roll">roll</option>
-            <option value="package">package</option>
-            <option value="bag">bag</option>
-            <option value="box">box</option>
-            <option value="pair">pair</option>
-          </select>
+          <select id="ci-unit" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);"></select>
         </div>
       </div>
     </div>
@@ -1020,16 +995,7 @@
         </div>
         <div style="flex:1;">
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Unit</label>
-          <select id="sku-edit-unit" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
-            <option value="">—</option>
-            <option value="each">each</option>
-            <option value="package">package</option>
-            <option value="packages">packages</option>
-            <option value="roll">roll</option>
-            <option value="rolls">rolls</option>
-            <option value="board">board</option>
-            <option value="boards">boards</option>
-          </select>
+          <select id="sku-edit-unit" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);"></select>
         </div>
         <div style="flex:1;">
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Reorder &lt;</label>
@@ -1123,6 +1089,20 @@
 
 <script>
 const BASE_ID = 'appFfYj9VVedhrZfv';
+// ── UNIT OPTIONS — single source of truth for every unit dropdown ──
+// All unit-picker dropdowns render from this list, so adding a unit here adds it everywhere.
+const UNIT_OPTIONS = ['each', 'feet', 'roll', 'package', 'bag', 'box', 'pair', 'board'];
+
+// Render <option> tags for a unit dropdown.
+// If currentValue is present and not in the canonical list (e.g., legacy "ft" / "pack"),
+// the value is preserved as an extra option so the edit modal still shows it correctly.
+function renderUnitOptions(currentValue, includeBlank) {
+  const opts = [...UNIT_OPTIONS];
+  if (currentValue && !opts.includes(currentValue)) opts.unshift(currentValue);
+  const blank = includeBlank ? '<option value="">—</option>' : '';
+  return blank + opts.map(u => `<option value="${u}"${u===currentValue?' selected':''}>${u}</option>`).join('');
+}
+
 const JOBS_TBL = 'tbleG7eZ2GUldQ7AF';
 const ITEMS_TBL = 'tblmTmWOvzHKIixMu';
 const SKUS_TBL = 'tblZ8EMxOtJlr3Mv2';
@@ -2231,14 +2211,7 @@ function renderDetailBody(jobId) {
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
         <input type="number" id="mat-qty" placeholder="Quantity" min="1" step="1" style="flex:1;margin-bottom:0;" />
         <select id="mat-qty-unit" style="width:auto;margin-bottom:0;padding:8px 8px;">
-          <option value="">—</option>
-          <option value="each">each</option>
-          <option value="feet">feet</option>
-          <option value="roll">roll</option>
-          <option value="package">package</option>
-          <option value="bag">bag</option>
-          <option value="box">box</option>
-          <option value="pair">pair</option>
+          ${renderUnitOptions('', true)}
         </select>
       </div>
       <div class="add-mat-btns">
@@ -2943,6 +2916,7 @@ function openAddSkuModal(prefilledLoc) {
     '<option value="__new__">+ New vendor...</option>';
   document.getElementById('sku-vendor-new').value = '';
   document.getElementById('sku-vendor-new').style.display = 'none';
+  document.getElementById('sku-unit').innerHTML = renderUnitOptions('each', false);
   document.getElementById('sku-unit').value = 'each';
   document.getElementById('sku-threshold').value = '';
   document.getElementById('sku-cnt-barn').value = '';
@@ -3061,6 +3035,7 @@ function openCustomItemModal(jobId) {
   customItemJobId = jobId;
   document.getElementById('ci-name').value = '';
   document.getElementById('ci-qty').value = '';
+  document.getElementById('ci-unit').innerHTML = renderUnitOptions('each', false);
   document.getElementById('ci-unit').value = 'each';
   document.getElementById('ci-error').style.display = 'none';
   document.getElementById('custom-item-modal').classList.add('open');
@@ -3437,6 +3412,7 @@ function openAddOrderModal() {
   // Reset fields
   document.getElementById('ord-item').value = '';
   document.getElementById('ord-qty').value = '';
+  document.getElementById('ord-unit').innerHTML = renderUnitOptions('', true);
   document.getElementById('ord-unit').value = '';
   document.getElementById('ord-vendor').value = '';
   document.getElementById('ord-itemnumber').value = '';
@@ -3538,6 +3514,11 @@ async function addSkuToOrderList(skuId) {
     alert(`Already on the order list (Needed).`);
     return;
   }
+  // Source reflects WHY this is being added:
+  //  Auto (low stock) — the system flagged it via threshold and Tony tapped the warning button
+  //  Manual           — Tony added it ahead of need (not currently flagged)
+  const orderFlag = f(sku, F.sku_order_flag);
+  const isCurrentlyLow = orderFlag && String(orderFlag).includes('order');
   const fields = {
     'Item': f(sku, F.sku_name) || 'SKU',
     'Item number': f(sku, F.sku_itemnumber) || undefined,
@@ -3545,7 +3526,7 @@ async function addSkuToOrderList(skuId) {
     'Quantity': f(sku, F.sku_threshold) || 1,
     'Unit': f(sku, F.sku_unit) || undefined,
     'Status': 'Needed',
-    'Source': 'Auto (low stock)',
+    'Source': isCurrentlyLow ? 'Auto (low stock)' : 'Manual',
     'Stock SKU': [skuId],
   };
   // Strip undefined values
@@ -3749,17 +3730,22 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
           <div class="inv-meta">${itemNumber?`<span style="font-weight:600;color:var(--text);">${escapeHtml(itemNumber)}</span> · `:''}${vendor||'—'}${threshold!=null?` · reorder &lt; ${threshold}`:''}</div>
         </div>
         <div class="inv-card-right">
-          ${isLow ? (() => {
+          ${(() => {
             // Is this SKU already on the order list with Needed status?
             const onOrder = orders.some(o => {
               if ((f(o, F.order_status) || 'Needed') !== 'Needed') return false;
               const links = f(o, F.order_sku);
               return Array.isArray(links) && links.some(l => (typeof l === 'string' ? l : l.id) === sid);
             });
-            return onOrder
-              ? `<span class="inv-low-badge" style="background:var(--accent-light);color:var(--accent-text);">✓ on order list</span>`
-              : `<button class="inv-low-badge" onclick="event.stopPropagation();addSkuToOrderList('${sid}')" style="border:none;cursor:pointer;" title="Add to order list">⚠ + Order</button>`;
-          })() : ''}
+            if (onOrder) {
+              return `<span class="inv-low-badge" style="background:var(--accent-light);color:var(--accent-text);">✓ on order list</span>`;
+            }
+            if (isLow) {
+              return `<button class="inv-low-badge" onclick="event.stopPropagation();addSkuToOrderList('${sid}')" style="border:none;cursor:pointer;" title="Add to order list">⚠ + Order</button>`;
+            }
+            // Quiet add-to-order button for any SKU that isn't currently flagged or already on the list
+            return `<button class="inv-low-badge" onclick="event.stopPropagation();addSkuToOrderList('${sid}')" style="background:var(--bg-soft,#f5f5f5);color:var(--text-muted);border:1px solid var(--border-strong);cursor:pointer;" title="Add to order list">+ Order</button>`;
+          })()}
           ${(() => {
             // Headline number depends on current tab:
             //  - 'all': show Available (what's available for new jobs); note if any on rig
@@ -3917,7 +3903,8 @@ function openSkuEdit(skuId) {
   document.getElementById('sku-edit-vendor-new').value = '';
   document.getElementById('sku-edit-vendor-new').style.display = 'none';
   document.getElementById('sku-edit-threshold').value = f(sku, F.sku_threshold) ?? '';
-  document.getElementById('sku-edit-unit').value = f(sku, F.sku_unit) || '';
+  const currentSkuUnit = f(sku, F.sku_unit) || '';
+  document.getElementById('sku-edit-unit').innerHTML = renderUnitOptions(currentSkuUnit, true);
   document.getElementById('sku-edit-barn').value = f(sku, F.sku_barn) ?? '';
   document.getElementById('sku-edit-tent').value = f(sku, F.sku_tent) ?? '';
   document.getElementById('sku-edit-susie').value = f(sku, F.sku_susie) ?? '';
