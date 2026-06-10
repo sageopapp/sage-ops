@@ -3329,7 +3329,9 @@ function renderOrders() {
       ? `<span style="font-size:10px;padding:2px 6px;border-radius:99px;background:var(--warn-light);color:var(--warn);font-weight:600;text-transform:uppercase;letter-spacing:0.03em;">⚠ low stock</span>`
       : source === 'Scan'
         ? `<span style="font-size:10px;padding:2px 6px;border-radius:99px;background:#f3e8ff;color:#7e22ce;font-weight:600;text-transform:uppercase;letter-spacing:0.03em;">scan</span>`
-        : '';
+        : source === 'Manual'
+          ? `<span style="font-size:10px;padding:2px 6px;border-radius:99px;background:var(--bg-soft,#f5f5f5);color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.03em;border:1px solid var(--border-strong);">manual</span>`
+          : '';
     let actionBtns = '';
     if (currentOrderStatus === 'Needed') {
       actionBtns = `<button class="btn-sm btn-sm-accent" style="font-size:11px;padding:5px 10px;" onclick="markOrderStatus('${oid}','Ordered')">Mark Ordered →</button>`;
