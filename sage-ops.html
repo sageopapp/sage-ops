@@ -103,7 +103,8 @@
   .cal-cell.drop-invalid { background: var(--danger-light); border-color: var(--danger); border-style: dashed; cursor: not-allowed; }
   .cal-num { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; font-weight: 500; }
   .cal-cell.today .cal-num { color: var(--accent-text); font-weight: 700; }
-  .cal-event { font-size: 10px; font-weight: 500; background: var(--type-install-light); color: var(--type-install); border-radius: 3px; padding: 2px 5px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: grab; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; touch-action: none; }
+  .cal-event { font-size: 10px; font-weight: 500; background: var(--type-install-light); color: var(--type-install); border-radius: 3px; padding: 2px 5px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: grab; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; touch-action: none; border: 1px solid transparent; box-sizing: border-box; }
+  .cal-event.penciled { opacity: 0.55; border: 1px dashed currentColor; }
   .cal-event.type-clean { background: var(--type-clean-light); color: var(--type-clean); }
   .cal-event.type-service { background: var(--type-service-light); color: var(--type-service); }
   .cal-event.type-furnace { background: var(--type-furnace-light); color: var(--type-furnace); }
@@ -1055,7 +1056,7 @@ const F = {
   job_comments: 'Comments / Questions', job_materials: 'Per-visit Materials',
   job_detail_notes: 'Detail Notes',
   job_phone: 'Phone number', job_email: 'Email', job_address: 'Address',
-  job_contact: 'Contact person', job_island: 'Island',
+  job_contact: 'Contact person', job_island: 'Island', job_sched_status: 'Schedule status',
   item_model: 'Model number', item_type: 'Type tag', item_qty: 'Quantity',
   item_status: 'Status', item_location: 'Physical location',
   item_loaded: 'Loaded?', item_owner: 'Owner', item_visit: 'Visit consumed at',
@@ -1611,6 +1612,8 @@ function renderCalendar() {
       }
       // Type color class
       cls += ' ' + typeToClass(f(j, F.job_next_type));
+      // Penciled (or untagged) dates render dashed + faded; Firm renders solid
+      if (jobScheduleStatus(j) === 'penciled') cls += ' penciled';
       // Only show the name on the first day; mid/end show invisible text so the bar continues but stays the same height
       const name = f(j, F.job_name) || 'Job';
       const showName = entry.isStart ? name : name; // text is there but transparent on mid/end via CSS
@@ -1960,16 +1963,43 @@ function islandFilteredJobs() {
     : jobs.filter(j => (f(j,F.job_island)||'') === currentIslandFilter);
 }
 
+// Effective schedule state for a job:
+//  'unscheduled' — no date at all (Brian's actionable pile)
+//  'firm'        — has a date, explicitly tagged Firm
+//  'penciled'    — has a date; tagged Penciled OR untagged (conservative default:
+//                  a date nobody confirmed is treated as tentative)
+function jobScheduleStatus(j) {
+  if (!f(j, F.job_next_date)) return 'unscheduled';
+  const s = (f(j, F.job_sched_status) || '').toLowerCase();
+  return s === 'firm' ? 'firm' : 'penciled';
+}
+
+let currentSchedFilter = 'all';
+
+function setSchedFilter(filter) {
+  currentSchedFilter = currentSchedFilter === filter ? 'all' : filter; // tap again to clear
+  renderJobs();
+}
+
 function renderJobs() {
   renderIslandTabs();
   const visible = islandFilteredJobs();
 
-  const active=visible.filter(j=>(f(j,F.job_status)||'').toLowerCase()!=='complete');
+  const activeAll=visible.filter(j=>(f(j,F.job_status)||'').toLowerCase()!=='complete');
   const complete=visible.filter(j=>(f(j,F.job_status)||'').toLowerCase()==='complete');
-  const withDate=visible.filter(j=>f(j,F.job_next_date));
+  const firmN = activeAll.filter(j=>jobScheduleStatus(j)==='firm').length;
+  const pencN = activeAll.filter(j=>jobScheduleStatus(j)==='penciled').length;
+  const unschedN = activeAll.filter(j=>jobScheduleStatus(j)==='unscheduled').length;
+
+  const active = currentSchedFilter==='all'
+    ? activeAll
+    : activeAll.filter(j=>jobScheduleStatus(j)===currentSchedFilter);
+
   document.getElementById('jobs-stats').innerHTML=`
-    <div class="stat"><div class="stat-label">Active</div><div class="stat-val">${active.length}</div></div>
-    <div class="stat"><div class="stat-label">Scheduled</div><div class="stat-val">${withDate.length}</div></div>
+    <div class="stat stat-clickable${currentSchedFilter==='all'?' stat-active':''}" onclick="setSchedFilter('all')"><div class="stat-label">Active</div><div class="stat-val">${activeAll.length}</div></div>
+    <div class="stat stat-clickable${currentSchedFilter==='firm'?' stat-active':''}" onclick="setSchedFilter('firm')"><div class="stat-label">Firm</div><div class="stat-val">${firmN}</div></div>
+    <div class="stat stat-clickable${currentSchedFilter==='penciled'?' stat-active':''}" onclick="setSchedFilter('penciled')"><div class="stat-label">Penciled</div><div class="stat-val">${pencN}</div></div>
+    <div class="stat stat-clickable${currentSchedFilter==='unscheduled'?' stat-active':''}" onclick="setSchedFilter('unscheduled')"><div class="stat-label">Not sched.</div><div class="stat-val">${unschedN}</div></div>
     <div class="stat stat-clickable${showCompleted?' stat-active':''}" onclick="toggleCompleted()"><div class="stat-label">Complete ${showCompleted?'▾':'▸'}</div><div class="stat-val">${complete.length}</div></div>`;
 
   const sorted=[...active].sort((a,b)=>{
@@ -2039,6 +2069,7 @@ function renderDetailBody(jobId) {
   const phone=f(job,F.job_phone)||'', email=f(job,F.job_email)||'', address=f(job,F.job_address)||'';
   const contact=f(job,F.job_contact)||'';
   const island=f(job,F.job_island)||'';
+  const schedStatus=f(job,F.job_sched_status)||'';
 
   // Get consumable items (those linked to a Stock SKU)
   const jobItems = items.filter(item => {
@@ -2225,6 +2256,16 @@ function renderDetailBody(jobId) {
             <option value="Blakely"${island==='Blakely'?' selected':''}>Blakely</option>
             <option value="Mainland"${island==='Mainland'?' selected':''}>Mainland</option>
             <option value="Other"${island==='Other'?' selected':''}>Other</option>
+          </select>
+        </span>
+      </div>
+      <div class="detail-field" style="align-items:center;">
+        <span class="detail-field-label">Schedule</span>
+        <span class="detail-field-val">
+          <select onchange="updateJobField('${jobId}','Schedule status',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">
+            <option value=""${!schedStatus?' selected':''}>Penciled (default)</option>
+            <option value="Penciled"${schedStatus==='Penciled'?' selected':''}>Penciled</option>
+            <option value="Firm"${schedStatus==='Firm'?' selected':''}>Firm</option>
           </select>
         </span>
       </div>
