@@ -1103,10 +1103,36 @@ function renderUnitOptions(currentValue, includeBlank) {
   return blank + opts.map(u => `<option value="${u}"${u===currentValue?' selected':''}>${u}</option>`).join('');
 }
 
+// ── VENDOR LINK — find or create a Vendor record from a vendor name string ──
+// Used by every Airtable write that captures a vendor (new SKU, edit SKU, new order line, etc.)
+// so going forward, vendor info flows into the linked Vendors table for email routing.
+// Returns the Vendor record ID, or null if the name is blank.
+// Non-destructive: callers should keep writing the legacy free-text Vendor field alongside this.
+async function ensureVendorLink(vendorName) {
+  if (!vendorName) return null;
+  const normalized = String(vendorName).trim();
+  if (!normalized) return null;
+  // Case-insensitive match against cached vendors
+  const existing = vendors.find(v =>
+    (f(v, 'Name') || '').toLowerCase() === normalized.toLowerCase()
+  );
+  if (existing) return existing.id;
+  // Not found, create a new Vendor record with this name
+  try {
+    const created = await createRecord(VENDORS_TBL, { 'Name': normalized });
+    vendors.push(created);
+    return created.id;
+  } catch(e) {
+    // Don't block the parent save if vendor creation fails — just skip the link.
+    return null;
+  }
+}
+
 const JOBS_TBL = 'tbleG7eZ2GUldQ7AF';
 const ITEMS_TBL = 'tblmTmWOvzHKIixMu';
 const SKUS_TBL = 'tblZ8EMxOtJlr3Mv2';
 const ORDERS_TBL = 'tblxthZ7zP3BTHM7k';
+const VENDORS_TBL = 'tblPI5nJ8s8T7qM7j';
 
 const F = {
   job_name: 'Name', job_type: 'Type', job_status: 'Status',
@@ -1131,7 +1157,7 @@ const F = {
   order_source: 'Source', order_sku: 'Stock SKU', order_notes: 'Notes',
 };
 
-let apiKey = '', jobs = [], items = [], skus = [], orders = [];
+let apiKey = '', jobs = [], items = [], skus = [], orders = [], vendors = [];
 let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
 let checkedLocally = {};
 let currentJobId = null, completeJobId = null;
@@ -1224,7 +1250,7 @@ async function syncData() {
   btn.classList.add('spinning');
   showError('');
   try {
-    [jobs, items, skus, orders] = await Promise.all([fetchAll(JOBS_TBL), fetchAll(ITEMS_TBL), fetchAll(SKUS_TBL), fetchAll(ORDERS_TBL)]);
+    [jobs, items, skus, orders, vendors] = await Promise.all([fetchAll(JOBS_TBL), fetchAll(ITEMS_TBL), fetchAll(SKUS_TBL), fetchAll(ORDERS_TBL), fetchAll(VENDORS_TBL)]);
     // Fresh data from Airtable is now authoritative — drop any stale optimistic
     // load-state overrides so the checkbox and location can't diverge.
     checkedLocally = {};
@@ -3006,6 +3032,9 @@ async function saveNewSku() {
   if (itemNumber) fields['Item number'] = itemNumber;
   if (typeTag) fields['Type tag'] = typeTag;
   if (vendor) fields['Vendor'] = vendor;
+  // Also populate the linked Vendor record so the email automation can route by vendor.
+  const vendorLinkId = await ensureVendorLink(vendor);
+  if (vendorLinkId) fields['Vendor link'] = [vendorLinkId];
   if (unit) fields['Unit'] = unit;
   if (primaryLoc) fields['Primary location'] = primaryLoc;
   if (!isNaN(threshold)) fields['Vendor reorder threshold'] = threshold;
@@ -3486,6 +3515,9 @@ async function saveAddOrder() {
   if (qty && qty > 0) fields['Quantity'] = qty;
   if (unit) fields['Unit'] = unit;
   if (vendor) fields['Vendor'] = vendor;
+  // Also populate the linked Vendor record for email routing
+  const vendorLinkId = await ensureVendorLink(vendor);
+  if (vendorLinkId) fields['Vendor link'] = [vendorLinkId];
   if (itemNumber) fields['Item number'] = itemNumber;
   if (notes) fields['Notes'] = notes;
   if (skuLink) fields['Stock SKU'] = skuLink;
@@ -3531,6 +3563,16 @@ async function addSkuToOrderList(skuId) {
     'Source': isCurrentlyLow ? 'Auto (low stock)' : 'Manual',
     'Stock SKU': [skuId],
   };
+  // Copy the SKU's Vendor link directly (cleaner than re-resolving by name).
+  // The SKU's Vendor link field comes back from Airtable as an array of {id,name} objects.
+  const skuVendorLink = f(sku, 'Vendor link');
+  if (Array.isArray(skuVendorLink) && skuVendorLink.length) {
+    fields['Vendor link'] = skuVendorLink.map(l => typeof l === 'string' ? l : l.id);
+  } else if (fields['Vendor']) {
+    // Fallback: if the SKU has only the legacy free-text vendor, resolve it by name
+    const vendorLinkId = await ensureVendorLink(fields['Vendor']);
+    if (vendorLinkId) fields['Vendor link'] = [vendorLinkId];
+  }
   // Strip undefined values
   Object.keys(fields).forEach(k => { if (fields[k] === undefined) delete fields[k]; });
   try {
@@ -3980,6 +4022,10 @@ async function saveSkuEdit() {
     'On-hand (Shop)': shop,
     'On-hand (Ducting Tent)': ducting,
   };
+  // Also update the linked Vendor record (or clear it if vendor was cleared)
+  // so the email automation routes correctly going forward.
+  const vendorLinkId = await ensureVendorLink(vendor);
+  fields['Vendor link'] = vendorLinkId ? [vendorLinkId] : [];
 
   try {
     await patchRecord(SKUS_TBL, skuEditId, fields);
