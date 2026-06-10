@@ -384,6 +384,7 @@
   <nav>
     <button class="active" onclick="showView('schedule')">📅 Schedule</button>
     <button onclick="showView('loadlist')">📋 Load List</button>
+    <button onclick="showView('orders')">🛒 Orders</button>
     <button onclick="showView('jobs')">🏗 Jobs</button>
     <button onclick="showView('inventory')">📦 Inventory</button>
   </nav>
@@ -417,6 +418,14 @@
       </select>
     </div>
     <div id="loadlist-body"></div>
+  </div>
+
+  <div id="view-orders" class="view">
+    <div style="text-align:center;margin-bottom: 12px;">
+      <button class="btn-sm btn-sm-action" onclick="openAddOrderModal()" style="padding: 5px 12px;font-size:12px;">+ Add to order</button>
+    </div>
+    <div class="loc-tabs" id="order-status-tabs" style="margin-bottom:10px;"></div>
+    <div id="orders-body"></div>
   </div>
 
   <div id="view-jobs" class="view">
@@ -682,6 +691,76 @@
     <div class="modal-btns" style="margin-top:20px;">
       <button class="btn-cancel" onclick="closeAddSkuModal()">Cancel</button>
       <button class="btn-sm btn-sm-accent" onclick="saveNewSku()" style="padding:10px 20px;">Add SKU</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD TO ORDER MODAL — manual entry OR from an existing SKU -->
+<div class="modal-bg" id="add-order-modal" onclick="if(event.target===this)closeAddOrderModal()">
+  <div class="modal" style="max-width:520px;">
+    <h3>Add to order list</h3>
+    <div style="display:flex;gap:6px;margin-bottom:14px;">
+      <button class="loc-tab active" id="ord-mode-sku" onclick="setAddOrderMode('sku')">From SKU</button>
+      <button class="loc-tab" id="ord-mode-manual" onclick="setAddOrderMode('manual')">Manual entry</button>
+    </div>
+
+    <div id="ord-sku-mode">
+      <div style="margin-bottom:12px;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Stock item *</label>
+        <select id="ord-sku-pick" onchange="onOrdSkuPick()" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+          <option value="">Select a SKU...</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="ord-manual-mode" style="display:none;">
+      <div style="margin-bottom:12px;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Item name *</label>
+        <input type="text" id="ord-item" placeholder='e.g. #10 wood screws, 2.5" PVC elbow' style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-bottom:12px;">
+      <div style="flex:1;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Quantity</label>
+        <input type="number" id="ord-qty" placeholder="1" min="1" step="1" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+      </div>
+      <div style="flex:1;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Unit</label>
+        <select id="ord-unit" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+          <option value="">—</option>
+          <option value="each">each</option>
+          <option value="feet">feet</option>
+          <option value="roll">roll</option>
+          <option value="package">package</option>
+          <option value="bag">bag</option>
+          <option value="box">box</option>
+          <option value="pair">pair</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-bottom:12px;">
+      <div style="flex:1;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Vendor</label>
+        <input type="text" id="ord-vendor" placeholder="Gensco, SupplyHouse..." style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+      </div>
+      <div style="flex:1;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Item number</label>
+        <input type="text" id="ord-itemnumber" placeholder="CCB1, TSS-575..." style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+      </div>
+    </div>
+
+    <div style="margin-bottom:12px;">
+      <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Notes <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
+      <textarea id="ord-notes" rows="2" placeholder="e.g. Use Gensco's Tuesday pickup window" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;font-family:inherit;resize:vertical;"></textarea>
+    </div>
+
+    <div id="ord-error" style="display:none;color:var(--danger);font-size:13px;margin-bottom:10px;background:var(--danger-light);padding:8px 12px;border-radius:var(--radius-sm);"></div>
+
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeAddOrderModal()">Cancel</button>
+      <button class="btn-sm btn-sm-accent" onclick="saveAddOrder()" style="padding:10px 20px;">Add to order list</button>
     </div>
   </div>
 </div>
@@ -1047,6 +1126,7 @@ const BASE_ID = 'appFfYj9VVedhrZfv';
 const JOBS_TBL = 'tbleG7eZ2GUldQ7AF';
 const ITEMS_TBL = 'tblmTmWOvzHKIixMu';
 const SKUS_TBL = 'tblZ8EMxOtJlr3Mv2';
+const ORDERS_TBL = 'tblxthZ7zP3BTHM7k';
 
 const F = {
   job_name: 'Name', job_type: 'Type', job_status: 'Status',
@@ -1066,9 +1146,12 @@ const F = {
   sku_shop: 'On-hand (Shop)', sku_ducting: 'On-hand (Ducting Tent)', sku_threshold: 'Vendor reorder threshold',
   sku_total: 'Total on-hand', sku_available: 'Available on-hand', sku_order_flag: 'Order needed?', sku_vendor: 'Vendor', sku_itemnumber: 'Item number',
   sku_unit: 'Unit', sku_type: 'Type tag',
+  order_item: 'Item', order_itemnumber: 'Item number', order_vendor: 'Vendor',
+  order_qty: 'Quantity', order_unit: 'Unit', order_status: 'Status',
+  order_source: 'Source', order_sku: 'Stock SKU', order_notes: 'Notes',
 };
 
-let apiKey = '', jobs = [], items = [], skus = [];
+let apiKey = '', jobs = [], items = [], skus = [], orders = [];
 let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
 let checkedLocally = {};
 let currentJobId = null, completeJobId = null;
@@ -1161,7 +1244,7 @@ async function syncData() {
   btn.classList.add('spinning');
   showError('');
   try {
-    [jobs, items, skus] = await Promise.all([fetchAll(JOBS_TBL), fetchAll(ITEMS_TBL), fetchAll(SKUS_TBL)]);
+    [jobs, items, skus, orders] = await Promise.all([fetchAll(JOBS_TBL), fetchAll(ITEMS_TBL), fetchAll(SKUS_TBL), fetchAll(ORDERS_TBL)]);
     // Fresh data from Airtable is now authoritative — drop any stale optimistic
     // load-state overrides so the checkbox and location can't diverge.
     checkedLocally = {};
@@ -1205,7 +1288,7 @@ function typeToClass(phase) {
   return 'type-other';
 }
 
-function renderAll() { renderCalendar(); renderLoadList(); renderJobs(); renderInventory(); }
+function renderAll() { renderCalendar(); renderLoadList(); renderJobs(); renderInventory(); renderOrders(); }
 
 // ── CALENDAR ──
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -3212,6 +3295,271 @@ async function saveNoteEdit() {
   }
 }
 
+// ── ORDERS ──
+let currentOrderStatus = 'Needed';
+let addOrderMode = 'sku'; // 'sku' or 'manual'
+
+function setOrderStatusFilter(status) {
+  currentOrderStatus = status;
+  renderOrders();
+}
+
+function renderOrders() {
+  const tabsEl = document.getElementById('order-status-tabs');
+  const body = document.getElementById('orders-body');
+  if (!tabsEl || !body) return;
+  // Counts per status
+  const counts = { Needed: 0, Ordered: 0, Received: 0 };
+  orders.forEach(o => {
+    const s = f(o, F.order_status) || 'Needed';
+    if (counts[s] !== undefined) counts[s]++;
+  });
+  tabsEl.innerHTML = ['Needed','Ordered','Received'].map(s =>
+    `<button class="loc-tab${currentOrderStatus===s?' active':''}" onclick="setOrderStatusFilter('${s}')">${s} (${counts[s]})</button>`
+  ).join('');
+
+  const list = orders
+    .filter(o => (f(o, F.order_status) || 'Needed') === currentOrderStatus)
+    .sort((a,b) => {
+      // Within a status: low-stock auto-added first, then alphabetical
+      const sa = f(a, F.order_source) || '';
+      const sb = f(b, F.order_source) || '';
+      if (sa !== sb) {
+        if (sa.includes('Auto')) return -1;
+        if (sb.includes('Auto')) return 1;
+      }
+      return (f(a, F.order_item)||'').toLowerCase().localeCompare((f(b, F.order_item)||'').toLowerCase());
+    });
+
+  if (!list.length) {
+    const emptyMsg = currentOrderStatus === 'Needed'
+      ? `<div class="empty"><div class="icon">🛒</div>Nothing needs ordering<div style="margin-top:8px;font-size:13px;color:var(--text-faint);">Add manually with + Add to order, or low-stock SKUs can be added from the Inventory tab.</div></div>`
+      : `<div class="empty"><div class="icon">📦</div>No ${currentOrderStatus.toLowerCase()} items</div>`;
+    body.innerHTML = emptyMsg;
+    return;
+  }
+
+  body.innerHTML = list.map(o => {
+    const oid = o.id;
+    const item = f(o, F.order_item) || 'Unnamed';
+    const num = f(o, F.order_itemnumber) || '';
+    const vendor = f(o, F.order_vendor) || '';
+    const qty = f(o, F.order_qty);
+    const unit = f(o, F.order_unit) || '';
+    const source = f(o, F.order_source) || '';
+    const notes = f(o, F.order_notes) || '';
+    const qtyDisplay = qty != null ? `${qty}${unit?' '+escapeHtml(unit):''}` : '';
+    const metaBits = [num && `<strong style="color:var(--text);">${escapeHtml(num)}</strong>`, vendor && escapeHtml(vendor), qtyDisplay].filter(Boolean).join(' · ');
+    const sourceBadge = source.includes('Auto')
+      ? `<span style="font-size:10px;padding:2px 6px;border-radius:99px;background:var(--warn-light);color:var(--warn);font-weight:600;text-transform:uppercase;letter-spacing:0.03em;">⚠ low stock</span>`
+      : source === 'Scan'
+        ? `<span style="font-size:10px;padding:2px 6px;border-radius:99px;background:#f3e8ff;color:#7e22ce;font-weight:600;text-transform:uppercase;letter-spacing:0.03em;">scan</span>`
+        : '';
+    let actionBtns = '';
+    if (currentOrderStatus === 'Needed') {
+      actionBtns = `<button class="btn-sm btn-sm-accent" style="font-size:11px;padding:5px 10px;" onclick="markOrderStatus('${oid}','Ordered')">Mark Ordered →</button>`;
+    } else if (currentOrderStatus === 'Ordered') {
+      actionBtns = `<button class="btn-sm" style="font-size:11px;padding:5px 10px;background:var(--ok);color:white;border:1px solid var(--ok);" onclick="markOrderStatus('${oid}','Received')">Mark Received ✓</button>
+        <button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:5px 10px;" onclick="markOrderStatus('${oid}','Needed')">↶ Back to Needed</button>`;
+    } else {
+      actionBtns = `<button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:5px 10px;" onclick="markOrderStatus('${oid}','Ordered')">↶ Back to Ordered</button>`;
+    }
+    return `<div class="mat-row" style="flex-direction:column;align-items:stretch;gap:6px;padding:12px 14px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+        <div style="min-width:0;flex:1;">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><div class="mat-name" style="font-weight:600;">${escapeHtml(item)}</div>${sourceBadge}</div>
+          ${metaBits?`<div class="mat-qty" style="margin-top:2px;">${metaBits}</div>`:''}
+          ${notes?`<div style="margin-top:4px;font-size:12px;color:var(--text-muted);font-style:italic;">${escapeHtml(notes)}</div>`:''}
+        </div>
+        <button class="mat-del" onclick="deleteOrder('${oid}')" title="Remove">×</button>
+      </div>
+      <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;">${actionBtns}</div>
+    </div>`;
+  }).join('');
+}
+
+async function markOrderStatus(orderId, newStatus) {
+  const order = orders.find(o => o.id === orderId);
+  if (!order) return;
+  try {
+    await patchRecord(ORDERS_TBL, orderId, { 'Status': newStatus });
+    order.fields['Status'] = newStatus;
+    renderOrders();
+  } catch(e) {
+    showError('Could not update order status.');
+  }
+}
+
+async function deleteOrder(orderId) {
+  const order = orders.find(o => o.id === orderId);
+  if (!order) return;
+  const name = f(order, F.order_item) || 'this item';
+  if (!confirm(`Remove "${name}" from the order list?`)) return;
+  try {
+    await deleteRecord(ORDERS_TBL, orderId);
+    orders = orders.filter(o => o.id !== orderId);
+    renderOrders();
+  } catch(e) {
+    showError('Could not delete order.');
+  }
+}
+
+// ── ADD TO ORDER MODAL ──
+function openAddOrderModal() {
+  // Default to SKU mode
+  setAddOrderMode('sku');
+  // Populate SKU dropdown — grouped by primary location like the Add Material picker
+  const GROUP_ORDER = ['Barn','Unit Tent','Ducting Tent','Lumber Rack','Susie','Shop'];
+  function skuGroupLabel(s) {
+    const buckets = [
+      ['Barn', f(s, F.sku_barn)], ['Unit Tent', f(s, F.sku_tent)],
+      ['Susie', f(s, F.sku_susie)], ['Lumber Rack', f(s, F.sku_lumber)],
+      ['Shop', f(s, F.sku_shop)], ['Ducting Tent', f(s, F.sku_ducting)],
+    ];
+    let best = null, bestQty = -1;
+    buckets.forEach(([label, q]) => {
+      const n = Number(q) || 0;
+      if (n > bestQty) { bestQty = n; best = label; }
+    });
+    return best || 'No stock';
+  }
+  const groups = {};
+  skus.forEach(s => { const l = skuGroupLabel(s) || 'No stock'; (groups[l] = groups[l] || []).push(s); });
+  const orderedLabels = GROUP_ORDER.filter(l => groups[l]);
+  if (groups['No stock']) orderedLabels.push('No stock');
+  const opts = orderedLabels.map(label => {
+    const items = groups[label]
+      .sort((a,b)=>(f(a,F.sku_name)||'').toLowerCase().localeCompare((f(b,F.sku_name)||'').toLowerCase()))
+      .map(s => `<option value="${s.id}">${escapeHtml(f(s,F.sku_name)||'SKU')}</option>`).join('');
+    return `<optgroup label="${escapeHtml(label)}">${items}</optgroup>`;
+  }).join('');
+  document.getElementById('ord-sku-pick').innerHTML = '<option value="">Select a SKU...</option>' + opts;
+  // Reset fields
+  document.getElementById('ord-item').value = '';
+  document.getElementById('ord-qty').value = '';
+  document.getElementById('ord-unit').value = '';
+  document.getElementById('ord-vendor').value = '';
+  document.getElementById('ord-itemnumber').value = '';
+  document.getElementById('ord-notes').value = '';
+  document.getElementById('ord-error').style.display = 'none';
+  document.getElementById('add-order-modal').classList.add('open');
+}
+
+function closeAddOrderModal() {
+  document.getElementById('add-order-modal').classList.remove('open');
+}
+
+function setAddOrderMode(mode) {
+  addOrderMode = mode;
+  document.getElementById('ord-sku-mode').style.display = mode === 'sku' ? '' : 'none';
+  document.getElementById('ord-manual-mode').style.display = mode === 'manual' ? '' : 'none';
+  document.getElementById('ord-mode-sku').classList.toggle('active', mode === 'sku');
+  document.getElementById('ord-mode-manual').classList.toggle('active', mode === 'manual');
+}
+
+function onOrdSkuPick() {
+  const skuId = document.getElementById('ord-sku-pick').value;
+  if (!skuId) return;
+  const sku = skus.find(s => s.id === skuId);
+  if (!sku) return;
+  // Pre-fill from SKU
+  document.getElementById('ord-vendor').value = f(sku, F.sku_vendor) || '';
+  document.getElementById('ord-itemnumber').value = f(sku, F.sku_itemnumber) || '';
+  const u = f(sku, F.sku_unit) || '';
+  if (u) {
+    const sel = document.getElementById('ord-unit');
+    const exists = Array.from(sel.options).some(o => o.value === u);
+    if (!exists) { const o = document.createElement('option'); o.value=u; o.textContent=u; sel.appendChild(o); }
+    sel.value = u;
+  }
+  // Suggested qty: threshold (so you order at least back to threshold) or 1
+  const threshold = f(sku, F.sku_threshold);
+  if (threshold && !document.getElementById('ord-qty').value) {
+    document.getElementById('ord-qty').value = threshold;
+  }
+}
+
+async function saveAddOrder() {
+  const errEl = document.getElementById('ord-error');
+  errEl.style.display = 'none';
+  const qty = parseInt(document.getElementById('ord-qty').value, 10);
+  const unit = document.getElementById('ord-unit').value;
+  const vendor = document.getElementById('ord-vendor').value.trim();
+  const itemNumber = document.getElementById('ord-itemnumber').value.trim();
+  const notes = document.getElementById('ord-notes').value.trim();
+
+  let itemName = '', skuLink = null;
+  if (addOrderMode === 'sku') {
+    const skuId = document.getElementById('ord-sku-pick').value;
+    if (!skuId) { errEl.textContent = 'Pick a SKU or switch to Manual entry.'; errEl.style.display='block'; return; }
+    const sku = skus.find(s => s.id === skuId);
+    itemName = f(sku, F.sku_name) || 'SKU';
+    skuLink = [skuId];
+  } else {
+    itemName = document.getElementById('ord-item').value.trim();
+    if (!itemName) { errEl.textContent = 'Item name is required.'; errEl.style.display='block'; return; }
+  }
+
+  const fields = {
+    'Item': itemName,
+    'Status': 'Needed',
+    'Source': 'Manual',
+  };
+  if (qty && qty > 0) fields['Quantity'] = qty;
+  if (unit) fields['Unit'] = unit;
+  if (vendor) fields['Vendor'] = vendor;
+  if (itemNumber) fields['Item number'] = itemNumber;
+  if (notes) fields['Notes'] = notes;
+  if (skuLink) fields['Stock SKU'] = skuLink;
+
+  try {
+    const created = await createRecord(ORDERS_TBL, fields);
+    orders.push(created);
+    closeAddOrderModal();
+    renderOrders();
+  } catch(e) {
+    errEl.textContent = 'Could not save. Check your connection and try again.';
+    errEl.style.display = 'block';
+  }
+}
+
+// One-tap helper: add a low-stock SKU to the order list as "Auto (low stock)"
+async function addSkuToOrderList(skuId) {
+  const sku = skus.find(s => s.id === skuId);
+  if (!sku) return;
+  // Check if a Needed entry for this SKU already exists — don't double-add
+  const existing = orders.find(o => {
+    if ((f(o, F.order_status) || 'Needed') !== 'Needed') return false;
+    const links = f(o, F.order_sku);
+    if (!Array.isArray(links)) return false;
+    return links.some(l => (typeof l === 'string' ? l : l.id) === skuId);
+  });
+  if (existing) {
+    alert(`Already on the order list (Needed).`);
+    return;
+  }
+  const fields = {
+    'Item': f(sku, F.sku_name) || 'SKU',
+    'Item number': f(sku, F.sku_itemnumber) || undefined,
+    'Vendor': f(sku, F.sku_vendor) || undefined,
+    'Quantity': f(sku, F.sku_threshold) || 1,
+    'Unit': f(sku, F.sku_unit) || undefined,
+    'Status': 'Needed',
+    'Source': 'Auto (low stock)',
+    'Stock SKU': [skuId],
+  };
+  // Strip undefined values
+  Object.keys(fields).forEach(k => { if (fields[k] === undefined) delete fields[k]; });
+  try {
+    const created = await createRecord(ORDERS_TBL, fields);
+    orders.push(created);
+    renderOrders();
+    renderInventory(); // refresh the "+ Order" button state on the SKU card
+  } catch(e) {
+    showError('Could not add to order list.');
+  }
+}
+
 // ── INVENTORY ──
 let currentInvLocation = 'all'; // 'all' or 'On-hand (Barn)', 'On-hand (Unit Tent)', etc.
 
@@ -3401,7 +3749,17 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
           <div class="inv-meta">${itemNumber?`<span style="font-weight:600;color:var(--text);">${escapeHtml(itemNumber)}</span> · `:''}${vendor||'—'}${threshold!=null?` · reorder &lt; ${threshold}`:''}</div>
         </div>
         <div class="inv-card-right">
-          ${isLow?'<span class="inv-low-badge">⚠ order</span>':''}
+          ${isLow ? (() => {
+            // Is this SKU already on the order list with Needed status?
+            const onOrder = orders.some(o => {
+              if ((f(o, F.order_status) || 'Needed') !== 'Needed') return false;
+              const links = f(o, F.order_sku);
+              return Array.isArray(links) && links.some(l => (typeof l === 'string' ? l : l.id) === sid);
+            });
+            return onOrder
+              ? `<span class="inv-low-badge" style="background:var(--accent-light);color:var(--accent-text);">✓ on order list</span>`
+              : `<button class="inv-low-badge" onclick="event.stopPropagation();addSkuToOrderList('${sid}')" style="border:none;cursor:pointer;" title="Add to order list">⚠ + Order</button>`;
+          })() : ''}
           ${(() => {
             // Headline number depends on current tab:
             //  - 'all': show Available (what's available for new jobs); note if any on rig
@@ -4071,7 +4429,7 @@ function showView(name) {
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
   document.getElementById('view-'+name).classList.add('active');
-  const idx={schedule:0,loadlist:1,jobs:2,inventory:3};
+  const idx={schedule:0,loadlist:1,orders:2,jobs:3,inventory:4};
   document.querySelectorAll('nav button')[idx[name]].classList.add('active');
 }
 
