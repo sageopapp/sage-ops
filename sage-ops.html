@@ -3353,7 +3353,7 @@ function renderOrders() {
     const source = f(o, F.order_source) || '';
     const notes = f(o, F.order_notes) || '';
     const qtyDisplay = qty != null ? `${qty}${unit?' '+escapeHtml(unit):''}` : '';
-    const metaBits = [num && `<strong style="color:var(--text);">${escapeHtml(num)}</strong>`, vendor && escapeHtml(vendor), qtyDisplay].filter(Boolean).join(' · ');
+    const metaBits = [num && `<strong style="color:var(--text);">${escapeHtml(num)}</strong>`, vendor && escapeHtml(vendor)].filter(Boolean).join(' · ');
     const sourceBadge = source.includes('Auto')
       ? `<span style="font-size:10px;padding:2px 6px;border-radius:99px;background:var(--warn-light);color:var(--warn);font-weight:600;text-transform:uppercase;letter-spacing:0.03em;">⚠ low stock</span>`
       : source === 'Scan'
