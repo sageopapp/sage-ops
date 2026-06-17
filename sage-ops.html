@@ -1147,10 +1147,10 @@ const F = {
   item_status: 'Status', item_location: 'Physical location',
   item_loaded: 'Loaded?', item_owner: 'Owner', item_visit: 'Visit consumed at',
   item_sku: 'Stock SKU', item_comments: 'Comments',
-  sku_name: 'Name', sku_barn: 'On-hand (Barn)', sku_tent: 'On-hand (Unit Tent)',
+  sku_name: 'Item', sku_barn: 'On-hand (Barn)', sku_tent: 'On-hand (Unit Tent)',
   sku_susie: 'On-hand (Susie)', sku_lumber: 'On-hand (Lumber Rack)', sku_rig: 'On-hand (Rig)',
-  sku_shop: 'On-hand (Shop)', sku_ducting: 'On-hand (Ducting Tent)', sku_threshold: 'Vendor reorder threshold',
-  sku_total: 'Total on-hand', sku_available: 'Available on-hand', sku_order_flag: 'Order needed?', sku_vendor: 'Vendor', sku_itemnumber: 'Item number',
+  sku_shop: 'On-hand (Shop)', sku_ducting: 'On-hand (Ducting Tent)', sku_threshold: 'Threshold',
+  sku_total: 'Total on-hand', sku_available: 'On-hand', sku_order_flag: 'Order needed?', sku_vendor: 'Vendor', sku_itemnumber: 'Item number',
   sku_unit: 'Unit', sku_type: 'Type tag',
   order_item: 'Item', order_itemnumber: 'Item number', order_vendor: 'Vendor',
   order_qty: 'Quantity', order_unit: 'Unit', order_status: 'Status',
@@ -3028,7 +3028,7 @@ async function saveNewSku() {
 
   if (!name) { skuShowError('Please enter a SKU name.'); return; }
 
-  const fields = { 'Name': name };
+  const fields = { 'Item': name };
   if (itemNumber) fields['Item number'] = itemNumber;
   if (typeTag) fields['Type tag'] = typeTag;
   if (vendor) fields['Vendor'] = vendor;
@@ -3037,7 +3037,7 @@ async function saveNewSku() {
   if (vendorLinkId) fields['Vendor link'] = [vendorLinkId];
   if (unit) fields['Unit'] = unit;
   if (primaryLoc) fields['Primary location'] = primaryLoc;
-  if (!isNaN(threshold)) fields['Vendor reorder threshold'] = threshold;
+  if (!isNaN(threshold)) fields['Threshold'] = threshold;
   if (!isNaN(cBarn)) fields['On-hand (Barn)'] = cBarn;
   if (!isNaN(cTent)) fields['On-hand (Unit Tent)'] = cTent;
   if (!isNaN(cLumber)) fields['On-hand (Lumber Rack)'] = cLumber;
@@ -3353,7 +3353,7 @@ function renderOrders() {
     const source = f(o, F.order_source) || '';
     const notes = f(o, F.order_notes) || '';
     const qtyDisplay = qty != null ? `${qty}${unit?' '+escapeHtml(unit):''}` : '';
-    const metaBits = [num && `<strong style="color:var(--text);">${escapeHtml(num)}</strong>`, vendor && escapeHtml(vendor)].filter(Boolean).join(' · ');
+    const metaBits = [num && `<strong style="color:var(--text);">${escapeHtml(num)}</strong>`, vendor && escapeHtml(vendor), qtyDisplay].filter(Boolean).join(' · ');
     const sourceBadge = source.includes('Auto')
       ? `<span style="font-size:10px;padding:2px 6px;border-radius:99px;background:var(--warn-light);color:var(--warn);font-weight:600;text-transform:uppercase;letter-spacing:0.03em;">⚠ low stock</span>`
       : source === 'Scan'
@@ -4010,10 +4010,10 @@ async function saveSkuEdit() {
   }
 
   const fields = {
-    'Name': name,
+    'Item': name,
     'Item number': itemNumber || null,
     'Vendor': vendor || null,
-    'Vendor reorder threshold': threshold,
+    'Threshold': threshold,
     'Unit': unit || null,
     'On-hand (Barn)': barn,
     'On-hand (Unit Tent)': tent,
@@ -4032,10 +4032,10 @@ async function saveSkuEdit() {
     // Update local cache
     const sku = skus.find(s=>s.id===skuEditId);
     if (sku) {
-      sku.fields['Name'] = name;
+      sku.fields['Item'] = name;
       sku.fields['Item number'] = itemNumber || undefined;
       sku.fields['Vendor'] = vendor || undefined;
-      sku.fields['Vendor reorder threshold'] = threshold;
+      sku.fields['Threshold'] = threshold;
       sku.fields['Unit'] = unit || undefined;
       sku.fields['On-hand (Barn)'] = barn;
       sku.fields['On-hand (Unit Tent)'] = tent;
