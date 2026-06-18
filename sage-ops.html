@@ -813,7 +813,10 @@
       </div>
       <div>
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Type tag <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
-        <input type="text" id="au-type-tag" placeholder="e.g. outdoor unit, head" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+        <select id="au-type-tag" onchange="onAuTypeTagChange()" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+          <option value="">— Select —</option>
+        </select>
+        <input type="text" id="au-type-tag-new" placeholder="New type tag" style="display:none;width:100%;margin-top:6px;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
       </div>
     </div>
     <div id="au-error" style="display:none;color:var(--danger);font-size:13px;margin-top:14px;background:var(--danger-light);padding:8px 12px;border-radius:var(--radius-sm);"></div>
@@ -2908,7 +2911,14 @@ function openAddUnitModal() {
   document.getElementById('au-model').value = '';
   document.getElementById('au-qty').value = '1';
   document.getElementById('au-location').value = 'Unit Tent';
-  document.getElementById('au-type-tag').value = '';
+  // Populate Type tag dropdown from existing Items Type tags (equipment types: indoor wallhead, outdoor unit, hrv, etc.)
+  const typeTags = [...new Set(items.map(it => f(it, F.item_type)).filter(Boolean))].sort();
+  const typeSel = document.getElementById('au-type-tag');
+  typeSel.innerHTML = '<option value="">— Select —</option>' +
+    typeTags.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('') +
+    '<option value="__new__">+ New type tag...</option>';
+  document.getElementById('au-type-tag-new').value = '';
+  document.getElementById('au-type-tag-new').style.display = 'none';
   document.getElementById('au-error').style.display = 'none';
   document.getElementById('add-unit-modal').classList.add('open');
   setTimeout(()=>document.getElementById('au-model').focus(), 50);
@@ -2921,6 +2931,18 @@ function closeAddUnitModal() {
 function onAuCustomerChange() {
   const sel = document.getElementById('au-customer');
   const newInput = document.getElementById('au-customer-new');
+  if (sel.value === '__new__') {
+    newInput.style.display = 'block';
+    setTimeout(()=>newInput.focus(), 50);
+  } else {
+    newInput.style.display = 'none';
+    newInput.value = '';
+  }
+}
+
+function onAuTypeTagChange() {
+  const sel = document.getElementById('au-type-tag');
+  const newInput = document.getElementById('au-type-tag-new');
   if (sel.value === '__new__') {
     newInput.style.display = 'block';
     setTimeout(()=>newInput.focus(), 50);
@@ -2943,7 +2965,9 @@ async function saveAddUnit() {
   const model = document.getElementById('au-model').value.trim();
   const qty = parseFloat(document.getElementById('au-qty').value) || 1;
   const location = document.getElementById('au-location').value;
-  const typeTag = document.getElementById('au-type-tag').value.trim();
+  const typeTagSelVal = document.getElementById('au-type-tag').value;
+  const typeTagNewVal = document.getElementById('au-type-tag-new').value.trim();
+  const typeTag = (typeTagSelVal === '__new__') ? typeTagNewVal : typeTagSelVal;
 
   // Validation
   // customerId === '' is allowed — that means add as Stock (no owner)
