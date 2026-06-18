@@ -1095,6 +1095,29 @@
   </div>
 </div>
 
+<!-- EQUIPMENT TRANSFER MODAL (move a unit between locations) -->
+<div class="modal-bg" id="equip-xfer-modal" onclick="if(event.target===this)closeEquipXfer()">
+  <div class="modal">
+    <h3 id="equip-xfer-title">Transfer unit</h3>
+    <p id="equip-xfer-subtitle"></p>
+    <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:20px;">
+      <div>
+        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text-muted);">From</label>
+        <div id="equip-xfer-from" style="padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;background:var(--bg);color:var(--text-muted);"></div>
+      </div>
+      <div>
+        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text-muted);">Move to</label>
+        <select id="equip-xfer-to" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);"></select>
+      </div>
+      <div id="equip-xfer-error" style="display:none;font-size:13px;color:#c33;padding:8px 12px;background:#fee;border-radius:var(--radius-sm);"></div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeEquipXfer()">Cancel</button>
+      <button class="btn-sm btn-sm-accent" onclick="saveEquipXfer()" style="padding:10px 20px;">Transfer</button>
+    </div>
+  </div>
+</div>
+
 <!-- NOTE EDIT MODAL (Detail Notes / Comments) -->
 <div class="modal-bg" id="note-edit-modal">
   <div class="modal">
@@ -1196,6 +1219,7 @@ let showAddMat = false;
 let showCompleted = false;
 let invEditState = null; // {skuId, locField, locLabel, skuName}
 let xferState = null; // {skuId, skuName}
+let equipXferState = null; // {itemId, currentLoc, model}
 let noteEditState = null; // {jobId, field, label, jobName, returnTo}
 let walkState = null; // {locField, locLabel, index, total}
 let tentVerifyState = null; // {itemIds, index, results}
@@ -3793,7 +3817,10 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
             <div class="inv-name">${escapeHtml(model)}</div>
             ${typeTag?`<div class="inv-meta">${escapeHtml(typeTag)}</div>`:''}
           </div>
-          <div style="flex-shrink:0;">${statusBadge}</div>
+          <div style="flex-shrink:0;display:flex;align-items:center;gap:8px;">
+            ${statusBadge}
+            <button class="sku-edit-btn small" onclick="event.stopPropagation();openEquipXfer('${iid}')" title="Transfer between locations">⇄</button>
+          </div>
         </div>
       </div>`;
     });
@@ -4309,6 +4336,62 @@ async function saveXfer() {
     renderInventory();
   } catch (e) {
     xferShowError('Could not save transfer. Check your connection.');
+  }
+}
+
+// ── EQUIPMENT TRANSFER (move a unit between locations) ──
+function openEquipXfer(itemId) {
+  const item = items.find(i => i.id === itemId);
+  if (!item) return;
+  const model = f(item, F.item_model) || 'this unit';
+  const currentLoc = f(item, F.item_location) || '';
+
+  equipXferState = { itemId, currentLoc, model };
+
+  document.getElementById('equip-xfer-title').textContent = model;
+  document.getElementById('equip-xfer-subtitle').textContent = 'Move this unit to another location';
+  document.getElementById('equip-xfer-from').textContent = currentLoc || '(no current location)';
+  document.getElementById('equip-xfer-error').style.display = 'none';
+
+  // Build To dropdown — all LOCATIONS labels except the current one
+  const toSel = document.getElementById('equip-xfer-to');
+  const toOptions = LOCATIONS.filter(loc => loc.label !== currentLoc);
+  toSel.innerHTML = toOptions
+    .map(loc => `<option value="${escapeHtml(loc.label)}">${escapeHtml(loc.label)}</option>`)
+    .join('');
+
+  document.getElementById('equip-xfer-modal').classList.add('open');
+}
+
+function closeEquipXfer() {
+  document.getElementById('equip-xfer-modal').classList.remove('open');
+  equipXferState = null;
+}
+
+function equipXferShowError(msg) {
+  const el = document.getElementById('equip-xfer-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+async function saveEquipXfer() {
+  if (!equipXferState) return;
+  const { itemId, currentLoc } = equipXferState;
+  const item = items.find(i => i.id === itemId);
+  if (!item) { closeEquipXfer(); return; }
+
+  const newLoc = document.getElementById('equip-xfer-to').value;
+  if (!newLoc) { equipXferShowError('Please pick a destination location.'); return; }
+  if (newLoc === currentLoc) { equipXferShowError('Destination must be different from current location.'); return; }
+
+  try {
+    await patchRecord(ITEMS_TBL, itemId, { 'Physical location': newLoc });
+    // Update local cache
+    item.fields['Physical location'] = newLoc;
+    closeEquipXfer();
+    renderInventory();
+  } catch (e) {
+    equipXferShowError('Could not save transfer. Check your connection.');
   }
 }
 
