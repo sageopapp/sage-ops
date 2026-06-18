@@ -439,7 +439,7 @@
 
   <div id="view-inventory" class="view">
     <div class="inv-controls">
-      <input type="text" id="inv-search" placeholder="Search SKUs..." oninput="renderInventory()" />
+      <input type="text" id="inv-search" placeholder="Search SKUs..." oninput="renderInventory()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
       <div class="inv-filter-row">
         <label class="inv-checkbox"><input type="checkbox" id="inv-low-only" onchange="renderInventory()" /> Low stock only</label>
         <div style="display:flex;gap:8px;">
