@@ -986,13 +986,22 @@
         <input type="text" id="sku-edit-itemnumber" placeholder="e.g. CCB1, YYY866Y" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
       </div>
       <div style="display:flex;gap:10px;">
-        <div style="flex:2;">
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Type tag</label>
+          <select id="sku-edit-type-tag" onchange="onSkuEditTypeTagChange()" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+            <option value="">— Select —</option>
+          </select>
+          <input type="text" id="sku-edit-type-tag-new" placeholder="New type tag" style="display:none;width:100%;margin-top:6px;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+        </div>
+        <div style="flex:1;">
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Vendor</label>
           <select id="sku-edit-vendor" onchange="onSkuEditVendorChange()" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
             <option value="">— Select —</option>
           </select>
           <input type="text" id="sku-edit-vendor-new" placeholder="New vendor" style="display:none;width:100%;margin-top:6px;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
         </div>
+      </div>
+      <div style="display:flex;gap:10px;">
         <div style="flex:1;">
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Unit</label>
           <select id="sku-edit-unit" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);"></select>
@@ -3054,6 +3063,18 @@ function onSkuEditVendorChange() {
   }
 }
 
+function onSkuEditTypeTagChange() {
+  const sel = document.getElementById('sku-edit-type-tag');
+  const newInput = document.getElementById('sku-edit-type-tag-new');
+  if (sel.value === '__new__') {
+    newInput.style.display = 'block';
+    setTimeout(()=>newInput.focus(), 50);
+  } else {
+    newInput.style.display = 'none';
+    newInput.value = '';
+  }
+}
+
 function closeAddSkuModal() {
   document.getElementById('add-sku-modal').classList.remove('open');
   addSkuPrefilledLoc = null;
@@ -4044,6 +4065,15 @@ function openSkuEdit(skuId) {
     '<option value="__new__">+ New vendor...</option>';
   document.getElementById('sku-edit-vendor-new').value = '';
   document.getElementById('sku-edit-vendor-new').style.display = 'none';
+  // Populate Type tag dropdown from existing unique values, then select this SKU's type
+  const typeTags = [...new Set(skus.map(s => f(s, F.sku_type)).filter(Boolean))].sort();
+  const typeSel = document.getElementById('sku-edit-type-tag');
+  const currentType = f(sku, F.sku_type) || '';
+  typeSel.innerHTML = '<option value="">— Select —</option>' +
+    typeTags.map(t => `<option value="${escapeHtml(t)}"${t===currentType?' selected':''}>${escapeHtml(t)}</option>`).join('') +
+    '<option value="__new__">+ New type tag...</option>';
+  document.getElementById('sku-edit-type-tag-new').value = '';
+  document.getElementById('sku-edit-type-tag-new').style.display = 'none';
   document.getElementById('sku-edit-threshold').value = f(sku, F.sku_threshold) ?? '';
   const currentSkuUnit = f(sku, F.sku_unit) || '';
   document.getElementById('sku-edit-unit').innerHTML = renderUnitOptions(currentSkuUnit, true);
@@ -4082,6 +4112,14 @@ async function saveSkuEdit() {
   } else {
     vendor = vendorSelVal;
   }
+  const typeTagSelVal = document.getElementById('sku-edit-type-tag').value;
+  const typeTagNewVal = document.getElementById('sku-edit-type-tag-new').value.trim();
+  let typeTag;
+  if (typeTagSelVal === '__new__') {
+    typeTag = typeTagNewVal; // may be empty — that's fine, treated as clearing type
+  } else {
+    typeTag = typeTagSelVal;
+  }
   const thresholdStr = document.getElementById('sku-edit-threshold').value;
   const unit = document.getElementById('sku-edit-unit').value;
   // Validate each location count (empty = clear; numeric = set)
@@ -4111,6 +4149,7 @@ async function saveSkuEdit() {
     'Item': name,
     'Item number': itemNumber || null,
     'Vendor': vendor || null,
+    'Type tag': typeTag || null,
     'Threshold': threshold,
     'Unit': unit || null,
     'On-hand (Barn)': barn,
@@ -4133,6 +4172,7 @@ async function saveSkuEdit() {
       sku.fields['Item'] = name;
       sku.fields['Item number'] = itemNumber || undefined;
       sku.fields['Vendor'] = vendor || undefined;
+      sku.fields['Type tag'] = typeTag || undefined;
       sku.fields['Threshold'] = threshold;
       sku.fields['Unit'] = unit || undefined;
       sku.fields['On-hand (Barn)'] = barn;
