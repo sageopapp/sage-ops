@@ -1212,7 +1212,7 @@ const F = {
   item_sku: 'Stock SKU', item_comments: 'Comments',
   sku_name: 'Item', sku_barn: 'On-hand (Barn)', sku_tent: 'On-hand (Unit Tent)',
   sku_susie: 'On-hand (Susie)', sku_lumber: 'On-hand (Lumber Rack)', sku_rig: 'On-hand (Rig)',
-  sku_shop: 'On-hand (Shop)', sku_ducting: 'On-hand (Ducting Tent)', sku_threshold: 'Threshold',
+  sku_shop: 'On-hand (Shop)', sku_ducting: 'On-hand (Ducting Tent)', sku_threshold: 'Reorder threshold',
   sku_total: 'Total on-hand', sku_available: 'On-hand', sku_order_flag: 'Order needed?', sku_vendor: 'Vendor', sku_itemnumber: 'Item number',
   sku_unit: 'Unit', sku_type: 'Type tag',
   order_item: 'Item', order_itemnumber: 'Item number', order_vendor: 'Vendor',
@@ -3114,7 +3114,7 @@ async function saveNewSku() {
   if (vendorLinkId) fields['Vendor link'] = [vendorLinkId];
   if (unit) fields['Unit'] = unit;
   if (primaryLoc) fields['Primary location'] = primaryLoc;
-  if (!isNaN(threshold)) fields['Threshold'] = threshold;
+  if (!isNaN(threshold)) fields['Reorder threshold'] = threshold;
   if (!isNaN(cBarn)) fields['On-hand (Barn)'] = cBarn;
   if (!isNaN(cTent)) fields['On-hand (Unit Tent)'] = cTent;
   if (!isNaN(cLumber)) fields['On-hand (Lumber Rack)'] = cLumber;
@@ -4150,7 +4150,7 @@ async function saveSkuEdit() {
     'Item number': itemNumber || null,
     'Vendor': vendor || null,
     'Type tag': typeTag || null,
-    'Threshold': threshold,
+    'Reorder threshold': threshold,
     'Unit': unit || null,
     'On-hand (Barn)': barn,
     'On-hand (Unit Tent)': tent,
@@ -4173,7 +4173,7 @@ async function saveSkuEdit() {
       sku.fields['Item number'] = itemNumber || undefined;
       sku.fields['Vendor'] = vendor || undefined;
       sku.fields['Type tag'] = typeTag || undefined;
-      sku.fields['Threshold'] = threshold;
+      sku.fields['Reorder threshold'] = threshold;
       sku.fields['Unit'] = unit || undefined;
       sku.fields['On-hand (Barn)'] = barn;
       sku.fields['On-hand (Unit Tent)'] = tent;
