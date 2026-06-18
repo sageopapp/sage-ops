@@ -3670,18 +3670,42 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     return (f(a,F.sku_name)||'').localeCompare(f(b,F.sku_name)||'');
   });
 
-  // ── Equipment section: only on the Unit Tent tab ──
+  // ── Equipment section: render on any specific location tab (not 'all') ──
   let equipHtml = '';
-  if (currentInvLocation === 'On-hand (Unit Tent)') {
-    // Pull all Items physically in the Unit Tent (regardless of status),
+  if (currentInvLocation !== 'all') {
+    // Map field name (e.g. 'On-hand (Barn)') back to physical location label (e.g. 'Barn')
+    const tabLocLabel = (LOCATIONS.find(l => l.field === currentInvLocation) || {}).label || '';
+    // Pull all Items physically at this location (regardless of status),
     // excluding consumables (SKU-linked items are tracked as counts, not individual units).
-    const tentItems = items.filter(item => {
+    let tabItems = items.filter(item => {
       const loc = f(item, F.item_location);
-      if (loc !== 'Unit Tent') return false;
+      if (loc !== tabLocLabel) return false;
       const skuLinks = f(item, F.item_sku);
       // Equipment has no SKU link; consumables have one. Show only equipment here.
       return !Array.isArray(skuLinks) || skuLinks.length === 0;
     });
+    // Apply the same search filter that's applied to SKUs — by model, type tag, or owner name
+    if (search) {
+      tabItems = tabItems.filter(item => {
+        const m = (f(item, F.item_model) || '').toLowerCase();
+        const t = (f(item, F.item_type) || '').toLowerCase();
+        let onm = '';
+        const owns = f(item, F.item_owner);
+        if (Array.isArray(owns) && owns.length) {
+          const first = owns[0];
+          if (typeof first === 'object' && first.name) {
+            onm = first.name.toLowerCase();
+          } else {
+            const ownerId = (typeof first === 'string') ? first : (first && first.id);
+            if (ownerId) {
+              const ownerJob = jobs.find(j => j.id === ownerId);
+              if (ownerJob) onm = (f(ownerJob, F.job_name) || '').toLowerCase();
+            }
+          }
+        }
+        return m.includes(search) || t.includes(search) || onm.includes(search);
+      });
+    }
     // Sort: Stock first (available to assign), then Allocated, then anything else; alphabetical within
     function statusRank(item) {
       const s = (f(item,F.item_status)||'').toLowerCase();
@@ -3693,7 +3717,7 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
       if (effective === 'loaded') return 2;
       return 3;
     }
-    tentItems.sort((a,b) => {
+    tabItems.sort((a,b) => {
       const ra = statusRank(a);
       const rb = statusRank(b);
       if (ra !== rb) return ra - rb;
@@ -3701,7 +3725,7 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     });
     // Count by status for the section header summary
     let stockN = 0, allocN = 0, otherN = 0;
-    tentItems.forEach(it => {
+    tabItems.forEach(it => {
       const st = (f(it,F.item_status)||'').toLowerCase();
       const owns = f(it, F.item_owner);
       const onm = (Array.isArray(owns) && owns.length && typeof owns[0] !== 'string') ? (owns[0].name||'') : '';
@@ -3711,13 +3735,17 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
       else if (effective === 'allocated') allocN++;
       else otherN++;
     });
-    const summaryBits = [];
-    if (stockN) summaryBits.push(`${stockN} stock`);
-    if (allocN) summaryBits.push(`${allocN} allocated`);
-    if (otherN) summaryBits.push(`${otherN} other`);
-    const summaryText = summaryBits.length ? summaryBits.join(' · ') : 'No equipment in tent';
-    equipHtml += `<div class="inv-summary" style="margin-top:4px;">Equipment in Unit Tent · ${escapeHtml(summaryText)}</div>`;
-    tentItems.forEach(item => {
+    // Only render the section if there's actually equipment here (or on Unit Tent, where the section
+    // is part of the standing UI even when empty so users know they can verify the pile)
+    if (tabItems.length || currentInvLocation === 'On-hand (Unit Tent)') {
+      const summaryBits = [];
+      if (stockN) summaryBits.push(`${stockN} stock`);
+      if (allocN) summaryBits.push(`${allocN} allocated`);
+      if (otherN) summaryBits.push(`${otherN} other`);
+      const summaryText = summaryBits.length ? summaryBits.join(' · ') : `No equipment at ${tabLocLabel}`;
+      equipHtml += `<div class="inv-summary" style="margin-top:4px;">Equipment at ${escapeHtml(tabLocLabel)} · ${escapeHtml(summaryText)}</div>`;
+    }
+    tabItems.forEach(item => {
       const iid = item.id;
       const model = f(item, F.item_model) || 'Unnamed unit';
       const typeTag = f(item, F.item_type) || '';
