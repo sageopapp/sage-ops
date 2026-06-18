@@ -3726,7 +3726,17 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
       const owners = f(item, F.item_owner);
       let ownerName = '';
       if (Array.isArray(owners) && owners.length) {
-        ownerName = (typeof owners[0] === 'string') ? '' : (owners[0].name || '');
+        const first = owners[0];
+        if (typeof first === 'object' && first.name) {
+          ownerName = first.name;
+        } else {
+          // Owner came back as a bare record ID — look up the Job in the local cache
+          const ownerId = (typeof first === 'string') ? first : (first && first.id);
+          if (ownerId) {
+            const ownerJob = jobs.find(j => j.id === ownerId);
+            if (ownerJob) ownerName = f(ownerJob, F.job_name) || '';
+          }
+        }
       }
       // Detect "fake Stock job" workaround — owner literally named "Stock" means
       // the unit was added as inventory but got mis-tagged as Allocated. Treat as Stock.
