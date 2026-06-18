@@ -593,8 +593,8 @@
         </div>
       </div>
       <div>
-        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Jobsite notes <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
-        <textarea id="nj-detail-notes" rows="2" placeholder="Gate codes, parking, dogs, etc." style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;font-family:inherit;resize:vertical;"></textarea>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Team notes <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
+        <textarea id="nj-detail-notes" rows="2" placeholder="Context from the call — questions, decisions, things to confirm" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;font-family:inherit;resize:vertical;"></textarea>
       </div>
     </div>
     <div id="nj-error" style="display:none;color:var(--danger);font-size:13px;margin-top:14px;background:var(--danger-light);padding:8px 12px;border-radius:var(--radius-sm);"></div>
@@ -922,9 +922,10 @@
       <div style="display:flex;gap:10px;">
         <div style="flex:1;">
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Type</label>
-          <select id="equip-edit-type" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+          <select id="equip-edit-type" onchange="onEquipEditTypeChange()" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
             <option value="">—</option>
           </select>
+          <input type="text" id="equip-edit-type-new" placeholder="New type tag" style="display:none;width:100%;margin-top:6px;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
         </div>
         <div style="flex:1;">
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Status</label>
@@ -3258,7 +3259,7 @@ async function saveNewJob() {
   const endDate = document.getElementById('nj-end').value;
   const visitType = document.getElementById('nj-visit-type').value;
   const jobType = document.getElementById('nj-type').value;
-  const detailNotes = document.getElementById('nj-detail-notes').value.trim();
+  const teamNotes = document.getElementById('nj-detail-notes').value.trim();
   const address = document.getElementById('nj-address').value.trim();
   const island = document.getElementById('nj-island').value;
   const phone = document.getElementById('nj-phone').value.trim();
@@ -3277,7 +3278,7 @@ async function saveNewJob() {
   if (endDate) fields['End Date'] = endDate;
   if (visitType) fields['Next phase'] = visitType;
   if (jobType) fields['Type'] = jobType;
-  if (detailNotes) fields['Detail Notes'] = detailNotes;
+  if (teamNotes) fields['Comments / Questions'] = teamNotes;
   if (address) fields['Address'] = address;
   if (island) fields['Island'] = island;
   if (phone) fields['Phone number'] = phone;
@@ -3989,12 +3990,15 @@ function openEquipEdit(itemId) {
   if (!item) return;
   equipEditId = itemId;
   document.getElementById('equip-edit-model').value = f(item, F.item_model) || '';
-  // Populate Type dropdown from existing unique type tags
+  // Populate Type dropdown from existing unique type tags, with "+ New type tag..." option for ad-hoc additions
   const typeTags = [...new Set(items.map(it => f(it, F.item_type)).filter(Boolean))].sort();
   const currentType = f(item, F.item_type) || '';
   const typeSel = document.getElementById('equip-edit-type');
   typeSel.innerHTML = '<option value="">—</option>' +
-    typeTags.map(t => `<option value="${escapeHtml(t)}"${t===currentType?' selected':''}>${escapeHtml(t)}</option>`).join('');
+    typeTags.map(t => `<option value="${escapeHtml(t)}"${t===currentType?' selected':''}>${escapeHtml(t)}</option>`).join('') +
+    '<option value="__new__">+ New type tag...</option>';
+  document.getElementById('equip-edit-type-new').value = '';
+  document.getElementById('equip-edit-type-new').style.display = 'none';
   // Status
   const currentStatus = f(item, F.item_status) || 'Stock';
   document.getElementById('equip-edit-status').value = currentStatus;
@@ -4028,6 +4032,18 @@ function closeEquipEdit() {
   equipEditId = null;
 }
 
+function onEquipEditTypeChange() {
+  const sel = document.getElementById('equip-edit-type');
+  const newInput = document.getElementById('equip-edit-type-new');
+  if (sel.value === '__new__') {
+    newInput.style.display = 'block';
+    setTimeout(()=>newInput.focus(), 50);
+  } else {
+    newInput.style.display = 'none';
+    newInput.value = '';
+  }
+}
+
 function equipEditShowError(msg) {
   const el = document.getElementById('equip-edit-error');
   el.textContent = msg; el.style.display = 'block';
@@ -4037,7 +4053,9 @@ async function saveEquipEdit() {
   if (!equipEditId) return;
   const model = document.getElementById('equip-edit-model').value.trim();
   if (!model) { equipEditShowError('Model number is required.'); return; }
-  const type = document.getElementById('equip-edit-type').value;
+  const typeSelVal = document.getElementById('equip-edit-type').value;
+  const typeNewVal = document.getElementById('equip-edit-type-new').value.trim();
+  const type = (typeSelVal === '__new__') ? typeNewVal : typeSelVal;
   const status = document.getElementById('equip-edit-status').value;
   const location = document.getElementById('equip-edit-location').value;
   const ownerId = document.getElementById('equip-edit-owner').value;
