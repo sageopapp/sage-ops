@@ -3694,7 +3694,13 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
   const lowOnly = lowOnlyEl ? lowOnlyEl.checked : false;
 
   let filtered = skus.slice();
-  if (search) filtered = filtered.filter(s => (f(s,F.sku_name)||'').toLowerCase().includes(search));
+  if (search) filtered = filtered.filter(s => {
+    const name = (f(s, F.sku_name) || '').toLowerCase();
+    const itemNum = (f(s, F.sku_itemnumber) || '').toLowerCase();
+    const type = (f(s, F.sku_type) || '').toLowerCase();
+    const vendor = (f(s, F.sku_vendor) || '').toLowerCase();
+    return name.includes(search) || itemNum.includes(search) || type.includes(search) || vendor.includes(search);
+  });
   if (lowOnly) filtered = filtered.filter(s => {
     const flag = f(s,F.sku_order_flag);
     return flag && String(flag).includes('order');
@@ -3715,16 +3721,21 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     return (f(a,F.sku_name)||'').localeCompare(f(b,F.sku_name)||'');
   });
 
-  // ── Equipment section: render on any specific location tab (not 'all') ──
+  // ── Equipment section: render on any specific location tab, OR on "All" when searching ──
   let equipHtml = '';
-  if (currentInvLocation !== 'all') {
+  const showEquipment = (currentInvLocation !== 'all') || (currentInvLocation === 'all' && search);
+  if (showEquipment) {
+    const onAllTab = (currentInvLocation === 'all');
     // Map field name (e.g. 'On-hand (Barn)') back to physical location label (e.g. 'Barn')
-    const tabLocLabel = (LOCATIONS.find(l => l.field === currentInvLocation) || {}).label || '';
-    // Pull all Items physically at this location (regardless of status),
-    // excluding consumables (SKU-linked items are tracked as counts, not individual units).
+    const tabLocLabel = onAllTab ? '' : ((LOCATIONS.find(l => l.field === currentInvLocation) || {}).label || '');
+    // Pull equipment items: when on a location tab, only those at this location;
+    // when on "All" with a search, pull from everywhere (search will narrow it).
+    // Excludes consumables (SKU-linked items are tracked as counts, not individual units).
     let tabItems = items.filter(item => {
-      const loc = f(item, F.item_location);
-      if (loc !== tabLocLabel) return false;
+      if (!onAllTab) {
+        const loc = f(item, F.item_location);
+        if (loc !== tabLocLabel) return false;
+      }
       const skuLinks = f(item, F.item_sku);
       // Equipment has no SKU link; consumables have one. Show only equipment here.
       return !Array.isArray(skuLinks) || skuLinks.length === 0;
@@ -3780,15 +3791,24 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
       else if (effective === 'allocated') allocN++;
       else otherN++;
     });
-    // Only render the section if there's actually equipment here (or on Unit Tent, where the section
-    // is part of the standing UI even when empty so users know they can verify the pile)
-    if (tabItems.length || currentInvLocation === 'On-hand (Unit Tent)') {
+    // Only render the section if there's actually equipment to show, or — on a specific location
+    // tab — Unit Tent (where the section is part of the standing UI even when empty so users know
+    // they can verify the pile). On "All" tab with search, only render if matches exist.
+    if (tabItems.length || (!onAllTab && currentInvLocation === 'On-hand (Unit Tent)')) {
       const summaryBits = [];
       if (stockN) summaryBits.push(`${stockN} stock`);
       if (allocN) summaryBits.push(`${allocN} allocated`);
       if (otherN) summaryBits.push(`${otherN} other`);
-      const summaryText = summaryBits.length ? summaryBits.join(' · ') : `No equipment at ${tabLocLabel}`;
-      equipHtml += `<div class="inv-summary" style="margin-top:4px;">Equipment at ${escapeHtml(tabLocLabel)} · ${escapeHtml(summaryText)}</div>`;
+      let summaryText;
+      let headerLabel;
+      if (onAllTab) {
+        headerLabel = `Equipment matching "${search}"`;
+        summaryText = summaryBits.length ? summaryBits.join(' · ') : 'No matches';
+      } else {
+        headerLabel = `Equipment at ${escapeHtml(tabLocLabel)}`;
+        summaryText = summaryBits.length ? summaryBits.join(' · ') : `No equipment at ${tabLocLabel}`;
+      }
+      equipHtml += `<div class="inv-summary" style="margin-top:4px;">${headerLabel} · ${escapeHtml(summaryText)}</div>`;
     }
     tabItems.forEach(item => {
       const iid = item.id;
@@ -3832,11 +3852,18 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
       } else if (status) {
         statusBadge = `<span style="font-size:11px;padding:3px 9px;border-radius:99px;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);">${escapeHtml(status)}</span>`;
       }
+      // On the "All" tab the user doesn't know where this unit lives — show the location
+      // alongside the type tag so search results are actionable.
+      const itemLoc = onAllTab ? (f(item, F.item_location) || '') : '';
+      const metaBits = [];
+      if (typeTag) metaBits.push(escapeHtml(typeTag));
+      if (itemLoc) metaBits.push(`<span style="font-weight:600;">${escapeHtml(itemLoc)}</span>`);
+      const metaHtml = metaBits.length ? `<div class="inv-meta">${metaBits.join(' · ')}</div>` : '';
       equipHtml += `<div class="inv-card" style="padding:12px 14px;cursor:pointer;" onclick="openEquipEdit('${iid}')">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
           <div style="min-width:0;flex:1;">
             <div class="inv-name">${escapeHtml(model)}</div>
-            ${typeTag?`<div class="inv-meta">${escapeHtml(typeTag)}</div>`:''}
+            ${metaHtml}
           </div>
           <div style="flex-shrink:0;display:flex;align-items:center;gap:8px;">
             ${statusBadge}
