@@ -1064,6 +1064,37 @@
   </div>
 </div>
 
+<!-- TRANSFER MODAL (move counts between locations) -->
+<div class="modal-bg" id="xfer-modal" onclick="if(event.target===this)closeXfer()">
+  <div class="modal">
+    <h3 id="xfer-title">Transfer</h3>
+    <p id="xfer-subtitle"></p>
+    <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:20px;">
+      <div>
+        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text-muted);">From</label>
+        <select id="xfer-from" onchange="onXferFromChange()" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);"></select>
+      </div>
+      <div>
+        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text-muted);">To</label>
+        <select id="xfer-to" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);"></select>
+      </div>
+      <div>
+        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text-muted);">Quantity</label>
+        <div style="display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;overflow:hidden;">
+          <button class="inv-step" onclick="xferStep(-1)">−</button>
+          <input type="text" inputmode="decimal" pattern="[0-9]*" id="xfer-qty" value="1" style="flex:1 1 0;min-width:0;width:auto;box-sizing:border-box;padding:12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:22px;text-align:center;font-weight:600;outline:none;" />
+          <button class="inv-step" onclick="xferStep(1)">+</button>
+        </div>
+      </div>
+      <div id="xfer-error" style="display:none;font-size:13px;color:#c33;padding:8px 12px;background:#fee;border-radius:var(--radius-sm);"></div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeXfer()">Cancel</button>
+      <button class="btn-sm btn-sm-accent" onclick="saveXfer()" style="padding:10px 20px;">Transfer</button>
+    </div>
+  </div>
+</div>
+
 <!-- NOTE EDIT MODAL (Detail Notes / Comments) -->
 <div class="modal-bg" id="note-edit-modal">
   <div class="modal">
@@ -1164,6 +1195,7 @@ let currentJobId = null, completeJobId = null;
 let showAddMat = false;
 let showCompleted = false;
 let invEditState = null; // {skuId, locField, locLabel, skuName}
+let xferState = null; // {skuId, skuName}
 let noteEditState = null; // {jobId, field, label, jobName, returnTo}
 let walkState = null; // {locField, locLabel, index, total}
 let tentVerifyState = null; // {itemIds, index, results}
@@ -3801,6 +3833,7 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
             const tabLabel = (LOCATIONS.find(l => l.field === currentInvLocation) || {}).label || '';
             return `<div class="inv-total">${tabVal}<span class="inv-total-label">${escapeHtml(tabLabel.toLowerCase())}</span></div>`;
           })()}
+          <button class="sku-edit-btn" onclick="openXfer('${sid}')" title="Transfer between locations" style="margin-left:4px;">⇄</button>
           <button class="sku-edit-btn" onclick="openSkuEdit('${sid}')" title="Edit SKU details">✎</button>
         </div>
       </div>
@@ -4129,6 +4162,115 @@ async function saveInvEdit() {
     if (walkState) renderWalkList();
   } catch(e) {
     alert('Could not save count. Check your connection.');
+  }
+}
+
+// ── TRANSFER (move counts between locations) ──
+function openXfer(skuId) {
+  const sku = skus.find(s => s.id === skuId);
+  if (!sku) return;
+  const skuName = f(sku, F.sku_name) || 'SKU';
+
+  // Build From options: only locations where current value > 0
+  const fromOptions = LOCATIONS
+    .map(loc => ({ ...loc, val: f(sku, loc.field) ?? 0 }))
+    .filter(loc => loc.val > 0);
+
+  if (!fromOptions.length) {
+    alert('No stock to transfer. All locations are empty for this SKU.');
+    return;
+  }
+
+  xferState = { skuId, skuName };
+
+  document.getElementById('xfer-title').textContent = skuName;
+  document.getElementById('xfer-subtitle').textContent = 'Move counts between locations';
+
+  // Populate From dropdown — show count next to each label
+  const fromSel = document.getElementById('xfer-from');
+  fromSel.innerHTML = fromOptions
+    .map(loc => `<option value="${escapeHtml(loc.field)}" data-avail="${loc.val}">${escapeHtml(loc.label)} (${loc.val})</option>`)
+    .join('');
+
+  // Default From: location with the most stock
+  const defaultFrom = fromOptions.reduce((max, loc) => loc.val > max.val ? loc : max, fromOptions[0]);
+  fromSel.value = defaultFrom.field;
+
+  document.getElementById('xfer-qty').value = 1;
+  document.getElementById('xfer-error').style.display = 'none';
+
+  // Build To dropdown based on current From selection
+  rebuildXferToOptions();
+
+  document.getElementById('xfer-modal').classList.add('open');
+}
+
+function rebuildXferToOptions() {
+  const fromField = document.getElementById('xfer-from').value;
+  const toSel = document.getElementById('xfer-to');
+  // To options: all locations EXCEPT the current From
+  const toOptions = LOCATIONS.filter(loc => loc.field !== fromField);
+  toSel.innerHTML = toOptions
+    .map(loc => `<option value="${escapeHtml(loc.field)}">${escapeHtml(loc.label)}</option>`)
+    .join('');
+}
+
+function onXferFromChange() {
+  rebuildXferToOptions();
+  // Clear stale error if any
+  document.getElementById('xfer-error').style.display = 'none';
+}
+
+function xferStep(delta) {
+  const el = document.getElementById('xfer-qty');
+  const v = parseFloat(el.value) || 0;
+  el.value = Math.max(1, v + delta);
+}
+
+function closeXfer() {
+  document.getElementById('xfer-modal').classList.remove('open');
+  xferState = null;
+}
+
+function xferShowError(msg) {
+  const el = document.getElementById('xfer-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+async function saveXfer() {
+  if (!xferState) return;
+  const { skuId } = xferState;
+  const sku = skus.find(s => s.id === skuId);
+  if (!sku) { closeXfer(); return; }
+
+  const fromField = document.getElementById('xfer-from').value;
+  const toField = document.getElementById('xfer-to').value;
+  const qty = parseFloat(document.getElementById('xfer-qty').value);
+
+  if (fromField === toField) { xferShowError('From and To must be different locations.'); return; }
+  if (isNaN(qty) || qty <= 0) { xferShowError('Quantity must be greater than zero.'); return; }
+
+  const fromCurrent = f(sku, fromField) ?? 0;
+  if (qty > fromCurrent) {
+    const fromLabel = (LOCATIONS.find(l => l.field === fromField) || {}).label || 'source';
+    xferShowError(`Only ${fromCurrent} available at ${fromLabel}.`);
+    return;
+  }
+
+  const toCurrent = f(sku, toField) ?? 0;
+  const newFrom = fromCurrent - qty;
+  const newTo = toCurrent + qty;
+
+  try {
+    await patchRecord(SKUS_TBL, skuId, { [fromField]: newFrom, [toField]: newTo });
+    // Update local cache
+    sku.fields[fromField] = newFrom;
+    sku.fields[toField] = newTo;
+    closeXfer();
+    renderInventory();
+  } catch (e) {
+    xferShowError('Could not save transfer. Check your connection.');
   }
 }
 
