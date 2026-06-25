@@ -794,6 +794,10 @@
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Model number *</label>
         <input type="text" id="au-model" placeholder="e.g. MUZ-FH12NA" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
       </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Item description <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
+        <input type="text" id="au-description" placeholder="e.g. Mitsubishi 18K outdoor heat pump" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+      </div>
       <div style="display:flex;gap:10px;">
         <div style="flex:1;">
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Quantity</label>
@@ -919,7 +923,15 @@
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Model number *</label>
         <input type="text" id="equip-edit-model" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
       </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Item description <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
+        <input type="text" id="equip-edit-description" placeholder="e.g. Mitsubishi 18K outdoor heat pump" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+      </div>
       <div style="display:flex;gap:10px;">
+        <div style="flex:1;">
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Quantity</label>
+          <input type="number" id="equip-edit-qty" value="1" min="1" step="1" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+        </div>
         <div style="flex:1;">
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Type</label>
           <select id="equip-edit-type" onchange="onEquipEditTypeChange()" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
@@ -1210,7 +1222,7 @@ const F = {
   job_detail_notes: 'Detail Notes',
   job_phone: 'Phone number', job_email: 'Email', job_address: 'Address',
   job_contact: 'Contact person', job_island: 'Island', job_sched_status: 'Schedule status',
-  item_model: 'Model number', item_type: 'Type tag', item_qty: 'Quantity',
+  item_model: 'Model number', item_description: 'Description', item_type: 'Type tag', item_qty: 'Quantity',
   item_status: 'Status', item_location: 'Physical location',
   item_loaded: 'Loaded?', item_owner: 'Owner', item_visit: 'Visit consumed at',
   item_sku: 'Stock SKU', item_comments: 'Comments',
@@ -2910,6 +2922,7 @@ function openAddUnitModal() {
   document.getElementById('au-customer-new').value = '';
   document.getElementById('au-customer-new').style.display = 'none';
   document.getElementById('au-model').value = '';
+  document.getElementById('au-description').value = '';
   document.getElementById('au-qty').value = '1';
   document.getElementById('au-location').value = 'Unit Tent';
   // Populate Type tag dropdown from existing Items Type tags (equipment types: indoor wallhead, outdoor unit, hrv, etc.)
@@ -2964,6 +2977,7 @@ async function saveAddUnit() {
   let customerId = sel.value;
   const newCustName = document.getElementById('au-customer-new').value.trim();
   const model = document.getElementById('au-model').value.trim();
+  const description = document.getElementById('au-description').value.trim();
   const qty = parseFloat(document.getElementById('au-qty').value) || 1;
   const location = document.getElementById('au-location').value;
   const typeTagSelVal = document.getElementById('au-type-tag').value;
@@ -2995,6 +3009,7 @@ async function saveAddUnit() {
       'Status': isStock ? 'Stock' : 'Allocated',
       'Physical location': location,
     };
+    if (description) itemFields['Description'] = description;
     if (!isStock) itemFields['Owner'] = [customerId];
     if (typeTag) itemFields['Type tag'] = typeTag;
     const newItem = await createRecord(ITEMS_TBL, itemFields);
@@ -3804,17 +3819,19 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
       if (ra !== rb) return ra - rb;
       return (f(a,F.item_model)||'').localeCompare(f(b,F.item_model)||'');
     });
-    // Count by status for the section header summary
+    // Sum quantities by status for the section header summary (so a single record with Quantity=6
+    // reads as "6 stock", not "1 stock"). Records with no Quantity default to 1.
     let stockN = 0, allocN = 0, otherN = 0;
     tabItems.forEach(it => {
+      const itemQty = Number(f(it, F.item_qty)) || 1;
       const st = (f(it,F.item_status)||'').toLowerCase();
       const owns = f(it, F.item_owner);
       const onm = (Array.isArray(owns) && owns.length && typeof owns[0] !== 'string') ? (owns[0].name||'') : '';
       const fakeStock = (onm||'').trim().toLowerCase() === 'stock';
       const effective = fakeStock ? 'stock' : st;
-      if (effective === 'stock') stockN++;
-      else if (effective === 'allocated') allocN++;
-      else otherN++;
+      if (effective === 'stock') stockN += itemQty;
+      else if (effective === 'allocated') allocN += itemQty;
+      else otherN += itemQty;
     });
     // Only render the section if there's actually equipment to show, or — on a specific location
     // tab — Unit Tent (where the section is part of the standing UI even when empty so users know
@@ -3838,6 +3855,8 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     tabItems.forEach(item => {
       const iid = item.id;
       const model = f(item, F.item_model) || 'Unnamed unit';
+      const description = f(item, F.item_description) || '';
+      const qty = Number(f(item, F.item_qty)) || 1;
       const typeTag = f(item, F.item_type) || '';
       const status = f(item, F.item_status) || '';
       const statusLower = status.toLowerCase();
@@ -3884,10 +3903,17 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
       if (typeTag) metaBits.push(escapeHtml(typeTag));
       if (itemLoc) metaBits.push(`<span style="font-weight:600;">${escapeHtml(itemLoc)}</span>`);
       const metaHtml = metaBits.length ? `<div class="inv-meta">${metaBits.join(' · ')}</div>` : '';
+      // Quantity badge — show a count pill next to the model name so stocks of multiples are visible at a glance.
+      // Always render it (even for qty=1) so single units don't look ambiguous.
+      const qtyBadge = `<span style="display:inline-block;font-size:12px;font-weight:600;color:var(--text-muted);background:var(--bg);border:1px solid var(--border);border-radius:99px;padding:2px 9px;margin-left:8px;vertical-align:middle;">× ${qty}</span>`;
+      // Description sits between the model and the type/location meta — slightly larger and darker than meta
+      // so it reads as a real second line, not a footnote.
+      const descHtml = description ? `<div style="font-size:13px;color:var(--text-muted);margin-top:2px;">${escapeHtml(description)}</div>` : '';
       equipHtml += `<div class="inv-card" style="padding:12px 14px;cursor:pointer;" onclick="openEquipEdit('${iid}')">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
           <div style="min-width:0;flex:1;">
-            <div class="inv-name">${escapeHtml(model)}</div>
+            <div class="inv-name">${escapeHtml(model)}${qtyBadge}</div>
+            ${descHtml}
             ${metaHtml}
           </div>
           <div style="flex-shrink:0;display:flex;align-items:center;gap:8px;">
@@ -3990,6 +4016,8 @@ function openEquipEdit(itemId) {
   if (!item) return;
   equipEditId = itemId;
   document.getElementById('equip-edit-model').value = f(item, F.item_model) || '';
+  document.getElementById('equip-edit-description').value = f(item, F.item_description) || '';
+  document.getElementById('equip-edit-qty').value = f(item, F.item_qty) ?? 1;
   // Populate Type dropdown from existing unique type tags, with "+ New type tag..." option for ad-hoc additions
   const typeTags = [...new Set(items.map(it => f(it, F.item_type)).filter(Boolean))].sort();
   const currentType = f(item, F.item_type) || '';
@@ -4053,6 +4081,8 @@ async function saveEquipEdit() {
   if (!equipEditId) return;
   const model = document.getElementById('equip-edit-model').value.trim();
   if (!model) { equipEditShowError('Model number is required.'); return; }
+  const description = document.getElementById('equip-edit-description').value.trim();
+  const qty = parseFloat(document.getElementById('equip-edit-qty').value) || 1;
   const typeSelVal = document.getElementById('equip-edit-type').value;
   const typeNewVal = document.getElementById('equip-edit-type-new').value.trim();
   const type = (typeSelVal === '__new__') ? typeNewVal : typeSelVal;
@@ -4066,6 +4096,8 @@ async function saveEquipEdit() {
   }
   const fields = {
     'Model number': model,
+    'Description': description || null,
+    'Quantity': qty,
     'Type tag': type || null,
     'Status': status,
     'Physical location': location,
@@ -4077,6 +4109,8 @@ async function saveEquipEdit() {
     const item = items.find(i => i.id === equipEditId);
     if (item) {
       item.fields['Model number'] = model;
+      item.fields['Description'] = description || undefined;
+      item.fields['Quantity'] = qty;
       item.fields['Type tag'] = type || undefined;
       item.fields['Status'] = status;
       item.fields['Physical location'] = location;
