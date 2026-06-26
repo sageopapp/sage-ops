@@ -263,6 +263,14 @@
   .loc-tab { flex-shrink: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 500; color: var(--text-muted); cursor: pointer; white-space: nowrap; transition: all 0.15s; }
   .loc-tab:hover { border-color: var(--accent); color: var(--accent); }
   .loc-tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+  .type-chips { display: flex; gap: 6px; margin-top: 8px; padding-bottom: 6px; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+  .type-chips::-webkit-scrollbar { height: 4px; }
+  .type-chips::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+  .type-chip { flex-shrink: 0; background: var(--bg); border: 1px solid var(--border); border-radius: 999px; padding: 4px 11px; font-size: 12px; font-weight: 500; color: var(--text-muted); cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+  .type-chip:hover { border-color: var(--accent); color: var(--accent); }
+  .type-chip.active { background: var(--text); color: var(--surface); border-color: var(--text); }
+  .type-chip .chip-count { opacity: 0.7; margin-left: 4px; font-weight: 400; }
+  .picker-choice:hover { border-color: var(--accent) !important; background: var(--bg) !important; }
   .inv-summary { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
   .inv-low-pill { background: var(--warn-light); color: var(--warn); padding: 2px 8px; border-radius: 99px; font-weight: 500; }
   .inv-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px; }
@@ -439,11 +447,11 @@
 
   <div id="view-inventory" class="view">
     <div class="inv-controls">
-      <input type="text" id="inv-search" placeholder="Search SKUs..." oninput="renderInventory()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+      <input type="text" id="inv-search" placeholder="Search inventory..." oninput="renderInventory()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
       <div class="inv-filter-row">
         <label class="inv-checkbox"><input type="checkbox" id="inv-low-only" onchange="renderInventory()" /> Low stock only</label>
         <div style="display:flex;gap:8px;">
-          <button class="btn-walk" onclick="openAddSkuModal()" style="background:var(--action);color:white;border:1px solid var(--action);">+ Add SKU</button>
+          <button class="btn-walk" onclick="openAddItemPicker()" style="background:var(--action);color:white;border:1px solid var(--action);">+ Add item</button>
         </div>
       </div>
       <div class="loc-tabs" id="loc-tabs">
@@ -456,9 +464,7 @@
         <button class="loc-tab" data-loc="On-hand (Shop)" onclick="setInvLocation('On-hand (Shop)')">Shop</button>
         <button class="loc-tab" data-loc="On-hand (Rig)" onclick="setInvLocation('On-hand (Rig)')">Rig</button>
       </div>
-      <div id="inv-tab-actions" style="display:none;margin-top:8px;gap:8px;flex-wrap:wrap;">
-        <button class="btn-sm btn-sm-ghost" onclick="openAddUnitModal()" style="font-size:12px;padding:5px 10px;background:var(--action);color:white;border:1px solid var(--action);">+ Add unit</button>
-      </div>
+      <div class="type-chips" id="type-chips" style="display:none;"></div>
     </div>
     <div id="inventory-body"></div>
   </div>
@@ -773,6 +779,27 @@
     <div class="modal-btns" style="margin-top:20px;">
       <button class="btn-cancel" onclick="closeCustomItemModal()">Cancel</button>
       <button class="btn-sm btn-sm-accent" onclick="saveCustomItem()" style="padding:10px 20px;">Add to job</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD ITEM PICKER MODAL — routes to Add Unit (equipment) or Add SKU (consumable) -->
+<div class="modal-bg" id="add-item-picker-modal" onclick="if(event.target===this)closeAddItemPicker()">
+  <div class="modal" style="max-width:420px;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+      <h3>Add item</h3>
+      <button class="detail-close" onclick="closeAddItemPicker()" title="Cancel" style="margin-top:-4px;">×</button>
+    </div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">What are you adding?</p>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button class="picker-choice" onclick="pickAddEquipment()" style="text-align:left;padding:14px 16px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius);cursor:pointer;transition:all 0.15s;">
+        <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:3px;">Equipment unit</div>
+        <div style="font-size:12px;color:var(--text-muted);">Heat pumps, indoor heads, HRVs, controllers — tracked individually with status and owner.</div>
+      </button>
+      <button class="picker-choice" onclick="pickAddConsumable()" style="text-align:left;padding:14px 16px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius);cursor:pointer;transition:all 0.15s;">
+        <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:3px;">Consumable SKU</div>
+        <div style="font-size:12px;color:var(--text-muted);">Lineset, filters, screws, mounting feet — tracked as counts per location with reorder threshold.</div>
+      </button>
     </div>
   </div>
 </div>
@@ -2899,6 +2926,22 @@ function closeDayJobsModal() {
   document.getElementById('day-jobs-modal').classList.remove('open');
 }
 
+// ── ADD ITEM PICKER (routes to Add Unit or Add SKU) ──
+function openAddItemPicker() {
+  document.getElementById('add-item-picker-modal').classList.add('open');
+}
+function closeAddItemPicker() {
+  document.getElementById('add-item-picker-modal').classList.remove('open');
+}
+function pickAddEquipment() {
+  closeAddItemPicker();
+  openAddUnitModal();
+}
+function pickAddConsumable() {
+  closeAddItemPicker();
+  openAddSkuModal();
+}
+
 // ── ADD UNIT FOR CUSTOMER (in Unit Tent walk) ──
 function openAddUnitModal() {
   // Populate customer dropdown — unique job names (filtering out the "Stock" fake-job workaround)
@@ -3704,16 +3747,22 @@ async function addSkuToOrderList(skuId) {
 
 // ── INVENTORY ──
 let currentInvLocation = 'all'; // 'all' or 'On-hand (Barn)', 'On-hand (Unit Tent)', etc.
+let currentInvType = 'all'; // 'all' or a Type tag value (e.g. 'outdoor unit', 'line-set')
 
 function setInvLocation(loc) {
   currentInvLocation = loc;
+  // Available Type tags differ per location — reset the type filter so the user doesn't
+  // get a confusing empty view (e.g. "outdoor unit" chip stays selected when switching to Lumber Rack)
+  currentInvType = 'all';
   // Update tab UI
   document.querySelectorAll('.loc-tab').forEach(b => {
     b.classList.toggle('active', b.getAttribute('data-loc') === loc);
   });
-  // Show Verify Pile button only on Unit Tent tab
-  const tabActions = document.getElementById('inv-tab-actions');
-  if (tabActions) tabActions.style.display = (loc === 'On-hand (Unit Tent)') ? 'flex' : 'none';
+  renderInventory();
+}
+
+function setInvType(typeTag) {
+  currentInvType = typeTag;
   renderInventory();
 }
 
@@ -3752,26 +3801,17 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
       return v !== null && v !== undefined && Number(v) > 0;
     });
   }
-  // Sort: low-stock SKUs first, then alphabetical within each group
-  filtered.sort((a,b) => {
-    const aLow = (() => { const fl=f(a,F.sku_order_flag); return fl && String(fl).includes('order'); })();
-    const bLow = (() => { const fl=f(b,F.sku_order_flag); return fl && String(fl).includes('order'); })();
-    if (aLow && !bLow) return -1;
-    if (!aLow && bLow) return 1;
-    return (f(a,F.sku_name)||'').localeCompare(f(b,F.sku_name)||'');
-  });
 
-  // ── Equipment section: render on any specific location tab, OR on "All" when searching ──
-  let equipHtml = '';
-  const showEquipment = (currentInvLocation !== 'all') || (currentInvLocation === 'all' && search);
+  // ── Compute equipment items in scope (for chip counts, then reused by the equipment section) ──
+  // This is the location + search filter applied to equipment items, BEFORE the type filter.
+  // Doing it here (instead of inside the equipment section below) lets us share the result
+  // with the chip count computation so chip totals reflect what's actually visible.
+  const onAllTab = (currentInvLocation === 'all');
+  const showEquipment = !onAllTab || (onAllTab && search);
+  const tabLocLabel = onAllTab ? '' : ((LOCATIONS.find(l => l.field === currentInvLocation) || {}).label || '');
+  let inScopeItems = [];
   if (showEquipment) {
-    const onAllTab = (currentInvLocation === 'all');
-    // Map field name (e.g. 'On-hand (Barn)') back to physical location label (e.g. 'Barn')
-    const tabLocLabel = onAllTab ? '' : ((LOCATIONS.find(l => l.field === currentInvLocation) || {}).label || '');
-    // Pull equipment items: when on a location tab, only those at this location;
-    // when on "All" with a search, pull from everywhere (search will narrow it).
-    // Excludes consumables (SKU-linked items are tracked as counts, not individual units).
-    let tabItems = items.filter(item => {
+    inScopeItems = items.filter(item => {
       if (!onAllTab) {
         const loc = f(item, F.item_location);
         if (loc !== tabLocLabel) return false;
@@ -3780,10 +3820,11 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
       // Equipment has no SKU link; consumables have one. Show only equipment here.
       return !Array.isArray(skuLinks) || skuLinks.length === 0;
     });
-    // Apply the same search filter that's applied to SKUs — by model, type tag, or owner name
+    // Apply the same search filter that's applied to SKUs — by model, description, type tag, or owner name
     if (search) {
-      tabItems = tabItems.filter(item => {
+      inScopeItems = inScopeItems.filter(item => {
         const m = (f(item, F.item_model) || '').toLowerCase();
+        const d = (f(item, F.item_description) || '').toLowerCase();
         const t = (f(item, F.item_type) || '').toLowerCase();
         let onm = '';
         const owns = f(item, F.item_owner);
@@ -3799,8 +3840,76 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
             }
           }
         }
-        return m.includes(search) || t.includes(search) || onm.includes(search);
+        return m.includes(search) || d.includes(search) || t.includes(search) || onm.includes(search);
       });
+    }
+  }
+
+  // ── Build type-tag counts (qty-weighted) from current SKU + equipment scope ──
+  // Chip counts always reflect "what's visible at All Types" — they don't shrink when a chip is selected.
+  const typeCounts = {};
+  filtered.forEach(s => {
+    const t = (f(s, F.sku_type) || '').trim();
+    if (!t) return;
+    const qty = onAllTab ? (Number(f(s, F.sku_total)) || 0) : (Number(f(s, currentInvLocation)) || 0);
+    if (qty > 0) typeCounts[t] = (typeCounts[t] || 0) + qty;
+  });
+  inScopeItems.forEach(it => {
+    const t = (f(it, F.item_type) || '').trim();
+    if (!t) return;
+    const q = Number(f(it, F.item_qty)) || 1;
+    typeCounts[t] = (typeCounts[t] || 0) + q;
+  });
+
+  // ── Render chip row (hidden when only 0 or 1 distinct type — a single-chip row is just noise) ──
+  // Defensive: if the previously selected type is no longer in scope (after a search/lowOnly change),
+  // silently reset to "all" so the user doesn't end up staring at an empty view.
+  if (currentInvType !== 'all' && !typeCounts[currentInvType]) {
+    currentInvType = 'all';
+  }
+  const chipsEl = document.getElementById('type-chips');
+  if (chipsEl) {
+    const typeKeys = Object.keys(typeCounts).sort();
+    if (typeKeys.length >= 2) {
+      const totalQty = typeKeys.reduce((a, k) => a + typeCounts[k], 0);
+      const allActive = currentInvType === 'all' ? ' active' : '';
+      let chipsHtml = `<button class="type-chip${allActive}" onclick="setInvType('all')">All types <span class="chip-count">${totalQty}</span></button>`;
+      typeKeys.forEach(t => {
+        const active = currentInvType === t ? ' active' : '';
+        // Escape single quotes so onclick string stays valid for type tags like "5/8\" lineset"
+        const tEsc = t.replace(/\\/g,'\\\\').replace(/'/g, "\\'");
+        chipsHtml += `<button class="type-chip${active}" onclick="setInvType('${tEsc}')">${escapeHtml(t)} <span class="chip-count">${typeCounts[t]}</span></button>`;
+      });
+      chipsEl.innerHTML = chipsHtml;
+      chipsEl.style.display = 'flex';
+    } else {
+      chipsEl.style.display = 'none';
+      chipsEl.innerHTML = '';
+    }
+  }
+
+  // ── Apply type filter to SKUs (after chip computation, before sort) ──
+  if (currentInvType !== 'all') {
+    filtered = filtered.filter(s => (f(s, F.sku_type) || '').trim() === currentInvType);
+  }
+
+  // Sort: low-stock SKUs first, then alphabetical within each group
+  filtered.sort((a,b) => {
+    const aLow = (() => { const fl=f(a,F.sku_order_flag); return fl && String(fl).includes('order'); })();
+    const bLow = (() => { const fl=f(b,F.sku_order_flag); return fl && String(fl).includes('order'); })();
+    if (aLow && !bLow) return -1;
+    if (!aLow && bLow) return 1;
+    return (f(a,F.sku_name)||'').localeCompare(f(b,F.sku_name)||'');
+  });
+
+  // ── Equipment section: render on any specific location tab, OR on "All" when searching ──
+  // The location + search filter has already been applied above (inScopeItems). Here we
+  // apply the type filter (if any) and then sort + render.
+  let equipHtml = '';
+  if (showEquipment) {
+    let tabItems = inScopeItems.slice();
+    if (currentInvType !== 'all') {
+      tabItems = tabItems.filter(it => (f(it, F.item_type) || '').trim() === currentInvType);
     }
     // Sort: Stock first (available to assign), then Allocated, then anything else; alphabetical within
     function statusRank(item) {
