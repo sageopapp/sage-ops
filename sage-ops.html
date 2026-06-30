@@ -3626,9 +3626,20 @@ function setAddOrderMode(mode) {
 
 function onOrdSkuPick() {
   const skuId = document.getElementById('ord-sku-pick').value;
+  const errEl = document.getElementById('ord-error');
+  // Clear any prior warning from a previous pick
+  errEl.style.display = 'none';
+  errEl.textContent = '';
   if (!skuId) return;
   const sku = skus.find(s => s.id === skuId);
   if (!sku) return;
+  // Heads-up if this SKU is already on the order list as Needed.
+  // Save will still block — this just tells Tony before he fills in qty/notes.
+  const existing = findOpenOrderForSku(skuId);
+  if (existing) {
+    errEl.textContent = `Heads up: this is already on the order list (${describeExistingOrder(existing)}).`;
+    errEl.style.display = 'block';
+  }
   // Pre-fill from SKU
   document.getElementById('ord-vendor').value = f(sku, F.sku_vendor) || '';
   document.getElementById('ord-itemnumber').value = f(sku, F.sku_itemnumber) || '';
@@ -3659,6 +3670,15 @@ async function saveAddOrder() {
   if (addOrderMode === 'sku') {
     const skuId = document.getElementById('ord-sku-pick').value;
     if (!skuId) { errEl.textContent = 'Pick a SKU or switch to Manual entry.'; errEl.style.display='block'; return; }
+    // Block duplicate: if this SKU already has a Needed Order List entry, surface it
+    // here instead of creating a second one. (Manual mode is free-text and isn't checked
+    // — duplicates there are for one-off items not in the SKU catalog.)
+    const existing = findOpenOrderForSku(skuId);
+    if (existing) {
+      errEl.textContent = `Already on the order list (${describeExistingOrder(existing)}). Switch to the Order tab to see it.`;
+      errEl.style.display = 'block';
+      return;
+    }
     const sku = skus.find(s => s.id === skuId);
     itemName = f(sku, F.sku_name) || 'SKU';
     skuLink = [skuId];
@@ -3693,19 +3713,42 @@ async function saveAddOrder() {
   }
 }
 
+// ── ORDER LIST DUPLICATE-CHECK HELPERS ──
+// Single source of truth for "is this SKU already on the order list as Needed?"
+// Called by every entry point that creates an Order List record, plus the
+// Inventory card render that shows the "✓ on order list" badge. Keeping this
+// in one place means the manual path (Order tab modal) and the auto path
+// (Inventory "+ Order" tap) can't drift apart.
+function findOpenOrderForSku(skuId) {
+  return orders.find(o => {
+    if ((f(o, F.order_status) || 'Needed') !== 'Needed') return false;
+    const links = f(o, F.order_sku);
+    if (!Array.isArray(links)) return false;
+    return links.some(l => (typeof l === 'string' ? l : l.id) === skuId);
+  }) || null;
+}
+
+// Human-readable description for duplicate-block messages.
+// e.g. "auto-flagged 6/22" or "added manually 6/22"
+function describeExistingOrder(order) {
+  const source = (f(order, F.order_source) || '').toLowerCase();
+  const verb = source.includes('auto') ? 'auto-flagged' : 'added manually';
+  let dateStr = '';
+  if (order && order.createdTime) {
+    const d = new Date(order.createdTime);
+    if (!isNaN(d)) dateStr = (d.getMonth() + 1) + '/' + d.getDate();
+  }
+  return dateStr ? `${verb} ${dateStr}` : verb;
+}
+
 // One-tap helper: add a low-stock SKU to the order list as "Auto (low stock)"
 async function addSkuToOrderList(skuId) {
   const sku = skus.find(s => s.id === skuId);
   if (!sku) return;
   // Check if a Needed entry for this SKU already exists — don't double-add
-  const existing = orders.find(o => {
-    if ((f(o, F.order_status) || 'Needed') !== 'Needed') return false;
-    const links = f(o, F.order_sku);
-    if (!Array.isArray(links)) return false;
-    return links.some(l => (typeof l === 'string' ? l : l.id) === skuId);
-  });
+  const existing = findOpenOrderForSku(skuId);
   if (existing) {
-    alert(`Already on the order list (Needed).`);
+    alert(`Already on the order list (${describeExistingOrder(existing)}).`);
     return;
   }
   // Source reflects WHY this is being added:
@@ -4081,11 +4124,7 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
         <div class="inv-card-right">
           ${(() => {
             // Is this SKU already on the order list with Needed status?
-            const onOrder = orders.some(o => {
-              if ((f(o, F.order_status) || 'Needed') !== 'Needed') return false;
-              const links = f(o, F.order_sku);
-              return Array.isArray(links) && links.some(l => (typeof l === 'string' ? l : l.id) === sid);
-            });
+            const onOrder = !!findOpenOrderForSku(sid);
             if (onOrder) {
               return `<span class="inv-low-badge" style="background:var(--accent-light);color:var(--accent-text);">✓ on order list</span>`;
             }
