@@ -1301,6 +1301,7 @@ const F = {
   order_item: 'Item', order_itemnumber: 'Item number', order_vendor: 'Vendor',
   order_qty: 'Quantity', order_unit: 'Unit', order_status: 'Status',
   order_source: 'Source', order_sku: 'Stock SKU', order_notes: 'Notes',
+  order_received_date: 'Received date', order_received_location: 'Received location', order_received_qty: 'Received quantity',
 };
 
 let apiKey = '', jobs = [], items = [], skus = [], orders = [], vendors = [];
@@ -3525,6 +3526,13 @@ function renderOrders() {
   const list = orders
     .filter(o => (f(o, F.order_status) || 'Needed') === currentOrderStatus)
     .sort((a,b) => {
+      // Received tab: newest received first (audit trail style)
+      if (currentOrderStatus === 'Received') {
+        const da = f(a, F.order_received_date) || '';
+        const db = f(b, F.order_received_date) || '';
+        if (da !== db) return db.localeCompare(da);
+        return (f(a, F.order_item)||'').toLowerCase().localeCompare((f(b, F.order_item)||'').toLowerCase());
+      }
       // Within a status: low-stock auto-added first, then alphabetical
       const sa = f(a, F.order_source) || '';
       const sb = f(b, F.order_source) || '';
@@ -3552,8 +3560,26 @@ function renderOrders() {
     const unit = f(o, F.order_unit) || '';
     const source = f(o, F.order_source) || '';
     const notes = f(o, F.order_notes) || '';
-    const qtyDisplay = qty != null ? `${qty}${unit?' '+escapeHtml(unit):''}` : '';
+    // On Received tab, prefix the qty with "ordered" so the audit line below
+    // (which shows the actually-received qty) reads as a clear comparison.
+    const qtyLabel = currentOrderStatus === 'Received' ? 'ordered ' : '';
+    const qtyDisplay = qty != null ? `${qtyLabel}${qty}${unit?' '+escapeHtml(unit):''}` : '';
     const metaBits = [num && `<strong style="color:var(--text);">${escapeHtml(num)}</strong>`, vendor && escapeHtml(vendor), qtyDisplay].filter(Boolean).join(' · ');
+    // Audit trail line — only rendered on the Received tab. Shows date, qty,
+    // unit, and stash location. Legacy records (received before this field
+    // set existed) show a faded note instead.
+    let receivedInfo = '';
+    if (currentOrderStatus === 'Received') {
+      const rDate = f(o, F.order_received_date);
+      const rLoc = f(o, F.order_received_location);
+      const rQty = f(o, F.order_received_qty);
+      const dateStr = rDate ? fmtDate(rDate) : '';
+      const qtyStr = rQty != null ? `${rQty}${unit?' '+escapeHtml(unit):''}` : '';
+      const bits = [dateStr, qtyStr, rLoc ? `→ ${escapeHtml(rLoc)}` : ''].filter(Boolean).join(' · ');
+      receivedInfo = bits
+        ? `<div style="margin-top:4px;font-size:12px;color:var(--ok);font-weight:600;">✓ Received ${bits}</div>`
+        : `<div style="margin-top:4px;font-size:12px;color:var(--text-faint);font-style:italic;">✓ Received (no receive details captured)</div>`;
+    }
     const sourceBadge = source.includes('Auto')
       ? `<span style="font-size:10px;padding:2px 6px;border-radius:99px;background:var(--warn-light);color:var(--warn);font-weight:600;text-transform:uppercase;letter-spacing:0.03em;">⚠ low stock</span>`
       : source === 'Scan'
@@ -3576,6 +3602,7 @@ function renderOrders() {
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><div class="mat-name" style="font-weight:600;">${escapeHtml(item)}</div>${sourceBadge}</div>
           ${metaBits?`<div class="mat-qty" style="margin-top:2px;">${metaBits}</div>`:''}
           ${notes?`<div style="margin-top:4px;font-size:12px;color:var(--text-muted);font-style:italic;">${escapeHtml(notes)}</div>`:''}
+          ${receivedInfo}
         </div>
         <button class="mat-del" onclick="deleteOrder('${oid}')" title="Remove">×</button>
       </div>
@@ -3589,7 +3616,7 @@ async function markOrderStatus(orderId, newStatus) {
   if (!order) return;
   // Receiving a SKU-linked order: open the receive modal so Tony can confirm
   // quantity and stash location, then bump on-hand AND flip status in one save.
-  // Manual entries (no SKU link) fall through to the plain status flip below.
+  // Manual entries (no SKU link) fall through to the audit-only path below.
   if (newStatus === 'Received') {
     const skuLinks = f(order, F.order_sku);
     const linkedSkuId = Array.isArray(skuLinks) && skuLinks.length
@@ -3599,6 +3626,21 @@ async function markOrderStatus(orderId, newStatus) {
       openReceiveModal(orderId, linkedSkuId);
       return;
     }
+    // Manual entry (no SKU link): no modal, but still capture audit info so the
+    // Received tab shows when it landed. No location — manual entries have no
+    // target SKU to assign a location to. Received quantity defaults to ordered.
+    const today = new Date().toISOString().split('T')[0];
+    const orderedQty = f(order, F.order_qty);
+    const updates = { 'Status': newStatus, 'Received date': today };
+    if (orderedQty != null) updates['Received quantity'] = orderedQty;
+    try {
+      await patchRecord(ORDERS_TBL, orderId, updates);
+      Object.assign(order.fields, updates);
+      renderOrders();
+    } catch(e) {
+      showError('Could not update order status.');
+    }
+    return;
   }
   try {
     await patchRecord(ORDERS_TBL, orderId, { 'Status': newStatus });
@@ -3693,16 +3735,23 @@ async function saveReceive() {
   }
   const current = Number(f(sku, locField)) || 0;
   const nextStock = current + qty;
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
   try {
-    // Bump SKU on-hand at chosen location, then flip order status.
-    // Sequence matters: if the stock bump fails we don't want a Received order
-    // with no stock change. If the status flip fails after a successful bump,
-    // the user sees an error but the stock is still correct — they can flip
-    // status manually.
+    // Bump SKU on-hand at chosen location, then flip order status and capture
+    // the receive audit trail. Sequence matters: if the stock bump fails we
+    // don't want a Received order with no stock change. If the status flip
+    // fails after a successful bump, the user sees an error but the stock is
+    // still correct — they can flip status manually.
     await patchRecord(SKUS_TBL, sku.id, { [locField]: nextStock });
     sku.fields[locField] = nextStock;
-    await patchRecord(ORDERS_TBL, order.id, { 'Status': 'Received' });
-    order.fields['Status'] = 'Received';
+    const orderUpdates = {
+      'Status': 'Received',
+      'Received date': today,
+      'Received location': loc,
+      'Received quantity': qty,
+    };
+    await patchRecord(ORDERS_TBL, order.id, orderUpdates);
+    Object.assign(order.fields, orderUpdates);
     closeReceiveModal();
     renderOrders();
     renderInventory();
