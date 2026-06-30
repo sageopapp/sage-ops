@@ -21,6 +21,7 @@
     --warn: #b45309; --warn-light: #fef3c7;
     --info: #1e40af; --info-light: #eff6ff;
     --danger: #b91c1c; --danger-light: #fef2f2;
+    --ok: #15803d; --ok-light: #ecfdf5;
     --type-install: #2F5A76;
     --type-install-light: #e3edf3;
     --type-clean: #AE7534;
@@ -750,6 +751,45 @@
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeAddOrderModal()">Cancel</button>
       <button class="btn-sm btn-sm-accent" onclick="saveAddOrder()" style="padding:10px 20px;">Add to order list</button>
+    </div>
+  </div>
+</div>
+
+<!-- RECEIVE MODAL — bump on-hand at a chosen location AND flip order to Received -->
+<div class="modal-bg" id="receive-modal" onclick="if(event.target===this)closeReceiveModal()">
+  <div class="modal" style="max-width:480px;">
+    <h3 id="receive-title">Receive item</h3>
+    <p id="receive-context" style="color:var(--text-muted);font-size:13px;margin-top:-6px;margin-bottom:14px;"></p>
+
+    <div style="display:flex;gap:10px;margin-bottom:14px;">
+      <div style="flex:1;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Quantity received *</label>
+        <input type="number" id="rec-qty" min="1" step="1" oninput="updateReceiveLocHint()" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+      </div>
+      <div style="flex:1;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Unit</label>
+        <input type="text" id="rec-unit" readonly style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--bg);color:var(--text-muted);" />
+      </div>
+    </div>
+
+    <div style="margin-bottom:14px;">
+      <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Stash it at *</label>
+      <select id="rec-location" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+        <option value="Barn">Barn</option>
+        <option value="Unit Tent">Unit Tent</option>
+        <option value="Susie">Susie</option>
+        <option value="Lumber Rack">Lumber Rack</option>
+        <option value="Shop">Shop</option>
+        <option value="Ducting Tent">Ducting Tent</option>
+      </select>
+      <div id="rec-loc-hint" style="margin-top:4px;font-size:12px;color:var(--text-faint);"></div>
+    </div>
+
+    <div id="rec-error" style="display:none;color:var(--danger);font-size:13px;margin-bottom:10px;background:var(--danger-light);padding:8px 12px;border-radius:var(--radius-sm);"></div>
+
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeReceiveModal()">Cancel</button>
+      <button class="btn-sm" style="background:var(--ok);color:white;border:1px solid var(--ok);padding:10px 20px;" onclick="saveReceive()">Mark Received ✓</button>
     </div>
   </div>
 </div>
@@ -3547,12 +3587,128 @@ function renderOrders() {
 async function markOrderStatus(orderId, newStatus) {
   const order = orders.find(o => o.id === orderId);
   if (!order) return;
+  // Receiving a SKU-linked order: open the receive modal so Tony can confirm
+  // quantity and stash location, then bump on-hand AND flip status in one save.
+  // Manual entries (no SKU link) fall through to the plain status flip below.
+  if (newStatus === 'Received') {
+    const skuLinks = f(order, F.order_sku);
+    const linkedSkuId = Array.isArray(skuLinks) && skuLinks.length
+      ? (typeof skuLinks[0] === 'string' ? skuLinks[0] : skuLinks[0].id)
+      : null;
+    if (linkedSkuId && skus.find(s => s.id === linkedSkuId)) {
+      openReceiveModal(orderId, linkedSkuId);
+      return;
+    }
+  }
   try {
     await patchRecord(ORDERS_TBL, orderId, { 'Status': newStatus });
     order.fields['Status'] = newStatus;
     renderOrders();
   } catch(e) {
     showError('Could not update order status.');
+  }
+}
+
+// ── RECEIVE MODAL ──
+// Helper: find the SKU's primary location (the bucket with the most on-hand).
+// Defaults to Barn when there's no stock anywhere yet.
+function skuPrimaryLocation(sku) {
+  const buckets = [
+    ['Barn', f(sku, F.sku_barn)],
+    ['Unit Tent', f(sku, F.sku_tent)],
+    ['Susie', f(sku, F.sku_susie)],
+    ['Lumber Rack', f(sku, F.sku_lumber)],
+    ['Shop', f(sku, F.sku_shop)],
+    ['Ducting Tent', f(sku, F.sku_ducting)],
+  ];
+  let best = null, bestQty = -1;
+  buckets.forEach(([label, qty]) => {
+    const n = Number(qty) || 0;
+    if (n > bestQty) { bestQty = n; best = label; }
+  });
+  return best || 'Barn';
+}
+
+let receivingOrderId = null;
+let receivingSkuId = null;
+
+function openReceiveModal(orderId, skuId) {
+  const order = orders.find(o => o.id === orderId);
+  const sku = skus.find(s => s.id === skuId);
+  if (!order || !sku) return;
+  receivingOrderId = orderId;
+  receivingSkuId = skuId;
+  const item = f(order, F.order_item) || f(sku, F.sku_name) || 'item';
+  const orderedQty = Number(f(order, F.order_qty)) || 1;
+  const unit = f(order, F.order_unit) || f(sku, F.sku_unit) || '';
+  const primaryLoc = skuPrimaryLocation(sku);
+  const currentAtPrimary = Number(f(sku, locationToSkuField(primaryLoc))) || 0;
+
+  document.getElementById('receive-title').textContent = `Receive ${item}`;
+  document.getElementById('receive-context').textContent =
+    `Ordered ${orderedQty}${unit ? ' ' + unit : ''} · current on-hand at ${primaryLoc}: ${currentAtPrimary}`;
+  document.getElementById('rec-qty').value = orderedQty;
+  document.getElementById('rec-unit').value = unit;
+  document.getElementById('rec-location').value = primaryLoc;
+  updateReceiveLocHint();
+  document.getElementById('rec-error').style.display = 'none';
+  document.getElementById('receive-modal').classList.add('open');
+  // Update the hint when the location changes
+  document.getElementById('rec-location').onchange = updateReceiveLocHint;
+}
+
+function updateReceiveLocHint() {
+  const sku = skus.find(s => s.id === receivingSkuId);
+  if (!sku) return;
+  const loc = document.getElementById('rec-location').value;
+  const current = Number(f(sku, locationToSkuField(loc))) || 0;
+  const qty = parseInt(document.getElementById('rec-qty').value, 10) || 0;
+  const next = current + qty;
+  document.getElementById('rec-loc-hint').textContent =
+    `${loc} will go from ${current} → ${next}`;
+}
+
+function closeReceiveModal() {
+  document.getElementById('receive-modal').classList.remove('open');
+  receivingOrderId = null;
+  receivingSkuId = null;
+}
+
+async function saveReceive() {
+  const errEl = document.getElementById('rec-error');
+  errEl.style.display = 'none';
+  const order = orders.find(o => o.id === receivingOrderId);
+  const sku = skus.find(s => s.id === receivingSkuId);
+  if (!order || !sku) { closeReceiveModal(); return; }
+  const qty = parseInt(document.getElementById('rec-qty').value, 10);
+  const loc = document.getElementById('rec-location').value;
+  if (!qty || qty <= 0) {
+    errEl.textContent = 'Enter a quantity of 1 or more.';
+    errEl.style.display = 'block'; return;
+  }
+  const locField = locationToSkuField(loc);
+  if (!locField) {
+    errEl.textContent = 'Pick a location to stash it at.';
+    errEl.style.display = 'block'; return;
+  }
+  const current = Number(f(sku, locField)) || 0;
+  const nextStock = current + qty;
+  try {
+    // Bump SKU on-hand at chosen location, then flip order status.
+    // Sequence matters: if the stock bump fails we don't want a Received order
+    // with no stock change. If the status flip fails after a successful bump,
+    // the user sees an error but the stock is still correct — they can flip
+    // status manually.
+    await patchRecord(SKUS_TBL, sku.id, { [locField]: nextStock });
+    sku.fields[locField] = nextStock;
+    await patchRecord(ORDERS_TBL, order.id, { 'Status': 'Received' });
+    order.fields['Status'] = 'Received';
+    closeReceiveModal();
+    renderOrders();
+    renderInventory();
+  } catch(e) {
+    errEl.textContent = 'Could not save. Check your connection and try again.';
+    errEl.style.display = 'block';
   }
 }
 
