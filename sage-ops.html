@@ -1409,8 +1409,9 @@ async function syncData() {
     properties.forEach(p => { propById[p.id] = p; });
     jobs.forEach(j => {
       const link = j.fields && j.fields['Property'];
-      if (Array.isArray(link) && link.length && propById[link[0].id]) {
-        const p = propById[link[0].id].fields || {};
+      const pid = (Array.isArray(link) && link.length) ? (link[0] && link[0].id ? link[0].id : link[0]) : null;
+      if (pid && propById[pid]) {
+        const p = propById[pid].fields || {};
         const parts = [p['Street address'], p['City'], [p['State'], p['Zip']].filter(Boolean).join(' ')].filter(Boolean);
         if (parts.length) j.fields['Address'] = parts.join(', ');
         if (p['Island']) j.fields['Island'] = p['Island'];
@@ -2488,7 +2489,16 @@ function renderDetailBody(jobId) {
       <div class="detail-field" style="align-items:center;">
         <span class="detail-field-label">Island</span>
         <span class="detail-field-val">
-          <span style="font-size:13px;">${escapeHtml(island)||'—'}</span>
+          <select onchange="updateJobProperty('${jobId}','Island',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">
+            <option value=""${!island?' selected':''}>— None —</option>
+            <option value="Lopez"${island==='Lopez'?' selected':''}>Lopez</option>
+            <option value="Orcas"${island==='Orcas'?' selected':''}>Orcas</option>
+            <option value="San Juan"${island==='San Juan'?' selected':''}>San Juan</option>
+            <option value="Shaw"${island==='Shaw'?' selected':''}>Shaw</option>
+            <option value="Decatur"${island==='Decatur'?' selected':''}>Decatur</option>
+            <option value="Off-island"${island==='Off-island'?' selected':''}>Off-island</option>
+            <option value="Other"${island==='Other'?' selected':''}>Other</option>
+          </select>
         </span>
       </div>
       <div class="detail-field" style="align-items:center;">
@@ -2516,7 +2526,7 @@ function renderDetailBody(jobId) {
       <div class="detail-field" style="align-items:flex-start;">
         <span class="detail-field-label" style="padding-top:6px;">Address</span>
         <span class="detail-field-val" style="flex:1;max-width:65%;">
-          <span style="font-size:13px;">${escapeHtml(address)||'—'}</span>
+          <textarea rows="2" placeholder="Street address" onchange="updateJobProperty('${jobId}','Street address',this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;font-family:inherit;resize:vertical;text-align:right;">${escapeHtml(address)}</textarea>
           ${address?`<div style="text-align:right;margin-top:4px;"><a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}" target="_blank" style="font-size:12px;color:var(--info);text-decoration:none;font-weight:500;">→ Directions</a></div>`:''}
         </span>
       </div>
@@ -2907,6 +2917,38 @@ async function updateStartDate(jobId, newDate) {
   } catch(e) {
     alert('Could not save start date. Check your connection.');
     renderDetailBody(jobId);
+  }
+}
+
+// ── UPDATE A JOB'S LINKED PROPERTY (address / island live on the Property record) ──
+async function updateJobProperty(jobId, propField, newValue) {
+  const job = jobs.find(j=>j.id===jobId);
+  if (!job) return;
+  const val = newValue === '' ? null : newValue;
+  const link = job.fields['Property'];
+  let propId = (Array.isArray(link) && link.length) ? (link[0] && link[0].id ? link[0].id : link[0]) : null;
+  try {
+    if (propId) {
+      await patchRecord(PROPERTIES_TBL, propId, { [propField]: val });
+      const p = properties.find(x=>x.id===propId);
+      if (p) { p.fields = p.fields || {}; p.fields[propField] = val; }
+    } else {
+      const created = await createRecord(PROPERTIES_TBL, { [propField]: val, 'Owner': job.fields['Customer'] || [] });
+      properties.push(created);
+      await patchRecord(JOBS_TBL, jobId, { 'Property': [created.id] });
+      job.fields['Property'] = [created.id];
+      propId = created.id;
+    }
+    // Re-denormalize address/island for this job from the (now updated) property
+    const p = properties.find(x=>x.id===propId);
+    const pf = (p && p.fields) || {};
+    const parts = [pf['Street address'], pf['City'], [pf['State'], pf['Zip']].filter(Boolean).join(' ')].filter(Boolean);
+    job.fields['Address'] = parts.length ? parts.join(', ') : null;
+    job.fields['Island'] = pf['Island'] || null;
+    renderDetailBody(jobId);
+    renderJobs();
+  } catch(e) {
+    alert('Could not save. Check your connection.');
   }
 }
 
