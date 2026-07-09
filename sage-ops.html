@@ -4078,6 +4078,17 @@ function startTentVerifyFromTab() {
   }
 }
 
+// Resolve an equipment unit's owning job (customer) name — handles ID strings or {name} objects.
+function itemOwnerName(item) {
+  const owns = f(item, F.item_owner);
+  if (!Array.isArray(owns) || !owns.length) return '';
+  const first = owns[0];
+  if (first && typeof first === 'object' && first.name) return first.name;
+  const ownerId = (typeof first === 'string') ? first : (first && first.id);
+  const oj = ownerId ? jobs.find(j => j.id === ownerId) : null;
+  return oj ? (f(oj, F.job_name) || '') : '';
+}
+
 function renderInventory() {  const body = document.getElementById('inventory-body');
   if (!body) return;
   const searchEl = document.getElementById('inv-search');
@@ -4229,6 +4240,10 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
       const ra = statusRank(a);
       const rb = statusRank(b);
       if (ra !== rb) return ra - rb;
+      // Within a status group, cluster by owning job (customer) so all of a job's units sit together
+      const oa = itemOwnerName(a).toLowerCase();
+      const ob = itemOwnerName(b).toLowerCase();
+      if (oa !== ob) return oa.localeCompare(ob);
       return (f(a,F.item_model)||'').localeCompare(f(b,F.item_model)||'');
     });
     // Sum quantities by status for the section header summary (so a single record with Quantity=6
