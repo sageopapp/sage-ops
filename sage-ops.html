@@ -1274,21 +1274,25 @@ async function ensureVendorLink(vendorName) {
   }
 }
 
-const JOBS_TBL = 'tbleG7eZ2GUldQ7AF';
+const JOBS_TBL = 'tblzLC4iqIM6qpJNZ';
 const ITEMS_TBL = 'tblmTmWOvzHKIixMu';
 const SKUS_TBL = 'tblZ8EMxOtJlr3Mv2';
 const ORDERS_TBL = 'tblxthZ7zP3BTHM7k';
 const VENDORS_TBL = 'tblPI5nJ8s8T7qM7j';
+const ACCOUNTS_TBL = 'tblfJNtq425aFBkGU';
+const PROPERTIES_TBL = 'tblqcXsAEtmT19OYK';
+const UNITS_TBL = 'tblT4U3YI7YBnycwO';
 
 const F = {
-  job_name: 'Name', job_type: 'Type', job_status: 'Status',
+  job_name: 'Job label', job_type: 'Job type', job_status: 'Status',
   job_next_type: 'Next phase',
   job_next_date: 'Next visit date', job_end_date: 'End Date', job_items: 'Items',
   job_readiness: 'Readiness', job_scheduled: 'Scheduled visit',
-  job_comments: 'Comments / Questions', job_materials: 'Per-visit Materials',
+  job_comments: 'Notes', job_materials: 'Per-visit Materials',
   job_detail_notes: 'Detail Notes',
-  job_phone: 'Phone number', job_email: 'Email', job_address: 'Address',
-  job_contact: 'Contact person', job_island: 'Island', job_sched_status: 'Schedule status',
+  job_phone: 'Primary contact phone', job_email: 'Primary contact email', job_address: 'Address',
+  job_contact: 'Primary contact name', job_island: 'Island', job_sched_status: 'Schedule status',
+  job_customer: 'Customer', job_property: 'Property', job_unit: 'Unit',
   item_model: 'Model number', item_description: 'Description', item_type: 'Type tag', item_qty: 'Quantity',
   item_status: 'Status', item_location: 'Physical location',
   item_loaded: 'Loaded?', item_owner: 'Owner', item_visit: 'Visit consumed at',
@@ -1304,7 +1308,7 @@ const F = {
   order_received_date: 'Received date', order_received_location: 'Received location', order_received_qty: 'Received quantity',
 };
 
-let apiKey = '', jobs = [], items = [], skus = [], orders = [], vendors = [];
+let apiKey = '', jobs = [], items = [], skus = [], orders = [], vendors = [], accounts = [], properties = [], units = [];
 let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
 let checkedLocally = {};
 let currentJobId = null, completeJobId = null;
@@ -1399,7 +1403,19 @@ async function syncData() {
   btn.classList.add('spinning');
   showError('');
   try {
-    [jobs, items, skus, orders, vendors] = await Promise.all([fetchAll(JOBS_TBL), fetchAll(ITEMS_TBL), fetchAll(SKUS_TBL), fetchAll(ORDERS_TBL), fetchAll(VENDORS_TBL)]);
+    [jobs, items, skus, orders, vendors, accounts, properties, units] = await Promise.all([fetchAll(JOBS_TBL), fetchAll(ITEMS_TBL), fetchAll(SKUS_TBL), fetchAll(ORDERS_TBL), fetchAll(VENDORS_TBL), fetchAll(ACCOUNTS_TBL), fetchAll(PROPERTIES_TBL), fetchAll(UNITS_TBL)]);
+    // Denormalize: pull address/island from each job's linked Property into the job record
+    const propById = {};
+    properties.forEach(p => { propById[p.id] = p; });
+    jobs.forEach(j => {
+      const link = j.fields && j.fields['Property'];
+      if (Array.isArray(link) && link.length && propById[link[0].id]) {
+        const p = propById[link[0].id].fields || {};
+        const parts = [p['Street address'], p['City'], [p['State'], p['Zip']].filter(Boolean).join(' ')].filter(Boolean);
+        if (parts.length) j.fields['Address'] = parts.join(', ');
+        if (p['Island']) j.fields['Island'] = p['Island'];
+      }
+    });
     // Fresh data from Airtable is now authoritative — drop any stale optimistic
     // load-state overrides so the checkbox and location can't diverge.
     checkedLocally = {};
@@ -2476,18 +2492,7 @@ function renderDetailBody(jobId) {
       <div class="detail-field" style="align-items:center;">
         <span class="detail-field-label">Island</span>
         <span class="detail-field-val">
-          <select onchange="updateJobField('${jobId}','Island',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">
-            <option value=""${!island?' selected':''}>— None —</option>
-            <option value="Lopez"${island==='Lopez'?' selected':''}>Lopez</option>
-            <option value="San Juan"${island==='San Juan'?' selected':''}>San Juan</option>
-            <option value="Orcas"${island==='Orcas'?' selected':''}>Orcas</option>
-            <option value="Shaw"${island==='Shaw'?' selected':''}>Shaw</option>
-            <option value="Decatur"${island==='Decatur'?' selected':''}>Decatur</option>
-            <option value="Center"${island==='Center'?' selected':''}>Center</option>
-            <option value="Blakely"${island==='Blakely'?' selected':''}>Blakely</option>
-            <option value="Mainland"${island==='Mainland'?' selected':''}>Mainland</option>
-            <option value="Other"${island==='Other'?' selected':''}>Other</option>
-          </select>
+          <span style="font-size:13px;">${escapeHtml(island)||'—'}</span>
         </span>
       </div>
       <div class="detail-field" style="align-items:center;">
@@ -2509,20 +2514,20 @@ function renderDetailBody(jobId) {
       <div class="detail-field" style="align-items:center;">
         <span class="detail-field-label">Contact</span>
         <span class="detail-field-val" style="flex:1;max-width:65%;">
-          <input type="text" value="${escapeHtml(contact).replace(/"/g,'&quot;')}" placeholder="Homeowner, GC, property mgr…" onchange="updateJobField('${jobId}','Contact person',this.value)" style="width:100%;font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;text-align:right;" />
+          <input type="text" value="${escapeHtml(contact).replace(/"/g,'&quot;')}" placeholder="Homeowner, GC, property mgr…" onchange="updateJobField('${jobId}','Primary contact name',this.value)" style="width:100%;font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;text-align:right;" />
         </span>
       </div>
       <div class="detail-field" style="align-items:flex-start;">
         <span class="detail-field-label" style="padding-top:6px;">Address</span>
         <span class="detail-field-val" style="flex:1;max-width:65%;">
-          <textarea rows="2" placeholder="—" onchange="updateJobField('${jobId}','Address',this.value)" style="width:100%;font-size:13px;padding:5px 8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;font-family:inherit;resize:vertical;text-align:right;">${escapeHtml(address)}</textarea>
+          <span style="font-size:13px;">${escapeHtml(address)||'—'}</span>
           ${address?`<div style="text-align:right;margin-top:4px;"><a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}" target="_blank" style="font-size:12px;color:var(--info);text-decoration:none;font-weight:500;">→ Directions</a></div>`:''}
         </span>
       </div>
       <div class="detail-field" style="align-items:center;">
         <span class="detail-field-label">Phone</span>
         <span class="detail-field-val" style="flex:1;max-width:65%;display:flex;align-items:center;gap:8px;justify-content:flex-end;">
-          <input type="tel" value="${escapeHtml(phone).replace(/"/g,'&quot;')}" placeholder="—" onchange="updateJobField('${jobId}','Phone number',this.value)" style="flex:1;font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;text-align:right;" />
+          <input type="tel" value="${escapeHtml(phone).replace(/"/g,'&quot;')}" placeholder="—" onchange="updateJobField('${jobId}','Primary contact phone',this.value)" style="flex:1;font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;text-align:right;" />
           ${phone?`<a href="tel:${encodeURIComponent(phone)}" style="font-size:12px;color:var(--info);text-decoration:none;font-weight:500;white-space:nowrap;">📞 Call</a>`:''}
         </span>
       </div>
@@ -3371,19 +3376,31 @@ async function saveNewJob() {
   }
   if (endDate && !startDate) { njShowError('Please set a start date before adding an end date.'); return; }
 
-  const fields = { 'Name': name, 'Status': 'Active' };
-  if (contact) fields['Contact person'] = contact;
+  const fields = { 'Job label': name, 'Status': 'Active' };
+  if (contact) fields['Primary contact name'] = contact;
   if (startDate) fields['Next visit date'] = startDate;
   if (endDate) fields['End Date'] = endDate;
   if (visitType) fields['Next phase'] = visitType;
-  if (jobType) fields['Type'] = jobType;
-  if (teamNotes) fields['Comments / Questions'] = teamNotes;
-  if (address) fields['Address'] = address;
-  if (island) fields['Island'] = island;
-  if (phone) fields['Phone number'] = phone;
-  if (email) fields['Email'] = email;
+  if (phone) fields['Primary contact phone'] = phone;
+  if (email) fields['Primary contact email'] = email;
+  // Address/Island live on the Property, not the Job. Fold anything the user
+  // entered into Detail Notes so it isn't lost, plus any team notes.
+  const noteParts = [];
+  const locLine = [island, address].filter(Boolean).join(' ').trim();
+  if (locLine) noteParts.push('Detail Notes: ' + locLine);
+  if (teamNotes) noteParts.push(teamNotes);
+  if (noteParts.length) fields['Detail Notes'] = noteParts.join('\n');
 
   try {
+    // Customer link: reuse an existing account or create one.
+    const existing = accounts.find(a => (f(a,'Customer display name')||'').toLowerCase() === name.trim().toLowerCase());
+    if (existing) {
+      fields['Customer'] = [existing.id];
+    } else if (name.trim()) {
+      const acct = await createRecord(ACCOUNTS_TBL, {'Customer display name': name.trim()});
+      accounts.push(acct);
+      fields['Customer'] = [acct.id];
+    }
     const newJob = await createRecord(JOBS_TBL, fields);
     jobs.push(newJob);
     closeNewJobModal();
