@@ -1355,7 +1355,7 @@ async function patchRecord(table, id, fields) {
   const res = await fetch(`https://api.airtable.com/v0/${BASE_ID}/${table}/${id}`, {
     method: 'PATCH',
     headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields })
+    body: JSON.stringify({ fields, typecast: true })
   });
   if (!res.ok) throw new Error('Patch failed');
   return res.json();
@@ -3121,7 +3121,7 @@ async function saveAddUnit() {
     // If new customer, create a Job record first
     if (customerId === '__new__') {
       const newJob = await createRecord(JOBS_TBL, {
-        'Name': newCustName,
+        'Job label': newCustName,
         'Status': 'Active',
       });
       jobs.push(newJob);
