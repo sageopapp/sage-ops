@@ -4140,20 +4140,9 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
         const m = (f(item, F.item_model) || '').toLowerCase();
         const d = (f(item, F.item_description) || '').toLowerCase();
         const t = (f(item, F.item_type) || '').toLowerCase();
-        let onm = '';
-        const owns = f(item, F.item_owner);
-        if (Array.isArray(owns) && owns.length) {
-          const first = owns[0];
-          if (typeof first === 'object' && first.name) {
-            onm = first.name.toLowerCase();
-          } else {
-            const ownerId = (typeof first === 'string') ? first : (first && first.id);
-            if (ownerId) {
-              const ownerJob = jobs.find(j => j.id === ownerId);
-              if (ownerJob) onm = (f(ownerJob, F.job_name) || '').toLowerCase();
-            }
-          }
-        }
+        // Match on the owning job/customer name; unallocated units are searchable as "stock"
+        let onm = itemOwnerName(item).toLowerCase();
+        if (!onm) onm = 'stock';
         return m.includes(search) || d.includes(search) || t.includes(search) || onm.includes(search);
       });
     }
