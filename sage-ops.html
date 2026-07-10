@@ -4222,6 +4222,56 @@ function itemOwnerName(item) {
   return oj ? (f(oj, F.job_name) || '') : '';
 }
 
+// Render one equipment unit card (shared by the flat per-location list and the by-customer grouped view).
+function equipCardHtml(item, showLoc) {
+  const iid = item.id;
+  const model = f(item, F.item_model) || 'Unnamed unit';
+  const description = f(item, F.item_description) || '';
+  const qty = Number(f(item, F.item_qty)) || 1;
+  const typeTag = f(item, F.item_type) || '';
+  const status = f(item, F.item_status) || '';
+  const statusLower = status.toLowerCase();
+  const ownerName = itemOwnerName(item);
+  const ownerIsFakeStock = (ownerName || '').trim().toLowerCase() === 'stock';
+  const effectiveStatus = ownerIsFakeStock ? 'stock' : statusLower;
+  let statusBadge = '';
+  if (effectiveStatus === 'stock') {
+    statusBadge = `<span style="font-size:11px;padding:3px 9px;border-radius:99px;background:var(--accent-light);color:var(--accent-text);font-weight:600;">Stock</span>`;
+  } else if (effectiveStatus === 'allocated') {
+    statusBadge = `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
+      <span style="font-size:13px;font-weight:600;color:var(--text);">${escapeHtml(ownerName || 'Allocated')}</span>
+      ${ownerName ? '<span style="font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.04em;font-weight:500;">Allocated</span>' : ''}
+    </div>`;
+  } else if (effectiveStatus === 'loaded') {
+    statusBadge = `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
+      <span style="font-size:13px;font-weight:600;color:var(--warn);">${escapeHtml(ownerName || 'Loaded')}</span>
+      <span style="font-size:10px;color:var(--warn);text-transform:uppercase;letter-spacing:0.04em;font-weight:600;">Loaded</span>
+    </div>`;
+  } else if (status) {
+    statusBadge = `<span style="font-size:11px;padding:3px 9px;border-radius:99px;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);">${escapeHtml(status)}</span>`;
+  }
+  const itemLoc = showLoc ? (f(item, F.item_location) || '') : '';
+  const metaBits = [];
+  if (typeTag) metaBits.push(escapeHtml(typeTag));
+  if (itemLoc) metaBits.push(`<span style="font-weight:600;">${escapeHtml(itemLoc)}</span>`);
+  const metaHtml = metaBits.length ? `<div class="inv-meta">${metaBits.join(' · ')}</div>` : '';
+  const qtyBadge = `<span style="display:inline-block;font-size:12px;font-weight:600;color:var(--text-muted);background:var(--bg);border:1px solid var(--border);border-radius:99px;padding:2px 9px;margin-left:8px;vertical-align:middle;">× ${qty}</span>`;
+  const descHtml = description ? `<div style="font-size:13px;color:var(--text-muted);margin-top:2px;">${escapeHtml(description)}</div>` : '';
+  return `<div class="inv-card" style="padding:12px 14px;cursor:pointer;" onclick="openEquipEdit('${iid}')">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <div style="min-width:0;flex:1;">
+        <div class="inv-name">${escapeHtml(model)}${qtyBadge}</div>
+        ${descHtml}
+        ${metaHtml}
+      </div>
+      <div style="flex-shrink:0;display:flex;align-items:center;gap:8px;">
+        ${statusBadge}
+        <button class="sku-edit-btn small" onclick="event.stopPropagation();openEquipXfer('${iid}')" title="Transfer between locations">⇄</button>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderInventory() {  const body = document.getElementById('inventory-body');
   if (!body) return;
   const searchEl = document.getElementById('inv-search');
@@ -4401,76 +4451,26 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
       }
       equipHtml += `<div class="inv-summary" style="margin-top:4px;">${headerLabel} · ${escapeHtml(summaryText)}</div>`;
     }
-    tabItems.forEach(item => {
-      const iid = item.id;
-      const model = f(item, F.item_model) || 'Unnamed unit';
-      const description = f(item, F.item_description) || '';
-      const qty = Number(f(item, F.item_qty)) || 1;
-      const typeTag = f(item, F.item_type) || '';
-      const status = f(item, F.item_status) || '';
-      const statusLower = status.toLowerCase();
-      const owners = f(item, F.item_owner);
-      let ownerName = '';
-      if (Array.isArray(owners) && owners.length) {
-        const first = owners[0];
-        if (typeof first === 'object' && first.name) {
-          ownerName = first.name;
-        } else {
-          // Owner came back as a bare record ID — look up the Job in the local cache
-          const ownerId = (typeof first === 'string') ? first : (first && first.id);
-          if (ownerId) {
-            const ownerJob = jobs.find(j => j.id === ownerId);
-            if (ownerJob) ownerName = f(ownerJob, F.job_name) || '';
-          }
-        }
-      }
-      // Detect "fake Stock job" workaround — owner literally named "Stock" means
-      // the unit was added as inventory but got mis-tagged as Allocated. Treat as Stock.
-      const ownerIsFakeStock = (ownerName || '').trim().toLowerCase() === 'stock';
-      const effectiveStatus = ownerIsFakeStock ? 'stock' : statusLower;
-      let statusBadge = '';
-      if (effectiveStatus === 'stock') {
-        statusBadge = `<span style="font-size:11px;padding:3px 9px;border-radius:99px;background:var(--accent-light);color:var(--accent-text);font-weight:600;">Stock</span>`;
-      } else if (effectiveStatus === 'allocated') {
-        // Show customer name as the primary identifier, "Allocated" as small label below
-        statusBadge = `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
-          <span style="font-size:13px;font-weight:600;color:var(--text);">${escapeHtml(ownerName || 'Allocated')}</span>
-          ${ownerName ? '<span style="font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.04em;font-weight:500;">Allocated</span>' : ''}
-        </div>`;
-      } else if (effectiveStatus === 'loaded') {
-        statusBadge = `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
-          <span style="font-size:13px;font-weight:600;color:var(--warn);">${escapeHtml(ownerName || 'Loaded')}</span>
-          <span style="font-size:10px;color:var(--warn);text-transform:uppercase;letter-spacing:0.04em;font-weight:600;">Loaded</span>
-        </div>`;
-      } else if (status) {
-        statusBadge = `<span style="font-size:11px;padding:3px 9px;border-radius:99px;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);">${escapeHtml(status)}</span>`;
-      }
-      // On the "All" tab the user doesn't know where this unit lives — show the location
-      // alongside the type tag so search results are actionable.
-      const itemLoc = onAllTab ? (f(item, F.item_location) || '') : '';
-      const metaBits = [];
-      if (typeTag) metaBits.push(escapeHtml(typeTag));
-      if (itemLoc) metaBits.push(`<span style="font-weight:600;">${escapeHtml(itemLoc)}</span>`);
-      const metaHtml = metaBits.length ? `<div class="inv-meta">${metaBits.join(' · ')}</div>` : '';
-      // Quantity badge — show a count pill next to the model name so stocks of multiples are visible at a glance.
-      // Always render it (even for qty=1) so single units don't look ambiguous.
-      const qtyBadge = `<span style="display:inline-block;font-size:12px;font-weight:600;color:var(--text-muted);background:var(--bg);border:1px solid var(--border);border-radius:99px;padding:2px 9px;margin-left:8px;vertical-align:middle;">× ${qty}</span>`;
-      // Description sits between the model and the type/location meta — slightly larger and darker than meta
-      // so it reads as a real second line, not a footnote.
-      const descHtml = description ? `<div style="font-size:13px;color:var(--text-muted);margin-top:2px;">${escapeHtml(description)}</div>` : '';
-      equipHtml += `<div class="inv-card" style="padding:12px 14px;cursor:pointer;" onclick="openEquipEdit('${iid}')">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
-          <div style="min-width:0;flex:1;">
-            <div class="inv-name">${escapeHtml(model)}${qtyBadge}</div>
-            ${descHtml}
-            ${metaHtml}
-          </div>
-          <div style="flex-shrink:0;display:flex;align-items:center;gap:8px;">
-            ${statusBadge}
-            <button class="sku-edit-btn small" onclick="event.stopPropagation();openEquipXfer('${iid}')" title="Transfer between locations">⇄</button>
-          </div>
-        </div>
-      </div>`;
+    tabItems.forEach(item => { equipHtml += equipCardHtml(item, onAllTab); });
+  }
+
+  // ── BY-CUSTOMER GROUPED EQUIPMENT — All tab, no search: every unit under its job header, Stock last ──
+  if (onAllTab && !search) {
+    let ge = items.filter(it => { const sk = f(it, F.item_sku); return !Array.isArray(sk) || sk.length === 0; });
+    if (currentInvType !== 'all') ge = ge.filter(it => (f(it, F.item_type) || '').trim() === currentInvType);
+    const groups = {};
+    ge.forEach(it => {
+      let nm = (itemOwnerName(it) || '').trim();
+      if (!nm || nm.toLowerCase() === 'stock') nm = 'Stock';
+      (groups[nm] = groups[nm] || []).push(it);
+    });
+    const names = Object.keys(groups).filter(n => n !== 'Stock').sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+    if (groups['Stock']) names.push('Stock');
+    names.forEach(nm => {
+      const list = groups[nm].slice().sort((a, b) => (f(a, F.item_model) || '').localeCompare(f(b, F.item_model) || ''));
+      const qtySum = list.reduce((a, it) => a + (Number(f(it, F.item_qty)) || 1), 0);
+      equipHtml += `<div class="detail-section-title" style="margin-top:16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;"><span>${escapeHtml(nm)}</span><span style="color:var(--text-faint);font-weight:500;">${qtySum} unit${qtySum !== 1 ? 's' : ''}</span></div>`;
+      list.forEach(it => { equipHtml += equipCardHtml(it, true); });
     });
   }
 
