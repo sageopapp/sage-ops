@@ -4304,7 +4304,9 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
   // Doing it here (instead of inside the equipment section below) lets us share the result
   // with the chip count computation so chip totals reflect what's actually visible.
   const onAllTab = (currentInvLocation === 'all');
-  const showEquipment = !onAllTab || (onAllTab && search);
+  // Flat per-location equipment shows on the physical-location tabs, but NOT on "All"
+  // (consumables only there) and NOT on the Unit Tent tab (which uses the by-customer grouped view).
+  const showEquipment = !onAllTab && currentInvLocation !== 'On-hand (Unit Tent)';
   const tabLocLabel = onAllTab ? '' : ((LOCATIONS.find(l => l.field === currentInvLocation) || {}).label || '');
   let inScopeItems = [];
   if (showEquipment) {
@@ -4454,10 +4456,15 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     tabItems.forEach(item => { equipHtml += equipCardHtml(item, onAllTab); });
   }
 
-  // ── BY-CUSTOMER GROUPED EQUIPMENT — All tab, no search: every unit under its job header, Stock last ──
-  if (onAllTab && !search) {
+  // ── BY-CUSTOMER GROUPED EQUIPMENT — the Unit Tent tab: every unit under its job header, Stock last ──
+  if (currentInvLocation === 'On-hand (Unit Tent)') {
     let ge = items.filter(it => { const sk = f(it, F.item_sku); return !Array.isArray(sk) || sk.length === 0; });
     if (currentInvType !== 'all') ge = ge.filter(it => (f(it, F.item_type) || '').trim() === currentInvType);
+    if (search) ge = ge.filter(it => {
+      const m=(f(it,F.item_model)||'').toLowerCase(), d=(f(it,F.item_description)||'').toLowerCase(), t=(f(it,F.item_type)||'').toLowerCase();
+      let onm=(itemOwnerName(it)||'').toLowerCase(); if(!onm) onm='stock';
+      return m.includes(search)||d.includes(search)||t.includes(search)||onm.includes(search);
+    });
     const groups = {};
     ge.forEach(it => {
       let nm = (itemOwnerName(it) || '').trim();
