@@ -2569,7 +2569,10 @@ function renderDetailBody(jobId) {
     </div>
 
     <div class="detail-section">
-      <div class="detail-section-title">Equipment (${equipment.length} items)</div>
+      <div class="detail-section-title" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Equipment (${equipment.length} items)</span>
+        <button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:4px 10px;" onclick="openAddItemPicker('${jobId}')">+ Add unit</button>
+      </div>
       ${equipment.length ? equipment.map(i=>`<div class="mat-row"><div class="mat-info"><div class="mat-name">${f(i,F.item_model)||'Unknown'}</div><div class="mat-qty">${f(i,F.item_type)||''} · ${f(i,F.item_status)||''}</div></div><button class="mat-del" onclick="openRemoveEquipModal('${i.id}')" title="Remove from job" style="font-size:11px;width:auto;padding:0 8px;border-radius:var(--radius-sm);">Remove</button></div>`).join('') : `<div style="font-size:13px;color:var(--text-faint);padding:8px 0;">No equipment linked</div>`}
     </div>
 
@@ -3011,7 +3014,9 @@ function closeDayJobsModal() {
 }
 
 // ── ADD ITEM PICKER (routes to Add Unit or Add SKU) ──
-function openAddItemPicker() {
+let addUnitPresetJob = null;
+function openAddItemPicker(jobId) {
+  addUnitPresetJob = jobId || null;
   document.getElementById('add-item-picker-modal').classList.add('open');
 }
 function closeAddItemPicker() {
@@ -3046,6 +3051,13 @@ function openAddUnitModal() {
   sel.innerHTML = '<option value="">— None (Stock) —</option>' +
     customerOptions.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('') +
     '<option value="__new__">+ New customer...</option>';
+  // If opened from a job's detail, pre-select that customer as the owner
+  if (addUnitPresetJob) {
+    const pj = jobs.find(j=>j.id===addUnitPresetJob);
+    const pname = pj ? f(pj, F.job_name) : '';
+    const match = customerOptions.find(c => c.name === pname);
+    if (match) sel.value = match.id;
+  }
   document.getElementById('au-customer-new').value = '';
   document.getElementById('au-customer-new').style.display = 'none';
   document.getElementById('au-model').value = '';
@@ -3413,6 +3425,22 @@ async function saveNewJob() {
     if (sd && ed && ed < sd) { njShowError('End date cannot be before start date.'); return; }
   }
   if (endDate && !startDate) { njShowError('Please set a start date before adding an end date.'); return; }
+
+  // Guard: if this customer already has a job, offer to open it instead of creating a duplicate.
+  const dupAcct = accounts.find(a => (f(a,'Customer display name')||'').trim().toLowerCase() === name.trim().toLowerCase());
+  const dupJob = jobs.find(j => {
+    const cust = f(j, F.job_customer);
+    if (dupAcct && Array.isArray(cust) && cust.some(c => (typeof c === 'string' ? c : c.id) === dupAcct.id)) return true;
+    return (f(j, F.job_name) || '').trim().toLowerCase() === name.trim().toLowerCase();
+  });
+  if (dupJob) {
+    const openExisting = confirm(`"${name}" already has a job.\n\nOK = open that existing job (recommended — set its date and add equipment there).\nCancel = create a second job anyway.`);
+    if (openExisting) {
+      closeNewJobModal();
+      openDetail(dupJob.id);
+      return;
+    }
+  }
 
   const fields = { 'Job label': name, 'Status': 'Active' };
   if (contact) fields['Primary contact name'] = contact;
