@@ -3202,10 +3202,25 @@ function openAddUnitModal() {
     const st = (f(it, F.item_status) || '').toLowerCase();
     return !hasOwner && (st === 'stock' || st === '');
   }).sort((a, b) => (f(a, F.item_model) || '').localeCompare(f(b, F.item_model) || ''));
-  auStockSel.innerHTML = '<option value="">— Select a stock unit —</option>' + auStockUnits.map(it => {
-    const loc = f(it, F.item_location) || '';
-    return `<option value="${it.id}">${escapeHtml(f(it, F.item_model) || 'Unit')}${loc ? ' — ' + escapeHtml(loc) : ''}</option>`;
-  }).join('');
+  // Group the stock units by location so you can find "the OU in the Unit Tent" quickly
+  const auByLoc = {};
+  auStockUnits.forEach(it => { const loc = f(it, F.item_location) || 'No location'; (auByLoc[loc] = auByLoc[loc] || []).push(it); });
+  const auLocOrder = ['Unit Tent','Barn','Shop','Lumber Rack','Susie','Ducting Tent','Rig','No location'];
+  const auLocs = Object.keys(auByLoc).sort((a,b) => { const ia = auLocOrder.indexOf(a), ib = auLocOrder.indexOf(b); return (ia<0?99:ia) - (ib<0?99:ib) || a.localeCompare(b); });
+  let auOpts = '<option value="">— Select a stock unit —</option>';
+  auLocs.forEach(loc => {
+    auOpts += `<optgroup label="${escapeHtml(loc)}">`;
+    auByLoc[loc].sort((a,b) => (f(a,F.item_model)||'').localeCompare(f(b,F.item_model)||''));
+    auByLoc[loc].forEach(it => {
+      const model = f(it,F.item_model) || 'Unit';
+      const desc = f(it,F.item_description) || '';
+      const q = Number(f(it,F.item_qty)) || 1;
+      const label = `${model}${desc ? ' — ' + desc : ''}${q>1 ? '  (×'+q+')' : ''}`;
+      auOpts += `<option value="${it.id}">${escapeHtml(label)}</option>`;
+    });
+    auOpts += '</optgroup>';
+  });
+  auStockSel.innerHTML = auOpts;
   setAuMode('new');
   document.getElementById('au-error').style.display = 'none';
   document.getElementById('add-unit-modal').classList.add('open');
