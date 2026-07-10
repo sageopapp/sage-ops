@@ -1293,6 +1293,7 @@ const F = {
   job_phone: 'Primary contact phone', job_email: 'Primary contact email', job_address: 'Address',
   job_contact: 'Primary contact name', job_island: 'Island', job_sched_status: 'Schedule status',
   job_customer: 'Customer', job_property: 'Property', job_unit: 'Unit',
+  job_comms_log: 'Client comms log',
   item_model: 'Model number', item_description: 'Description', item_type: 'Type tag', item_qty: 'Quantity',
   item_status: 'Status', item_location: 'Physical location',
   item_loaded: 'Loaded?', item_owner: 'Owner', item_visit: 'Visit consumed at',
@@ -2320,6 +2321,7 @@ function renderDetailBody(jobId) {
   const nextDate=f(job,F.job_next_date), nextType=f(job,F.job_next_type)||'', scheduled=f(job,F.job_scheduled)||'';
   const endDate=f(job,F.job_end_date)||'';
   const readiness=f(job,F.job_readiness)||'', comments=f(job,F.job_comments)||'';
+  const commsLog=f(job,F.job_comms_log)||'';
   const detailNotes=f(job,F.job_detail_notes)||'';
   const phone=f(job,F.job_phone)||'', email=f(job,F.job_email)||'', address=f(job,F.job_address)||'';
   const contact=f(job,F.job_contact)||'';
