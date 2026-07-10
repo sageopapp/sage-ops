@@ -875,7 +875,7 @@
       </div>
       <div style="display:flex;gap:10px;">
         <div style="flex:1;" id="au-f-qty">
-          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Quantity</label>
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Quantity <span id="au-stock-avail" style="font-weight:400;color:var(--text-faint);"></span></label>
           <input type="number" id="au-qty" value="1" min="1" step="1" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
         </div>
         <div style="flex:2;">
@@ -3253,12 +3253,23 @@ function setAuMode(mode) {
   document.getElementById('au-mode-new').classList.toggle('active', !stock);
   document.getElementById('au-mode-stock').classList.toggle('active', stock);
   document.getElementById('au-stock-block').style.display = stock ? '' : 'none';
-  ['au-f-model','au-f-desc','au-f-qty','au-f-type'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = stock ? 'none' : ''; });
-  if (stock) onAuStockChange();
+  // Keep Quantity visible in both modes (in stock mode it means "how many to allocate"); hide only the new-unit fields
+  ['au-f-model','au-f-desc','au-f-type'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = stock ? 'none' : ''; });
+  if (stock) { onAuStockChange(); }
+  else { document.getElementById('au-stock-avail').textContent = ''; const q = document.getElementById('au-qty'); q.removeAttribute('max'); q.value = '1'; }
 }
 function onAuStockChange() {
   const it = items.find(x => x.id === document.getElementById('au-stock').value);
-  if (it) { const loc = f(it, F.item_location); if (loc) document.getElementById('au-location').value = loc; }
+  const availEl = document.getElementById('au-stock-avail');
+  const qtyEl = document.getElementById('au-qty');
+  if (it) {
+    const loc = f(it, F.item_location); if (loc) document.getElementById('au-location').value = loc;
+    const avail = Number(f(it, F.item_qty)) || 1;
+    availEl.textContent = `(${avail} in stock)`;
+    qtyEl.max = avail; qtyEl.value = avail;
+  } else {
+    availEl.textContent = ''; qtyEl.removeAttribute('max'); qtyEl.value = '1';
+  }
 }
 
 async function saveAddUnit() {
@@ -3295,13 +3306,27 @@ async function saveAddUnit() {
       customerId = newJob.id;
     }
 
-    // From-stock mode: allocate an existing stock unit (reassign owner/location) instead of creating a record
+    // From-stock mode: allocate an existing stock unit. Allocating fewer than are in stock splits the record.
     if (auMode === 'stock') {
       const owner = customerId ? [customerId] : [];
       const newStatus = customerId ? 'Allocated' : 'Stock';
-      await patchRecord(ITEMS_TBL, auStockId, { 'Status': newStatus, 'Physical location': location, 'Owner': owner });
-      const it = items.find(x => x.id === auStockId);
-      if (it) { it.fields['Status'] = newStatus; it.fields['Physical location'] = location; it.fields['Owner'] = owner; }
+      const stockItem = items.find(x => x.id === auStockId);
+      const avail = Number(stockItem ? f(stockItem, F.item_qty) : 1) || 1;
+      const allocQty = Math.max(1, Math.min(qty, avail));
+      if (allocQty >= avail) {
+        // Take the whole record onto the job
+        await patchRecord(ITEMS_TBL, auStockId, { 'Status': newStatus, 'Physical location': location, 'Owner': owner });
+        if (stockItem) { stockItem.fields['Status'] = newStatus; stockItem.fields['Physical location'] = location; stockItem.fields['Owner'] = owner; }
+      } else {
+        // Split: reduce the stock record, create a new record for the portion taken
+        await patchRecord(ITEMS_TBL, auStockId, { 'Quantity': avail - allocQty });
+        if (stockItem) stockItem.fields['Quantity'] = avail - allocQty;
+        const nf = { 'Model number': (stockItem ? f(stockItem, F.item_model) : '') || '', 'Quantity': allocQty, 'Status': newStatus, 'Physical location': location, 'Owner': owner };
+        const desc = stockItem ? f(stockItem, F.item_description) : ''; if (desc) nf['Description'] = desc;
+        const tt = stockItem ? f(stockItem, F.item_type) : ''; if (tt) nf['Type tag'] = tt;
+        const created = await createRecord(ITEMS_TBL, nf);
+        items.push(created);
+      }
       closeAddUnitModal();
       if (tentVerifyState) beginTentVerify();
       renderJobs();
