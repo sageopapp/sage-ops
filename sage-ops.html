@@ -1294,7 +1294,7 @@ const F = {
   job_phone: 'Primary contact phone', job_email: 'Primary contact email', job_address: 'Address',
   job_contact: 'Primary contact name', job_island: 'Island', job_sched_status: 'Schedule status',
   job_customer: 'Customer', job_property: 'Property', job_unit: 'Unit',
-  job_comms_log: 'Client comms log',
+  job_comms_log: 'Client comms log', job_siu: 'SIU?',
   visit_label:'Visit', visit_date:'Date', visit_end:'End date', visit_phase:'Phase', visit_job:'Job', visit_notes:'Notes', visit_complete:'Complete', visit_sched:'Schedule status',
   item_model: 'Model number', item_description: 'Description', item_type: 'Type tag', item_qty: 'Quantity',
   item_status: 'Status', item_location: 'Physical location',
@@ -2350,6 +2350,7 @@ function renderDetailBody(jobId) {
   const endDate=f(job,F.job_end_date)||'';
   const readiness=f(job,F.job_readiness)||'', comments=f(job,F.job_comments)||'';
   const commsLog=f(job,F.job_comms_log)||'';
+  const siu=f(job,F.job_siu)===true;
   const detailNotes=f(job,F.job_detail_notes)||'';
   const phone=f(job,F.job_phone)||'', email=f(job,F.job_email)||'', address=f(job,F.job_address)||'';
   const contact=f(job,F.job_contact)||'';
@@ -2506,6 +2507,15 @@ function renderDetailBody(jobId) {
             <option value="Penciled"${schedStatus==='Penciled'?' selected':''}>Penciled</option>
             <option value="Firm"${schedStatus==='Firm'?' selected':''}>Firm</option>
           </select>
+        </span>
+      </div>
+      <div class="detail-field" style="align-items:center;">
+        <span class="detail-field-label">OPALCO SIU</span>
+        <span class="detail-field-val">
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+            <input type="checkbox" ${siu?'checked':''} onchange="updateJobField('${jobId}','SIU?',this.checked)" style="width:15px;height:15px;cursor:pointer;" />
+            <span style="${siu?'color:var(--accent-text);font-weight:600;':'color:var(--text-faint);'}">${siu?'Switch It Up — enrolled':'Not enrolled'}</span>
+          </label>
         </span>
       </div>
     </div>
