@@ -857,16 +857,24 @@
         </select>
         <input type="text" id="au-customer-new" placeholder="New customer name" style="display:none;width:100%;margin-top:6px;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
       </div>
-      <div>
+      <div style="display:flex;gap:8px;">
+        <button type="button" id="au-mode-new" class="loc-tab active" onclick="setAuMode('new')" style="flex:1;">New unit</button>
+        <button type="button" id="au-mode-stock" class="loc-tab" onclick="setAuMode('stock')" style="flex:1;">From stock</button>
+      </div>
+      <div id="au-stock-block" style="display:none;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Stock unit *</label>
+        <select id="au-stock" onchange="onAuStockChange()" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);"></select>
+      </div>
+      <div id="au-f-model">
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Model number *</label>
         <input type="text" id="au-model" placeholder="e.g. MUZ-FH12NA" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
       </div>
-      <div>
+      <div id="au-f-desc">
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Item description <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
         <input type="text" id="au-description" placeholder="e.g. Mitsubishi 18K outdoor heat pump" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
       </div>
       <div style="display:flex;gap:10px;">
-        <div style="flex:1;">
+        <div style="flex:1;" id="au-f-qty">
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Quantity</label>
           <input type="number" id="au-qty" value="1" min="1" step="1" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
         </div>
@@ -882,7 +890,7 @@
           </select>
         </div>
       </div>
-      <div>
+      <div id="au-f-type">
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Type tag <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
         <select id="au-type-tag" onchange="onAuTypeTagChange()" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
           <option value="">— Select —</option>
@@ -3186,6 +3194,19 @@ function openAddUnitModal() {
     '<option value="__new__">+ New type tag...</option>';
   document.getElementById('au-type-tag-new').value = '';
   document.getElementById('au-type-tag-new').style.display = 'none';
+  // Populate the stock-unit picker (unallocated equipment) and reset to New-unit mode
+  const auStockSel = document.getElementById('au-stock');
+  const auStockUnits = items.filter(it => {
+    const sk = f(it, F.item_sku); if (Array.isArray(sk) && sk.length) return false; // exclude consumables
+    const own = f(it, F.item_owner); const hasOwner = Array.isArray(own) && own.length;
+    const st = (f(it, F.item_status) || '').toLowerCase();
+    return !hasOwner && (st === 'stock' || st === '');
+  }).sort((a, b) => (f(a, F.item_model) || '').localeCompare(f(b, F.item_model) || ''));
+  auStockSel.innerHTML = '<option value="">— Select a stock unit —</option>' + auStockUnits.map(it => {
+    const loc = f(it, F.item_location) || '';
+    return `<option value="${it.id}">${escapeHtml(f(it, F.item_model) || 'Unit')}${loc ? ' — ' + escapeHtml(loc) : ''}</option>`;
+  }).join('');
+  setAuMode('new');
   document.getElementById('au-error').style.display = 'none';
   document.getElementById('add-unit-modal').classList.add('open');
   setTimeout(()=>document.getElementById('au-model').focus(), 50);
@@ -3225,6 +3246,21 @@ function auShowError(msg) {
   el.style.display = 'block';
 }
 
+let auMode = 'new';
+function setAuMode(mode) {
+  auMode = mode;
+  const stock = mode === 'stock';
+  document.getElementById('au-mode-new').classList.toggle('active', !stock);
+  document.getElementById('au-mode-stock').classList.toggle('active', stock);
+  document.getElementById('au-stock-block').style.display = stock ? '' : 'none';
+  ['au-f-model','au-f-desc','au-f-qty','au-f-type'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = stock ? 'none' : ''; });
+  if (stock) onAuStockChange();
+}
+function onAuStockChange() {
+  const it = items.find(x => x.id === document.getElementById('au-stock').value);
+  if (it) { const loc = f(it, F.item_location); if (loc) document.getElementById('au-location').value = loc; }
+}
+
 async function saveAddUnit() {
   const sel = document.getElementById('au-customer');
   let customerId = sel.value;
@@ -3236,11 +3272,16 @@ async function saveAddUnit() {
   const typeTagSelVal = document.getElementById('au-type-tag').value;
   const typeTagNewVal = document.getElementById('au-type-tag-new').value.trim();
   const typeTag = (typeTagSelVal === '__new__') ? typeTagNewVal : typeTagSelVal;
+  const auStockId = document.getElementById('au-stock').value;
 
   // Validation
   // customerId === '' is allowed — that means add as Stock (no owner)
   if (customerId === '__new__' && !newCustName) { auShowError('Please type the new customer name.'); return; }
-  if (!model) { auShowError('Please enter a model number.'); return; }
+  if (auMode === 'stock') {
+    if (!auStockId) { auShowError('Please pick a stock unit.'); return; }
+  } else {
+    if (!model) { auShowError('Please enter a model number.'); return; }
+  }
   if (!location) { auShowError('Please pick a location.'); return; }
 
   try {
@@ -3252,6 +3293,22 @@ async function saveAddUnit() {
       });
       jobs.push(newJob);
       customerId = newJob.id;
+    }
+
+    // From-stock mode: allocate an existing stock unit (reassign owner/location) instead of creating a record
+    if (auMode === 'stock') {
+      const owner = customerId ? [customerId] : [];
+      const newStatus = customerId ? 'Allocated' : 'Stock';
+      await patchRecord(ITEMS_TBL, auStockId, { 'Status': newStatus, 'Physical location': location, 'Owner': owner });
+      const it = items.find(x => x.id === auStockId);
+      if (it) { it.fields['Status'] = newStatus; it.fields['Physical location'] = location; it.fields['Owner'] = owner; }
+      closeAddUnitModal();
+      if (tentVerifyState) beginTentVerify();
+      renderJobs();
+      renderInventory();
+      if (currentJobId) renderDetailBody(currentJobId);
+      renderLoadList();
+      return;
     }
 
     // Build Item fields. Stock = no owner, status Stock. Allocated = owner + status Allocated.
