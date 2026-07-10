@@ -1282,6 +1282,7 @@ const VENDORS_TBL = 'tblPI5nJ8s8T7qM7j';
 const ACCOUNTS_TBL = 'tblfJNtq425aFBkGU';
 const PROPERTIES_TBL = 'tblqcXsAEtmT19OYK';
 const UNITS_TBL = 'tblT4U3YI7YBnycwO';
+const VISITS_TBL = 'tblBuenCnGta2Tzp7';
 
 const F = {
   job_name: 'Job label', job_type: 'Job type', job_status: 'Status',
@@ -1294,6 +1295,7 @@ const F = {
   job_contact: 'Primary contact name', job_island: 'Island', job_sched_status: 'Schedule status',
   job_customer: 'Customer', job_property: 'Property', job_unit: 'Unit',
   job_comms_log: 'Client comms log',
+  visit_label:'Visit', visit_date:'Date', visit_end:'End date', visit_phase:'Phase', visit_job:'Job', visit_notes:'Notes', visit_complete:'Complete', visit_sched:'Schedule status',
   item_model: 'Model number', item_description: 'Description', item_type: 'Type tag', item_qty: 'Quantity',
   item_status: 'Status', item_location: 'Physical location',
   item_loaded: 'Loaded?', item_owner: 'Owner', item_visit: 'Visit consumed at',
@@ -1309,7 +1311,7 @@ const F = {
   order_received_date: 'Received date', order_received_location: 'Received location', order_received_qty: 'Received quantity',
 };
 
-let apiKey = '', jobs = [], items = [], skus = [], orders = [], vendors = [], accounts = [], properties = [], units = [];
+let apiKey = '', jobs = [], items = [], skus = [], orders = [], vendors = [], accounts = [], properties = [], units = [], visits = [];
 let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
 let checkedLocally = {};
 let currentJobId = null, completeJobId = null;
@@ -1404,7 +1406,7 @@ async function syncData() {
   btn.classList.add('spinning');
   showError('');
   try {
-    [jobs, items, skus, orders, vendors, accounts, properties, units] = await Promise.all([fetchAll(JOBS_TBL), fetchAll(ITEMS_TBL), fetchAll(SKUS_TBL), fetchAll(ORDERS_TBL), fetchAll(VENDORS_TBL), fetchAll(ACCOUNTS_TBL), fetchAll(PROPERTIES_TBL), fetchAll(UNITS_TBL)]);
+    [jobs, items, skus, orders, vendors, accounts, properties, units, visits] = await Promise.all([fetchAll(JOBS_TBL), fetchAll(ITEMS_TBL), fetchAll(SKUS_TBL), fetchAll(ORDERS_TBL), fetchAll(VENDORS_TBL), fetchAll(ACCOUNTS_TBL), fetchAll(PROPERTIES_TBL), fetchAll(UNITS_TBL), fetchAll(VISITS_TBL)]);
     // Denormalize: pull address/island from each job's linked Property into the job record
     const propById = {};
     properties.forEach(p => { propById[p.id] = p; });
@@ -1511,11 +1513,12 @@ function onCalEventClick(e) {
 function onCalDragStart(e) {
   const el = e.currentTarget;
   const jobId = el.dataset.jobId;
+  const visitId = el.dataset.visitId;
   const fromDate = el.dataset.fromDate;
-  dragState = { jobId, fromDate, moved: false };
+  dragState = { jobId, visitId, fromDate, moved: false };
   el.classList.add('dragging');
   e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setData('text/plain', jobId);
+  e.dataTransfer.setData('text/plain', visitId);
 }
 
 function onCalDragEnd(e) {
@@ -1557,7 +1560,7 @@ function onCalDrop(e) {
   const toDate = cell.dataset.date;
   if (isPast) return;
   if (toDate === dragState.fromDate) return;
-  promptMove(dragState.jobId, dragState.fromDate, toDate);
+  promptMove(dragState.visitId, dragState.fromDate, toDate);
 }
 
 function onArrowDragOver(e) {
@@ -1601,12 +1604,13 @@ function onCalTouchStart(e) {
   const startX = touch.clientX, startY = touch.clientY;
   const startTime = Date.now();
   const jobId = touchEl.dataset.jobId;
+  const visitId = touchEl.dataset.visitId;
   const fromDate = touchEl.dataset.fromDate;
   let tapCancelled = false;
   touchTimer = setTimeout(() => {
     // Activated long-press: start drag
     if (navigator.vibrate) navigator.vibrate(30);
-    dragState = { jobId, fromDate, moved: true, ghostEl: null, isTouch: true };
+    dragState = { jobId, visitId, fromDate, moved: true, ghostEl: null, isTouch: true };
     const ghost = document.createElement('div');
     ghost.className = 'cal-event-ghost';
     ghost.textContent = touchEl.textContent;
@@ -1711,7 +1715,7 @@ function onCalTouchEnd(e) {
     const cell = under.closest('.cal-cell');
     if (cell && cell.dataset.past !== '1' && cell.dataset.date !== dragState.fromDate) {
       droppedOnValidCell = true;
-      promptMove(dragState.jobId, dragState.fromDate, cell.dataset.date);
+      promptMove(dragState.visitId, dragState.fromDate, cell.dataset.date);
     }
   }
   touchEl = null;
@@ -1719,12 +1723,13 @@ function onCalTouchEnd(e) {
 }
 
 // ── MOVE CONFIRM MODAL ──
-function promptMove(jobId, fromDate, toDate) {
-  const job = jobs.find(j=>j.id===jobId);
-  if (!job) return;
-  const jobName = f(job,F.job_name) || 'Job';
-  const startDate = f(job, F.job_next_date);
-  const endDate = f(job, F.job_end_date) || startDate;
+function promptMove(visitId, fromDate, toDate) {
+  const visit = visits.find(v=>v.id===visitId);
+  if (!visit) return;
+  const job = visitJob(visit);
+  const jobName = job ? (f(job,F.job_name) || 'Job') : 'Visit';
+  const startDate = f(visit, F.visit_date);
+  const endDate = f(visit, F.visit_end) || startDate;
   const isMultiDay = endDate && endDate !== startDate;
   // Compute the delta in days between fromDate (where they grabbed) and toDate
   const fromD = parseDate(fromDate), toD = parseDate(toDate);
@@ -1745,7 +1750,7 @@ function promptMove(jobId, fromDate, toDate) {
     // Drag was to a past date for the start — should be impossible via UI, but safeguard
     return;
   }
-  pendingMove = { jobId, newStart: newStartStr, newEnd: newEndStr, jobName };
+  pendingMove = { visitId, newStart: newStartStr, newEnd: newEndStr, jobName };
   document.getElementById('move-title').textContent = `Move ${jobName}?`;
   let msg;
   if (isMultiDay) {
@@ -1764,22 +1769,22 @@ function closeMoveModal() {
 
 async function confirmMove() {
   if (!pendingMove) return;
-  const { jobId, newStart, newEnd } = pendingMove;
+  const { visitId, newStart, newEnd } = pendingMove;
   try {
-    const updates = { 'Next visit date': newStart };
-    if (newEnd) updates['End Date'] = newEnd;
-    await patchRecord(JOBS_TBL, jobId, updates);
-    const job = jobs.find(j=>j.id===jobId);
-    if (job) {
-      job.fields['Next visit date'] = newStart;
-      if (newEnd) job.fields['End Date'] = newEnd;
+    const updates = { 'Date': newStart };
+    if (newEnd) updates['End date'] = newEnd;
+    await patchRecord(VISITS_TBL, visitId, updates);
+    const visit = visits.find(v=>v.id===visitId);
+    if (visit) {
+      visit.fields['Date'] = newStart;
+      if (newEnd) visit.fields['End date'] = newEnd;
     }
     closeMoveModal();
     renderCalendar();
     renderLoadList();
     renderJobs();
   } catch(e) {
-    alert('Could not move job. Check your connection.');
+    alert('Could not move visit. Check your connection.');
     closeMoveModal();
   }
 }
@@ -1811,20 +1816,40 @@ function jobSpanDates(job) {
   return dates;
 }
 
+function visitJobId(v){ const l=f(v,F.visit_job); return (Array.isArray(l)&&l.length)?(typeof l[0]==='string'?l[0]:(l[0]&&l[0].id)):null; }
+function visitJob(v){ const id=visitJobId(v); return id?jobs.find(j=>j.id===id):null; }
+// day-span for a visit (mirrors jobSpanDates but reads visit Date/End date)
+function visitSpanDates(v){
+  const start=f(v,F.visit_date); if(!start) return [];
+  const end=f(v,F.visit_end)||start;
+  const sd=parseDate(start), ed=parseDate(end);
+  if(!sd||!ed||ed<sd) return [{date:start,isStart:true,isEnd:true}];
+  const dates=[]; const cur=new Date(sd.getTime());
+  while(cur<=ed){ const ds=ymd(cur.getFullYear(),cur.getMonth(),cur.getDate());
+    dates.push({date:ds,isStart:ds===start,isEnd:ymd(cur.getFullYear(),cur.getMonth(),cur.getDate())===ymd(ed.getFullYear(),ed.getMonth(),ed.getDate())});
+    cur.setDate(cur.getDate()+1); }
+  dates.forEach(d=>{if(!d.isStart&&!d.isEnd)d.isMid=true;});
+  return dates;
+}
+
 function renderCalendar() {
   renderIslandTabs();
   document.getElementById('cal-title').textContent = MONTHS[calMonth] + ' ' + calYear;
   document.getElementById('cal-labels').innerHTML = DAYS.map(d=>`<div class="cal-day-label">${d}</div>`).join('');
   // Build byDate map — each job appears on every date in its span, with positioning info
   const byDate = {};
-  islandFilteredJobs().forEach(j => {
-    const span = jobSpanDates(j);
+  visits.forEach(v => {
+    const job = visitJob(v);
+    if (!job) return;
+    // Island filter
+    if (currentIslandFilter !== 'all' && (f(job, F.job_island) || '') !== currentIslandFilter) return;
+    const span = visitSpanDates(v);
     span.forEach(seg => {
       if (!byDate[seg.date]) byDate[seg.date] = [];
-      byDate[seg.date].push({ job: j, isStart: seg.isStart, isEnd: seg.isEnd, isMid: seg.isMid, fromDate: f(j, F.job_next_date) });
+      byDate[seg.date].push({ visit: v, job: job, isStart: seg.isStart, isEnd: seg.isEnd, isMid: seg.isMid, fromDate: f(v, F.visit_date) });
     });
   });
-  // Sort each day's jobs deterministically: by start date (so multi-day spans
+  // Sort each day's visits deterministically: by start date (so multi-day spans
   // keep the same row across days), then alphabetically by name as tiebreaker.
   Object.keys(byDate).forEach(ds => {
     byDate[ds].sort((a, b) => {
@@ -1858,6 +1883,7 @@ function renderCalendar() {
     const dayJobs=byDate[ds]||[];
     const eventsHtml = dayJobs.slice(0,2).map(entry => {
       const j = entry.job;
+      const phase = f(entry.visit, F.visit_phase);
       // Class for span position: spans only get the .span-* class if multi-day
       let cls = '';
       if (!entry.isStart || !entry.isEnd) {
@@ -1866,14 +1892,14 @@ function renderCalendar() {
         else if (entry.isEnd) cls = ' span-end';
         else cls = ' span-mid';
       }
-      // Type color class
-      cls += ' ' + typeToClass(f(j, F.job_next_type));
-      // Penciled (or untagged) dates render dashed + faded; Firm renders solid
-      if (jobScheduleStatus(j) === 'penciled') cls += ' penciled';
+      // Type color class (by visit phase)
+      cls += ' ' + typeToClass(phase);
+      // Penciled dates render dashed + faded; Firm renders solid
+      if ((f(entry.visit, F.visit_sched) || '').toLowerCase() === 'penciled') cls += ' penciled';
       // Only show the name on the first day; mid/end show invisible text so the bar continues but stays the same height
-      const name = f(j, F.job_name) || 'Job';
+      const name = (f(j, F.job_name) || 'Job') + (phase ? ' · ' + phase : '');
       const showName = entry.isStart ? name : name; // text is there but transparent on mid/end via CSS
-      return `<div class="cal-event${cls}" data-job-id="${j.id}" data-from-date="${entry.fromDate}" draggable="true">${showName}</div>`;
+      return `<div class="cal-event${cls}" data-job-id="${j.id}" data-visit-id="${entry.visit.id}" data-from-date="${entry.fromDate}" draggable="true">${showName}</div>`;
     }).join('');
     html+=`<div class="cal-cell${isToday?' today':''}" data-date="${ds}" data-past="${isPast?'1':'0'}"><div class="cal-num">${d}</div>
       ${eventsHtml}
@@ -1896,17 +1922,19 @@ function renderCalendar() {
 function renderLoadList() {
   const days = parseInt(document.getElementById('load-window').value);
   const t = today0(); const cutoff = new Date(t); cutoff.setDate(cutoff.getDate()+days);
-  // Expand each job into (job, displayDate) pairs for each day in span that falls in window
+  // Expand each visit into (visit, displayDate) pairs for each day in span that falls in window
   const entries = [];
-  jobs.forEach(j => {
-    const status = (f(j,F.job_status)||'').toLowerCase();
+  visits.forEach(v => {
+    const job = visitJob(v);
+    if (!job) return;
+    const status = (f(job,F.job_status)||'').toLowerCase();
     if (status==='complete') return;
-    const span = jobSpanDates(j);
+    const span = visitSpanDates(v);
     span.forEach((seg, idx) => {
       const d = parseDate(seg.date); if (!d) return;
       d.setHours(0,0,0,0);
       if (d >= t && d < cutoff) {
-        entries.push({ job: j, displayDate: seg.date, totalDays: span.length, dayIdx: idx + 1 });
+        entries.push({ visit: v, job: job, displayDate: seg.date, totalDays: span.length, dayIdx: idx + 1 });
       }
     });
   });
@@ -1925,7 +1953,7 @@ function renderLoadList() {
   let html = '';
   entries.forEach(entry => {
     const job = entry.job;
-    const jid=job.id, jname=f(job,F.job_name)||'Unnamed', jtype=f(job,F.job_next_type)||'';
+    const jid=job.id, jname=f(job,F.job_name)||'Unnamed', jtype=f(entry.visit,F.visit_phase)||'';
     const detailNotes = f(job,F.job_detail_notes)||'';
     const jtypeLower=jtype.toLowerCase();
     const jobItems=(itemsByJob[jid]||[]).filter(item=>{
@@ -2456,39 +2484,6 @@ function renderDetailBody(jobId) {
         </span>
       </div>
       <div class="detail-field" style="align-items:center;">
-        <span class="detail-field-label">Start date</span>
-        <span class="detail-field-val" style="display:flex;align-items:center;gap:6px;">
-          <input type="date" value="${nextDate||''}" onchange="updateStartDate('${jobId}', this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;" />
-          ${nextDate?`<button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:3px 8px;" onclick="updateStartDate('${jobId}','')" title="Clear start date">×</button>`:''}
-        </span>
-      </div>
-      <div class="detail-field" style="align-items:center;">
-        <span class="detail-field-label">End date</span>
-        <span class="detail-field-val" style="display:flex;align-items:center;gap:6px;">
-          <input type="date" value="${endDate}" ${!nextDate?'disabled':''} onchange="updateEndDate('${jobId}', this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;" />
-          ${endDate?`<button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:3px 8px;" onclick="updateEndDate('${jobId}','')" title="Clear end date">×</button>`:''}
-        </span>
-      </div>
-      <div class="detail-field" style="align-items:center;">
-        <span class="detail-field-label">Next phase</span>
-        <span class="detail-field-val">
-          <select onchange="updateJobField('${jobId}','Next phase',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">
-            <option value=""${!nextType?' selected':''}>— None —</option>
-            <option value="Rough-In"${nextType==='Rough-In'?' selected':''}>Rough-In</option>
-            <option value="Trim-Out"${nextType==='Trim-Out'?' selected':''}>Trim-Out</option>
-            <option value="Clean"${nextType==='Clean'?' selected':''}>Clean</option>
-            <option value="Service"${nextType==='Service'?' selected':''}>Service</option>
-            <option value="Retrofit"${nextType==='Retrofit'?' selected':''}>Retrofit</option>
-            <option value="Fire-Up"${nextType==='Fire-Up'?' selected':''}>Fire-Up</option>
-            <option value="DHP Install"${nextType==='DHP Install'?' selected':''}>DHP Install</option>
-            <option value="Ducting Install"${nextType==='Ducting Install'?' selected':''}>Ducting Install</option>
-            <option value="Furnace Swap"${nextType==='Furnace Swap'?' selected':''}>Furnace Swap</option>
-            <option value="Punch-List"${nextType==='Punch-List'?' selected':''}>Punch-List</option>
-            <option value="Walk"${nextType==='Walk'?' selected':''}>Walk</option>
-          </select>
-        </span>
-      </div>
-      <div class="detail-field" style="align-items:center;">
         <span class="detail-field-label">Island</span>
         <span class="detail-field-val">
           <select onchange="updateJobProperty('${jobId}','Island',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">
@@ -2513,9 +2508,39 @@ function renderDetailBody(jobId) {
           </select>
         </span>
       </div>
-      ${!nextDate?`<div style="font-size:11px;color:var(--text-faint);padding:4px 0;font-style:italic;">Set a start date before setting end date.</div>`:''}
-      ${endDate && nextDate ? `<div style="font-size:11px;color:var(--text-muted);padding:4px 0;">${(() => { const sd=parseDate(nextDate),ed=parseDate(endDate); if (!sd||!ed) return ''; const days=Math.round((ed-sd)/86400000)+1; return days>0?`Multi-day job: ${days} day${days===1?'':'s'} (${fmtDate(nextDate)} → ${fmtDate(endDate)})`:'⚠ End date is before start date'; })()}</div>`:''}
     </div>
+
+    ${(() => {
+      const jobVisits = visits.filter(v => visitJobId(v) === jobId)
+        .sort((a,b) => (f(a,F.visit_date)||'').localeCompare(f(b,F.visit_date)||''));
+      const PHASES = ['Rough-In','Trim-Out','Clean','Service','Retrofit','Fire-Up','DHP Install','Ducting Install','Furnace Swap','Punch-List','Walk'];
+      const phaseOpts = (sel) => `<option value=""${!sel?' selected':''}>— None —</option>` +
+        PHASES.map(p=>`<option value="${p}"${sel===p?' selected':''}>${p}</option>`).join('');
+      let rows = '';
+      if (jobVisits.length) {
+        jobVisits.forEach(v => {
+          const vd = f(v,F.visit_date)||'', vend = f(v,F.visit_end)||'', vph = f(v,F.visit_phase)||'', vcomp = f(v,F.visit_complete)===true;
+          rows += `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 0;border-bottom:1px solid var(--border);">
+            <input type="date" value="${vd}" onchange="updateVisitField('${v.id}','Date',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;" />
+            <select onchange="updateVisitField('${v.id}','Phase',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">${phaseOpts(vph)}</select>
+            <input type="date" value="${vend}" title="End date (optional)" onchange="updateVisitField('${v.id}','End date',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;" />
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-muted);"><input type="checkbox" ${vcomp?'checked':''} onchange="toggleVisitComplete('${v.id}')" /> Done</label>
+            <button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:3px 8px;" onclick="deleteVisit('${v.id}')" title="Delete visit">×</button>
+          </div>`;
+        });
+      } else {
+        rows = `<div style="font-size:13px;color:var(--text-faint);padding:8px 0;">No visits scheduled yet</div>`;
+      }
+      return `<div class="detail-section">
+        <div class="detail-section-title">Visits</div>
+        ${rows}
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 0 2px;">
+          <input type="date" id="add-visit-date" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;" />
+          <select id="add-visit-phase" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">${phaseOpts('')}</select>
+          <button class="btn-sm btn-sm-accent" style="font-size:12px;padding:4px 12px;" onclick="addVisit('${jobId}')">Add visit</button>
+        </div>
+      </div>`;
+    })()}
 
     <div class="detail-section">
       <div class="detail-section-title">Contact</div>
@@ -2556,6 +2581,24 @@ function renderDetailBody(jobId) {
     <div class="detail-section">
       <div class="detail-section-title">Comments / questions (team)</div>
       ${commentsBlock}
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">Client communication log</div>
+      <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;">
+        <select id="comm-who" style="font-size:12px;padding:5px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">
+          <option value="Tony" selected>Tony</option>
+          <option value="Doug">Doug</option>
+          <option value="Brian">Brian</option>
+          <option value="Jenny">Jenny</option>
+          <option value="Than">Than</option>
+          <option value="Tyler">Tyler</option>
+          <option value="Evan">Evan</option>
+        </select>
+        <input type="text" id="comm-msg" placeholder="Log a call, email, or text with the client…" style="flex:1;font-size:13px;padding:6px 8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;" onkeydown="if(event.key==='Enter'){event.preventDefault();saveCommLog('${jobId}');}" />
+        <button class="btn-sm btn-sm-accent" style="font-size:12px;padding:6px 12px;" onclick="saveCommLog('${jobId}')">Log</button>
+      </div>
+      ${commsLog ? `<div class="detail-note-block" style="white-space:pre-wrap;font-size:13px;">${escapeHtml(commsLog)}</div>` : `<div style="font-size:13px;color:var(--text-faint);padding:4px 0;">No client communications logged yet.</div>`}
     </div>
 
     <div class="detail-section">
@@ -2925,6 +2968,30 @@ async function updateStartDate(jobId, newDate) {
   }
 }
 
+// ── CLIENT COMMUNICATION LOG — prepend a timestamped, attributed entry ──
+async function saveCommLog(jobId) {
+  const job = jobs.find(j=>j.id===jobId);
+  if (!job) return;
+  const whoEl = document.getElementById('comm-who');
+  const msgEl = document.getElementById('comm-msg');
+  const who = whoEl ? whoEl.value : '';
+  const msg = msgEl ? msgEl.value.trim() : '';
+  if (!msg) return;
+  const now = new Date();
+  const stamp = now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' · ' +
+                now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+  const entry = `${stamp} · ${who} — ${msg}`;
+  const prev = f(job, F.job_comms_log) || '';
+  const updated = entry + (prev ? '\n' + prev : '');
+  try {
+    await patchRecord(JOBS_TBL, jobId, { [F.job_comms_log]: updated });
+    job.fields[F.job_comms_log] = updated;
+    renderDetailBody(jobId);
+  } catch(e) {
+    alert('Could not save the log entry. Check your connection.');
+  }
+}
+
 // ── UPDATE A JOB'S LINKED PROPERTY (address / island live on the Property record) ──
 async function updateJobProperty(jobId, propField, newValue) {
   const job = jobs.find(j=>j.id===jobId);
@@ -2975,14 +3042,49 @@ async function updateJobField(jobId, fieldName, newValue) {
   }
 }
 
+// ── VISIT CRUD ──
+async function addVisit(jobId){
+  const job=jobs.find(j=>j.id===jobId); if(!job) return;
+  const date=document.getElementById('add-visit-date').value;
+  const phase=document.getElementById('add-visit-phase').value;
+  if(!date){ alert('Pick a date for the visit.'); return; }
+  const label=(f(job,F.job_name)||'Job')+' — '+(phase||'Visit');
+  const fields={'Date':date,'Job':[jobId],'Visit':label}; if(phase) fields['Phase']=phase;
+  try{ const nv=await createRecord(VISITS_TBL,fields); visits.push(nv);
+    renderDetailBody(jobId); renderCalendar(); renderLoadList(); }
+  catch(e){ alert('Could not add visit. Check your connection.'); }
+}
+async function updateVisitField(visitId,field,value){
+  const v=visits.find(x=>x.id===visitId); if(!v) return;
+  const val=value===''?null:value;
+  try{ await patchRecord(VISITS_TBL,visitId,{[field]:val}); v.fields[field]=val;
+    if(currentJobId) renderDetailBody(currentJobId); renderCalendar(); renderLoadList(); }
+  catch(e){ alert('Could not save. Check your connection.'); }
+}
+async function toggleVisitComplete(visitId){
+  const v=visits.find(x=>x.id===visitId); if(!v) return;
+  const nowComplete=!(f(v,F.visit_complete)===true);
+  try{ await patchRecord(VISITS_TBL,visitId,{'Complete':nowComplete}); v.fields['Complete']=nowComplete;
+    if(currentJobId) renderDetailBody(currentJobId); renderCalendar(); renderLoadList(); }
+  catch(e){ alert('Could not save. Check your connection.'); }
+}
+async function deleteVisit(visitId){
+  if(!confirm('Delete this visit?')) return;
+  try{ await deleteRecord(VISITS_TBL,visitId); visits=visits.filter(x=>x.id!==visitId);
+    if(currentJobId) renderDetailBody(currentJobId); renderCalendar(); renderLoadList(); }
+  catch(e){ alert('Could not delete. Check your connection.'); }
+}
+
 // ── DAY JOBS MODAL (shows all jobs on a given date) ──
 function showDayJobs(dateStr) {
-  // Find all jobs on this date (including multi-day jobs that span this date)
+  // Find all visits on this date (including multi-day visits that span this date)
   const matches = [];
-  jobs.forEach(j => {
-    const spans = jobSpanDates(j);
+  visits.forEach(v => {
+    const job = visitJob(v);
+    if (!job) return;
+    const spans = visitSpanDates(v);
     const hit = spans.find(s => s.date === dateStr);
-    if (hit) matches.push({ job: j, entry: hit });
+    if (hit) matches.push({ visit: v, job: job, entry: hit });
   });
   if (!matches.length) return;
   // Format title
@@ -2994,8 +3096,8 @@ function showDayJobs(dateStr) {
   listEl.innerHTML = matches.map(m => {
     const j = m.job;
     const name = escapeHtml(f(j, F.job_name) || 'Unnamed');
-    const vt = f(j, F.job_next_type) || '';
-    const spans = jobSpanDates(j);
+    const vt = f(m.visit, F.visit_phase) || '';
+    const spans = visitSpanDates(m.visit);
     const isMulti = spans.length > 1;
     const dayLabel = isMulti ? ` (day ${spans.findIndex(s => s.date === dateStr)+1} of ${spans.length})` : '';
     // Match calendar event coloring by phase
@@ -3471,6 +3573,7 @@ async function saveNewJob() {
     }
     const newJob = await createRecord(JOBS_TBL, fields);
     jobs.push(newJob);
+    if (startDate) { const vlabel=name+' — '+(visitType||'Visit'); const vf={'Date':startDate,'Job':[newJob.id],'Visit':vlabel}; if(endDate) vf['End date']=endDate; if(visitType) vf['Phase']=visitType; try{ const nv=await createRecord(VISITS_TBL, vf); visits.push(nv);}catch(e){} }
     closeNewJobModal();
     renderCalendar();
     renderLoadList();
