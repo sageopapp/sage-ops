@@ -3326,6 +3326,20 @@ function onAuStockChange() {
   }
 }
 
+// Snap a typed model number to an existing item's spelling when it's clearly the same
+// model entered differently (e.g. "Q01M3Z27NCNA" vs "QO1-M3Z27-NC-NA"). Match key is
+// uppercased, punctuation/space stripped, and letter O treated as digit 0. Only ever
+// adopts a spelling already present in inventory — it never invents a new format.
+function canonicalModel(input) {
+  const raw = (input || '').trim();
+  if (!raw) return raw;
+  const key = s => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/O/g, '0');
+  const k = key(raw);
+  if (!k) return raw;
+  const match = items.find(it => { const m = f(it, F.item_model); return m && key(m) === k; });
+  return match ? f(match, F.item_model) : raw;
+}
+
 async function saveAddUnit() {
   const sel = document.getElementById('au-customer');
   let customerId = sel.value;
@@ -3419,7 +3433,7 @@ async function saveAddUnit() {
     // Build Item fields. Stock = no owner, status Stock. Allocated = owner + status Allocated.
     const isStock = !customerId;
     const itemFields = {
-      'Model number': model,
+      'Model number': canonicalModel(model),
       'Quantity': qty,
       'Status': isStock ? 'Stock' : 'Allocated',
       'Physical location': location,
