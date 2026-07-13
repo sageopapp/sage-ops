@@ -3367,7 +3367,33 @@ async function saveAddUnit() {
       const stockItem = items.find(x => x.id === auStockId);
       const avail = Number(stockItem ? f(stockItem, F.item_qty) : 1) || 1;
       const allocQty = Math.max(1, Math.min(qty, avail));
-      if (allocQty >= avail) {
+      const stockModel = (stockItem ? f(stockItem, F.item_model) : '') || '';
+
+      // If allocating to a job that already has this same model on it, merge into that
+      // line (bump its quantity) instead of creating a second line for the same unit.
+      let mergeTarget = null;
+      if (customerId) {
+        const m = stockModel.trim().toLowerCase();
+        mergeTarget = m ? items.find(i =>
+          i.id !== auStockId &&
+          (() => { const own = f(i, F.item_owner); return Array.isArray(own) && own.some(o => (typeof o === 'string' ? o : o.id) === customerId); })() &&
+          (f(i, F.item_model) || '').trim().toLowerCase() === m &&
+          !(Array.isArray(f(i, F.item_sku)) && f(i, F.item_sku).length)
+        ) : null;
+      }
+
+      if (mergeTarget) {
+        const mergedQty = (Number(f(mergeTarget, F.item_qty)) || 0) + allocQty;
+        await patchRecord(ITEMS_TBL, mergeTarget.id, { 'Quantity': mergedQty });
+        mergeTarget.fields['Quantity'] = mergedQty;
+        if (allocQty >= avail) {
+          await deleteRecord(ITEMS_TBL, auStockId);
+          items = items.filter(i => i.id !== auStockId);
+        } else {
+          await patchRecord(ITEMS_TBL, auStockId, { 'Quantity': avail - allocQty });
+          if (stockItem) stockItem.fields['Quantity'] = avail - allocQty;
+        }
+      } else if (allocQty >= avail) {
         // Take the whole record onto the job
         await patchRecord(ITEMS_TBL, auStockId, { 'Status': newStatus, 'Physical location': location, 'Owner': owner });
         if (stockItem) { stockItem.fields['Status'] = newStatus; stockItem.fields['Physical location'] = location; stockItem.fields['Owner'] = owner; }
@@ -3375,7 +3401,7 @@ async function saveAddUnit() {
         // Split: reduce the stock record, create a new record for the portion taken
         await patchRecord(ITEMS_TBL, auStockId, { 'Quantity': avail - allocQty });
         if (stockItem) stockItem.fields['Quantity'] = avail - allocQty;
-        const nf = { 'Model number': (stockItem ? f(stockItem, F.item_model) : '') || '', 'Quantity': allocQty, 'Status': newStatus, 'Physical location': location, 'Owner': owner };
+        const nf = { 'Model number': stockModel, 'Quantity': allocQty, 'Status': newStatus, 'Physical location': location, 'Owner': owner };
         const desc = stockItem ? f(stockItem, F.item_description) : ''; if (desc) nf['Description'] = desc;
         const tt = stockItem ? f(stockItem, F.item_type) : ''; if (tt) nf['Type tag'] = tt;
         const created = await createRecord(ITEMS_TBL, nf);
