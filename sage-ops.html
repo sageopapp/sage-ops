@@ -2656,7 +2656,7 @@ function renderDetailBody(jobId) {
         <span>Equipment (${equipment.length} items)</span>
         <button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:4px 10px;" onclick="openAddItemPicker('${jobId}')">+ Add unit</button>
       </div>
-      ${equipment.length ? equipment.map(i=>`<div class="mat-row"><div class="mat-info"><div class="mat-name">${f(i,F.item_model)||'Unknown'}</div><div class="mat-qty">${f(i,F.item_type)||''} · ${f(i,F.item_status)||''}</div></div><button class="mat-del" onclick="openRemoveEquipModal('${i.id}')" title="Remove from job" style="font-size:11px;width:auto;padding:0 8px;border-radius:var(--radius-sm);">Remove</button></div>`).join('') : `<div style="font-size:13px;color:var(--text-faint);padding:8px 0;">No equipment linked</div>`}
+      ${equipment.length ? equipment.map(i=>`<div class="mat-row"><div class="mat-info"><div class="mat-name">${f(i,F.item_model)||'Unknown'}</div><div class="mat-qty">${['×'+(f(i,F.item_qty)??1), f(i,F.item_type)||'', f(i,F.item_status)||''].filter(Boolean).join(' · ')}</div></div><button class="mat-del" onclick="openRemoveEquipModal('${i.id}')" title="Remove from job" style="font-size:11px;width:auto;padding:0 8px;border-radius:var(--radius-sm);">Remove</button></div>`).join('') : `<div style="font-size:13px;color:var(--text-faint);padding:8px 0;">No equipment linked</div>`}
     </div>
 
     ${!isComplete ? `<button class="btn-complete" onclick="startComplete('${jobId}')">Mark job complete →</button>` : `
@@ -2801,23 +2801,42 @@ function reShowError(msg) {
 async function reConfirmStock() {
   if (!removeEquipId) return;
   const location = document.getElementById('re-location').value;
+  const returning = items.find(i=>i.id===removeEquipId);
   try {
-    await patchRecord(ITEMS_TBL, removeEquipId, {
-      'Owner': [],
-      'Status': 'Stock',
-      'Physical location': location,
-      'Loaded?': false
-    });
-    const item = items.find(i=>i.id===removeEquipId);
-    if (item) {
-      item.fields['Owner'] = [];
-      item.fields['Status'] = 'Stock';
-      item.fields['Physical location'] = location;
-      item.fields['Loaded?'] = false;
+    // Merge into an existing Stock unit of the same model at the same location, if one exists —
+    // otherwise this return would create a duplicate stock line.
+    const model = (f(returning,F.item_model)||'').trim().toLowerCase();
+    const retQty = Number(f(returning,F.item_qty)) || 1;
+    const existing = model && items.find(i =>
+      i.id !== removeEquipId &&
+      (f(i,F.item_status)||'').toLowerCase() === 'stock' &&
+      (f(i,F.item_location)||'') === location &&
+      (f(i,F.item_model)||'').trim().toLowerCase() === model
+    );
+    if (existing) {
+      const newQty = (Number(f(existing,F.item_qty)) || 0) + retQty;
+      await patchRecord(ITEMS_TBL, existing.id, { 'Quantity': newQty });
+      existing.fields['Quantity'] = newQty;
+      await deleteRecord(ITEMS_TBL, removeEquipId);
+      items = items.filter(i=>i.id!==removeEquipId);
+    } else {
+      await patchRecord(ITEMS_TBL, removeEquipId, {
+        'Owner': [],
+        'Status': 'Stock',
+        'Physical location': location,
+        'Loaded?': false
+      });
+      if (returning) {
+        returning.fields['Owner'] = [];
+        returning.fields['Status'] = 'Stock';
+        returning.fields['Physical location'] = location;
+        returning.fields['Loaded?'] = false;
+      }
     }
     closeRemoveEquipModal();
     renderDetailBody(currentJobId);
     renderLoadList();
+    if (typeof renderInventory === 'function') renderInventory();
   } catch(e) { reShowError('Could not return unit to stock.'); }
 }
 
@@ -2865,7 +2884,7 @@ function startComplete(jobId) {
       const unit = f(item,'Unit') || '';
       const skuLinks = f(item,F.item_sku);
       const isConsumable = Array.isArray(skuLinks) && skuLinks.length > 0;
-      const qtyText = isConsumable ? ` · qty ${qty}${unit?' '+unit:''}` : '';
+      const qtyText = isConsumable ? ` · qty ${qty}${unit?' '+unit:''}` : ` · ×${qty}`;
       html += `<div style="padding:6px 0;font-size:14px;border-bottom:1px solid var(--border);">
         <span style="font-weight:500;">${escapeHtml(model)}</span><span style="color:var(--text-muted);font-size:13px;">${qtyText}</span>
       </div>`;
