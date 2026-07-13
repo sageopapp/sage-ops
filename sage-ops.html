@@ -3336,8 +3336,19 @@ function canonicalModel(input) {
   const key = s => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/O/g, '0');
   const k = key(raw);
   if (!k) return raw;
+  // 1) If the same model already exists (ignoring case, dashes, and O vs 0), adopt that spelling.
   const match = items.find(it => { const m = f(it, F.item_model); return m && key(m) === k; });
-  return match ? f(match, F.item_model) : raw;
+  if (match) return f(match, F.item_model);
+  // 2) Otherwise uppercase it, and for a known Mitsubishi-style prefix typed without a dash,
+  //    insert the standard dash so new units read uniformly (e.g. muzfx12nl -> MUZ-FX12NL).
+  let out = raw.toUpperCase();
+  if (!out.includes('-')) {
+    const prefixes = ['PEAD','PLA','PKA','PCA','PUZ','PUY','PAC','MUZ','MUY','MSZ','MSY','MXZ','MLZ','MLP','MFZ','SEZ','SLZ','SVZ','SUZ','SLP'];
+    for (const p of prefixes) {
+      if (out.startsWith(p) && out.length > p.length && /[A-Z0-9]/.test(out.charAt(p.length))) { out = p + '-' + out.slice(p.length); break; }
+    }
+  }
+  return out;
 }
 
 async function saveAddUnit() {
