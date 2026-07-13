@@ -2260,8 +2260,28 @@ function islandFilteredJobs() {
 //  'firm'        — has a date, explicitly tagged Firm
 //  'penciled'    — has a date; tagged Penciled OR untagged (conservative default:
 //                  a date nobody confirmed is treated as tentative)
+// Next upcoming visit date for a job, read straight from the Visits table (today-or-later,
+// not complete). Falls back to the legacy job-level date only if the job has no visits.
+// This is the single source of truth for the Jobs/Firm/Penciled tabs.
+function jobNextDate(j) {
+  const t = today0();
+  let bestRaw = null, bestD = null;
+  visits.forEach(v => {
+    const vj = visitJob(v);
+    if (!vj || vj.id !== j.id) return;
+    if (f(v, F.visit_complete) === true) return;
+    const raw = f(v, F.visit_date);
+    const d = parseDate(raw);
+    if (!d) return;
+    d.setHours(0,0,0,0);
+    if (d < t) return;
+    if (!bestD || d < bestD) { bestD = d; bestRaw = raw; }
+  });
+  return bestRaw || f(j, F.job_next_date) || '';
+}
+
 function jobScheduleStatus(j) {
-  if (!f(j, F.job_next_date)) return 'unscheduled';
+  if (!jobNextDate(j)) return 'unscheduled';
   const s = (f(j, F.job_sched_status) || '').toLowerCase();
   return s === 'firm' ? 'firm' : 'penciled';
 }
@@ -2295,7 +2315,7 @@ function renderJobs() {
     <div class="stat stat-clickable${showCompleted?' stat-active':''}" onclick="toggleCompleted()"><div class="stat-label">Complete ${showCompleted?'▾':'▸'}</div><div class="stat-val">${complete.length}</div></div>`;
 
   const sorted=[...active].sort((a,b)=>{
-    const da=parseDate(f(a,F.job_next_date)),db=parseDate(f(b,F.job_next_date));
+    const da=parseDate(jobNextDate(a)),db=parseDate(jobNextDate(b));
     if (da&&db) return da-db; if (da) return -1; if (db) return 1;
     return (f(a,F.job_name)||'').localeCompare(f(b,F.job_name)||'');
   });
@@ -2305,7 +2325,7 @@ function renderJobs() {
   if (showCompleted && complete.length) {
     html += `<div class="completed-section-header" style="margin-top:0;padding-top:0;border-top:none;">Completed (${complete.length})</div>`;
     const sortedComplete = [...complete].sort((a,b)=>{
-      const da=parseDate(f(a,F.job_next_date)),db=parseDate(f(b,F.job_next_date));
+      const da=parseDate(jobNextDate(a)),db=parseDate(jobNextDate(b));
       if (da&&db) return db-da; if (da) return -1; if (db) return 1;
       return (f(a,F.job_name)||'').localeCompare(f(b,F.job_name)||'');
     });
@@ -2318,7 +2338,7 @@ function renderJobs() {
 
 function jobCardHtml(j, isComplete) {
   const name=f(j,F.job_name)||'Unnamed', status=f(j,F.job_status)||'', type=f(j,F.job_next_type)||'';
-  const nextDate=f(j,F.job_next_date), scheduled=f(j,F.job_scheduled)||'', readiness=f(j,F.job_readiness)||'';
+  const nextDate=jobNextDate(j), scheduled=f(j,F.job_scheduled)||'', readiness=f(j,F.job_readiness)||'';
   const island=f(j,F.job_island)||'';
   const sl=status.toLowerCase();
   const badgeCls=sl.includes('active')?'badge-active':sl.includes('complete')?'badge-complete':'badge-pending';
@@ -2354,7 +2374,7 @@ function closeDetail() {
 function renderDetailBody(jobId) {
   const job = jobs.find(j=>j.id===jobId); if (!job) return;
   const name=f(job,F.job_name)||'Unnamed', status=f(job,F.job_status)||'', type=f(job,F.job_type)||'';
-  const nextDate=f(job,F.job_next_date), nextType=f(job,F.job_next_type)||'', scheduled=f(job,F.job_scheduled)||'';
+  const nextDate=jobNextDate(job), nextType=f(job,F.job_next_type)||'', scheduled=f(job,F.job_scheduled)||'';
   const endDate=f(job,F.job_end_date)||'';
   const readiness=f(job,F.job_readiness)||'', comments=f(job,F.job_comments)||'';
   const commsLog=f(job,F.job_comms_log)||'';
@@ -5361,7 +5381,7 @@ function renderTentJobPicker() {
     const job = jobs.find(j=>j.id===jid);
     const jname = job ? f(job,F.job_name)||'Unknown' : 'Unknown';
     const visitType = job ? f(job,F.job_next_type)||'' : '';
-    const visitDate = job ? f(job,F.job_next_date)||'' : '';
+    const visitDate = job ? jobNextDate(job)||'' : '';
     const itemCount = jobItemsMap[jid].length;
     const done = !!completedJobs[jid];
     html += `<button class="tent-job-btn${done?' done':''}" onclick="beginTentJobVerify('${jid}')">
@@ -5397,7 +5417,7 @@ function renderTentJobVerify() {
   const job = jobs.find(j=>j.id===jobId);
   const jname = job ? f(job,F.job_name)||'Unknown' : 'Unknown';
   const visitType = job ? f(job,F.job_next_type)||'' : '';
-  const visitDate = job ? f(job,F.job_next_date)||'' : '';
+  const visitDate = job ? jobNextDate(job)||'' : '';
   const jobItems = jobItemsMap[jobId];
 
   document.getElementById('walk-title').textContent = jname;
