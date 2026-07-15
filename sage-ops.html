@@ -2357,7 +2357,7 @@ function toggleCompleted() { showCompleted = !showCompleted; renderJobs(); }
 
 // ── JOB DETAIL ──
 function openDetail(jobId) {
-  currentJobId = jobId; showAddMat = false;
+  currentJobId = jobId; showAddMat = false; editingCommIdx = null;
   const job = jobs.find(j=>j.id===jobId);
   document.getElementById('detail-title').textContent = f(job,F.job_name)||'Job';
   renderDetailBody(jobId);
@@ -2636,7 +2636,16 @@ function renderDetailBody(jobId) {
         <input type="text" id="comm-msg" placeholder="Log a call, email, or text with the client…" style="flex:1;font-size:13px;padding:6px 8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;" onkeydown="if(event.key==='Enter'){event.preventDefault();saveCommLog('${jobId}');}" />
         <button class="btn-sm btn-sm-accent" style="font-size:12px;padding:6px 12px;" onclick="saveCommLog('${jobId}')">Log</button>
       </div>
-      ${commsLog ? `<div class="detail-note-block" style="white-space:pre-wrap;font-size:13px;">${escapeHtml(commsLog)}</div>` : `<div style="font-size:13px;color:var(--text-faint);padding:4px 0;">No client communications logged yet.</div>`}
+      ${commsLog ? `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">` + commsLog.split('\n').map((line, idx) => {
+        const sepAt = line.indexOf(' — ');
+        const meta = sepAt >= 0 ? line.slice(0, sepAt) : '';
+        const msg = sepAt >= 0 ? line.slice(sepAt + 3) : line;
+        const rowStyle = `padding:7px 10px;${idx>0?'border-top:1px solid var(--border);':''}`;
+        if (idx === editingCommIdx) {
+          return `<div style="${rowStyle}display:flex;gap:6px;align-items:flex-start;"><div style="flex:1;">${meta?`<div style="font-size:11px;color:var(--text-faint);margin-bottom:3px;">${escapeHtml(meta)}</div>`:''}<input type="text" id="comm-edit-input" value="${escapeHtml(msg).replace(/"/g,'&quot;')}" style="width:100%;box-sizing:border-box;font-size:13px;padding:5px 7px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;" onkeydown="if(event.key==='Enter'){event.preventDefault();saveCommEntry('${jobId}',${idx});}" /></div><button class="btn-sm btn-sm-accent" style="font-size:11px;padding:5px 9px;" onclick="saveCommEntry('${jobId}',${idx})">Save</button><button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:5px 9px;" onclick="cancelCommEdit('${jobId}')">Cancel</button></div>`;
+        }
+        return `<div style="${rowStyle}display:flex;gap:8px;align-items:flex-start;"><div style="flex:1;">${meta?`<div style="font-size:11px;color:var(--text-faint);margin-bottom:2px;">${escapeHtml(meta)}</div>`:''}<div style="font-size:13px;white-space:pre-wrap;">${escapeHtml(msg)}</div></div><button class="btn-sm btn-sm-ghost" title="Edit entry" style="font-size:12px;padding:3px 7px;flex:none;" onclick="editCommEntry('${jobId}',${idx})">✎</button></div>`;
+      }).join('') + `</div>` : `<div style="font-size:13px;color:var(--text-faint);padding:4px 0;">No client communications logged yet.</div>`}
     </div>
 
     <div class="detail-section">
@@ -3026,6 +3035,44 @@ async function updateStartDate(jobId, newDate) {
 }
 
 // ── CLIENT COMMUNICATION LOG — prepend a timestamped, attributed entry ──
+let editingCommIdx = null;
+function editCommEntry(jobId, idx) {
+  editingCommIdx = idx;
+  renderDetailBody(jobId);
+  setTimeout(() => { const el = document.getElementById('comm-edit-input'); if (el) { el.focus(); el.select(); } }, 30);
+}
+function cancelCommEdit(jobId) {
+  editingCommIdx = null;
+  renderDetailBody(jobId);
+}
+async function saveCommEntry(jobId, idx) {
+  const job = jobs.find(j => j.id === jobId);
+  if (!job) return;
+  const el = document.getElementById('comm-edit-input');
+  if (!el) return;
+  const newMsg = el.value.trim();
+  const lines = (f(job, F.job_comms_log) || '').split('\n');
+  if (idx < 0 || idx >= lines.length) { editingCommIdx = null; renderDetailBody(jobId); return; }
+  const line = lines[idx];
+  const sepAt = line.indexOf(' — ');
+  const meta = sepAt >= 0 ? line.slice(0, sepAt) : '';
+  if (!newMsg) {
+    if (!confirm('Delete this log entry?')) return;
+    lines.splice(idx, 1);
+  } else {
+    lines[idx] = meta ? `${meta} — ${newMsg}` : newMsg;
+  }
+  const updated = lines.join('\n');
+  try {
+    await patchRecord(JOBS_TBL, jobId, { [F.job_comms_log]: updated });
+    job.fields[F.job_comms_log] = updated;
+    editingCommIdx = null;
+    renderDetailBody(jobId);
+  } catch(e) {
+    alert('Could not save the edit. Check your connection.');
+  }
+}
+
 async function saveCommLog(jobId) {
   const job = jobs.find(j=>j.id===jobId);
   if (!job) return;
