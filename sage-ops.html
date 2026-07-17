@@ -1322,7 +1322,7 @@ const F = {
   job_readiness: 'Readiness', job_scheduled: 'Scheduled visit',
   job_comments: 'Notes', job_materials: 'Per-visit Materials',
   job_detail_notes: 'Detail Notes',
-  job_phone: 'Primary contact phone', job_email: 'Primary contact email', job_address: 'Address',
+  job_phone: 'Primary contact phone', job_email: 'Primary contact email', job_address: 'Address', job_coca: 'CompanyCam URL',
   job_contact: 'Primary contact name', job_island: 'Island', job_sched_status: 'Schedule status',
   job_customer: 'Customer', job_property: 'Property', job_unit: 'Unit',
   job_comms_log: 'Client comms log', job_siu: 'SIU?',
@@ -2403,7 +2403,7 @@ function renderDetailBody(jobId) {
   const commsLog=f(job,F.job_comms_log)||'';
   const siu=f(job,F.job_siu)===true;
   const detailNotes=f(job,F.job_detail_notes)||'';
-  const phone=f(job,F.job_phone)||'', email=f(job,F.job_email)||'', address=f(job,F.job_address)||'';
+  const phone=f(job,F.job_phone)||'', email=f(job,F.job_email)||'', address=f(job,F.job_address)||'', coca=f(job,F.job_coca)||'';
   const contact=f(job,F.job_contact)||'';
   const island=f(job,F.job_island)||'';
   const schedStatus=f(job,F.job_sched_status)||'';
@@ -2631,6 +2631,13 @@ function renderDetailBody(jobId) {
         <span class="detail-field-val" style="flex:1;max-width:65%;display:flex;align-items:center;gap:8px;justify-content:flex-end;">
           <input type="email" value="${escapeHtml(email).replace(/"/g,'&quot;')}" placeholder="—" onchange="updateJobField('${jobId}','Primary contact email',this.value)" style="flex:1;font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;text-align:right;" />
           ${email?`<a href="mailto:${encodeURIComponent(email)}" style="font-size:12px;color:var(--info);text-decoration:none;font-weight:500;white-space:nowrap;">✉ Email</a>`:''}
+        </span>
+      </div>
+      <div class="detail-field" style="align-items:center;">
+        <span class="detail-field-label">CompanyCam</span>
+        <span class="detail-field-val" style="flex:1;max-width:65%;display:flex;align-items:center;gap:8px;justify-content:flex-end;">
+          <input type="url" value="${escapeHtml(coca).replace(/"/g,'&quot;')}" placeholder="Paste project link" onchange="updateJobField('${jobId}','CompanyCam URL',this.value)" style="flex:1;font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;text-align:right;" />
+          ${coca?`<a href="${escapeHtml(coca).replace(/"/g,'&quot;')}" target="_blank" rel="noopener" style="font-size:12px;color:white;background:var(--action,#B37936);border:1px solid var(--action,#B37936);padding:4px 10px;border-radius:var(--radius-sm);text-decoration:none;font-weight:600;white-space:nowrap;">📷 Open</a>`:''}
         </span>
       </div>
     </div>
