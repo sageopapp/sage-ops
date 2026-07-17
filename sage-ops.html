@@ -1329,7 +1329,7 @@ const F = {
   job_comments: 'Notes', job_materials: 'Per-visit Materials',
   job_detail_notes: 'Detail Notes',
   job_phone: 'Primary contact phone', job_email: 'Primary contact email', job_address: 'Address', job_coca: 'CompanyCam URL',
-  job_contact: 'Primary contact name', job_island: 'Island', job_sched_status: 'Schedule status',
+  job_contact: 'Primary contact name', job_island: 'Island', job_sched_status: 'Schedule status', job_contractor: 'Contractor', job_contactrule: 'Contact rule',
   job_customer: 'Customer', job_property: 'Property', job_unit: 'Unit',
   job_comms_log: 'Client comms log', job_siu: 'SIU?',
   visit_label:'Visit', visit_date:'Date', visit_end:'End date', visit_phase:'Phase', visit_job:'Job', visit_notes:'Notes', visit_complete:'Complete', visit_sched:'Schedule status',
@@ -2369,10 +2369,28 @@ function renderJobs() {
   document.getElementById('jobs-body').innerHTML = html;
 }
 
+function jobContractorName(j) {
+  const link = f(j, F.job_contractor);
+  if (!Array.isArray(link) || !link.length) return '';
+  return link.map(x => {
+    const id = (typeof x === 'string') ? x : (x && x.id);
+    if (id) { const acc = accounts.find(a => a.id === id); if (acc) return f(acc, 'Customer display name') || ''; }
+    return (x && x.name) ? x.name : '';
+  }).filter(Boolean).join(', ');
+}
+function contactRuleColor(r) {
+  r = (r || '').toLowerCase();
+  if (r.indexOf('contractor only') !== -1) return '#FBE9E9';
+  if (r.indexOf('coordinate') !== -1) return '#FBF3D9';
+  if (r.indexOf('customer ok') !== -1 || r.indexOf('both fine') !== -1) return '#E6F3EA';
+  return 'var(--surface,#ffffff)';
+}
+
 function jobCardHtml(j, isComplete) {
   const name=f(j,F.job_name)||'Unnamed', status=f(j,F.job_status)||'', type=f(j,F.job_next_type)||'';
   const nextDate=jobNextDate(j), scheduled=f(j,F.job_scheduled)||'', readiness=f(j,F.job_readiness)||'';
   const island=f(j,F.job_island)||'';
+  const jcontractor=jobContractorName(j);
   const sl=status.toLowerCase();
   const badgeCls=sl.includes('active')?'badge-active':sl.includes('complete')?'badge-complete':'badge-pending';
   const readBadge=!isComplete && readiness.includes('●')&&!readiness.includes('⚠')?'<span class="badge badge-ready">✓ All set</span>':!isComplete && readiness.includes('⚠')?'<span class="badge badge-partial">⚠ Missing parts</span>':'';
@@ -2381,6 +2399,7 @@ function jobCardHtml(j, isComplete) {
     <div class="job-meta-row">
       ${type?`<span>🔧 ${type}</span>`:''}
       ${island?`<span>🏝 ${island}</span>`:''}
+      ${jcontractor?`<span title="Contractor — Sage is a sub">👷 ${escapeHtml(jcontractor)}</span>`:''}
       ${scheduled?`<span>📅 ${scheduled}</span>`:nextDate?`<span>📅 ${fmtDate(nextDate)}</span>`:''}
     </div>
   </div>`;
@@ -2414,6 +2433,7 @@ function renderDetailBody(jobId) {
   const siu=f(job,F.job_siu)===true;
   const detailNotes=f(job,F.job_detail_notes)||'';
   const phone=f(job,F.job_phone)||'', email=f(job,F.job_email)||'', address=f(job,F.job_address)||'', coca=f(job,F.job_coca)||'';
+  const contractor=jobContractorName(job), contactrule=f(job,F.job_contactrule)||'';
   const contact=f(job,F.job_contact)||'';
   const island=f(job,F.job_island)||'';
   const schedStatus=f(job,F.job_sched_status)||'';
@@ -2648,6 +2668,25 @@ function renderDetailBody(jobId) {
         <span class="detail-field-val" style="flex:1;max-width:65%;display:flex;align-items:center;gap:8px;justify-content:flex-end;">
           <input type="url" value="${escapeHtml(coca).replace(/"/g,'&quot;')}" placeholder="Paste project link" onchange="updateJobField('${jobId}','CompanyCam URL',this.value)" style="flex:1;font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;text-align:right;" />
           ${coca?`<a href="${escapeHtml(coca).replace(/"/g,'&quot;')}" target="_blank" rel="noopener" style="font-size:12px;color:white;background:var(--action,#B37936);border:1px solid var(--action,#B37936);padding:4px 10px;border-radius:var(--radius-sm);text-decoration:none;font-weight:600;white-space:nowrap;">📷 Open</a>`:''}
+        </span>
+      </div>
+      ${contractor?`<div class="detail-field" style="align-items:center;">
+        <span class="detail-field-label">Contractor</span>
+        <span class="detail-field-val" style="flex:1;max-width:65%;display:flex;align-items:center;gap:6px;justify-content:flex-end;">
+          <span style="font-size:13px;font-weight:600;">${escapeHtml(contractor)}</span>
+          <span style="font-size:10px;font-weight:700;color:white;background:#D33;padding:2px 7px;border-radius:99px;letter-spacing:.03em;">SUB</span>
+        </span>
+      </div>`:''}
+      <div class="detail-field" style="align-items:center;">
+        <span class="detail-field-label">Contact rule</span>
+        <span class="detail-field-val" style="flex:1;max-width:70%;display:flex;align-items:center;gap:8px;justify-content:flex-end;">
+          <select onchange="updateJobField('${jobId}','Contact rule',this.value)" style="flex:1;font-size:12px;padding:4px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:${contactRuleColor(contactrule)};font-weight:600;">
+            <option value=""${!contactrule?' selected':''}>— Not set —</option>
+            <option value="Contractor only - do not contact customer"${contactrule==='Contractor only - do not contact customer'?' selected':''}>Contractor only — don't contact customer</option>
+            <option value="Coordinate with GC first, custoer OK"${contactrule==='Coordinate with GC first, custoer OK'?' selected':''}>Coordinate with GC first, customer OK</option>
+            <option value="Customer OK direct"${contactrule==='Customer OK direct'?' selected':''}>Customer OK direct</option>
+            <option value="Both fine"${contactrule==='Both fine'?' selected':''}>Both fine</option>
+          </select>
         </span>
       </div>
     </div>
