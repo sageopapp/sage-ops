@@ -1218,6 +1218,29 @@
   </div>
 </div>
 
+<!-- MOVE / REASSIGN UNITS MODAL -->
+<div class="modal-bg" id="move-units-modal" onclick="if(event.target===this)closeMoveUnits()">
+  <div class="modal">
+    <h3 id="move-units-title">Move units</h3>
+    <p id="move-units-subtitle" style="margin-bottom:14px;color:var(--text-muted);font-size:13px;"></p>
+    <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:20px;">
+      <div id="move-units-qty-wrap">
+        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text-muted);">How many to move</label>
+        <input type="number" id="move-units-qty" min="1" step="1" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+      </div>
+      <div>
+        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text-muted);">Send to</label>
+        <select id="move-units-dest" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);"></select>
+      </div>
+      <div id="move-units-error" style="display:none;font-size:13px;color:#c33;padding:8px 12px;background:#fee;border-radius:var(--radius-sm);"></div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeMoveUnits()">Cancel</button>
+      <button class="btn-sm btn-sm-accent" id="move-units-btn" onclick="saveMoveUnits()" style="padding:10px 20px;">Move</button>
+    </div>
+  </div>
+</div>
+
 <!-- NOTE EDIT MODAL (Detail Notes / Comments) -->
 <div class="modal-bg" id="note-edit-modal">
   <div class="modal">
@@ -2665,7 +2688,7 @@ function renderDetailBody(jobId) {
         <span>Equipment (${equipment.length} items)</span>
         <button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:4px 10px;" onclick="openAddItemPicker('${jobId}')">+ Add unit</button>
       </div>
-      ${equipment.length ? equipment.map(i=>`<div class="mat-row"><div class="mat-info"><div class="mat-name">${f(i,F.item_model)||'Unknown'}</div><div class="mat-qty">${['×'+(f(i,F.item_qty)??1), f(i,F.item_type)||'', f(i,F.item_status)||''].filter(Boolean).join(' · ')}</div></div><button class="mat-del" onclick="openRemoveEquipModal('${i.id}')" title="Remove from job" style="font-size:11px;width:auto;padding:0 8px;border-radius:var(--radius-sm);">Remove</button></div>`).join('') : `<div style="font-size:13px;color:var(--text-faint);padding:8px 0;">No equipment linked</div>`}
+      ${equipment.length ? equipment.map(i=>`<div class="mat-row"><div class="mat-info"><div class="mat-name">${f(i,F.item_model)||'Unknown'}</div><div class="mat-qty">${['×'+(f(i,F.item_qty)??1), f(i,F.item_type)||'', f(i,F.item_status)||''].filter(Boolean).join(' · ')}</div></div><div style="display:flex;gap:4px;flex:none;"><button class="btn-sm btn-sm-ghost" onclick="openMoveUnits('${i.id}')" title="Move to stock or another customer" style="font-size:11px;padding:2px 8px;border-radius:var(--radius-sm);">Move</button><button class="mat-del" onclick="openRemoveEquipModal('${i.id}')" title="Remove from job" style="font-size:11px;width:auto;padding:0 8px;border-radius:var(--radius-sm);">Remove</button></div></div>`).join('') : `<div style="font-size:13px;color:var(--text-faint);padding:8px 0;">No equipment linked</div>`}
     </div>
 
     ${!isComplete ? `<button class="btn-complete" onclick="startComplete('${jobId}')">Mark job complete →</button>` : `
@@ -4936,6 +4959,10 @@ function equipEditShowError(msg) {
 
 async function saveEquipEdit() {
   if (!equipEditId) return;
+  const _srcItem = items.find(i => i.id === equipEditId);
+  const _oldQty = _srcItem ? (Number(f(_srcItem, F.item_qty)) || 1) : 0;
+  const _oldOwner = _srcItem ? f(_srcItem, F.item_owner) : null;
+  const _wasAllocated = Array.isArray(_oldOwner) && _oldOwner.length > 0;
   const model = document.getElementById('equip-edit-model').value.trim();
   if (!model) { equipEditShowError('Model number is required.'); return; }
   const description = document.getElementById('equip-edit-description').value.trim();
@@ -4980,9 +5007,112 @@ async function saveEquipEdit() {
     }
     closeEquipEdit();
     renderInventory();
+    if (currentJobId) renderDetailBody(currentJobId);
+    if (_wasAllocated && ownerId && qty < _oldQty) {
+      openPlaceSurplus({ model, desc: description, type, loc: location, qty: _oldQty - qty, excludeJobId: ownerId });
+    }
   } catch(e) {
     equipEditShowError('Could not save changes. Try again.');
   }
+}
+
+// ── MOVE / REASSIGN UNITS (allocated -> stock or another customer) ──
+let moveState = null;
+function populateMoveDest() {
+  const sel = document.getElementById('move-units-dest');
+  const seen = new Set(); const opts = [];
+  jobs.forEach(j => {
+    const name = f(j, F.job_name); if (!name) return;
+    if (name.trim().toLowerCase() === 'stock') return;
+    if (moveState && moveState.excludeJobId && j.id === moveState.excludeJobId) return;
+    if (seen.has(name)) return; seen.add(name);
+    opts.push({ id: j.id, name });
+  });
+  opts.sort((a, b) => a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1);
+  sel.innerHTML = '<option value="stock">↩︎ Back to Stock</option>' +
+    '<optgroup label="Allocate to customer">' +
+    opts.map(o => `<option value="${o.id}">${escapeHtml(o.name)}</option>`).join('') +
+    '</optgroup>';
+}
+function openMoveUnits(itemId) {
+  const it = items.find(i => i.id === itemId); if (!it) return;
+  const avail = Number(f(it, F.item_qty)) || 1;
+  const owner = f(it, F.item_owner);
+  const ownerId = Array.isArray(owner) && owner.length ? (owner[0].id || owner[0]) : null;
+  moveState = { mode: 'move', sourceId: itemId, excludeJobId: ownerId,
+    model: f(it, F.item_model) || '', desc: f(it, F.item_description) || '',
+    type: f(it, F.item_type) || '', loc: f(it, F.item_location) || 'Unit Tent', qty: avail };
+  document.getElementById('move-units-title').textContent = 'Move units';
+  document.getElementById('move-units-subtitle').textContent = `${moveState.model} — ${avail} on this job`;
+  document.getElementById('move-units-qty-wrap').style.display = '';
+  const q = document.getElementById('move-units-qty'); q.max = avail; q.value = avail;
+  document.getElementById('move-units-btn').textContent = 'Move';
+  document.getElementById('move-units-error').style.display = 'none';
+  populateMoveDest();
+  document.getElementById('move-units-modal').classList.add('open');
+}
+function openPlaceSurplus(spec) {
+  moveState = Object.assign({ mode: 'place', sourceId: null }, spec);
+  document.getElementById('move-units-title').textContent = 'Where do the removed units go?';
+  document.getElementById('move-units-subtitle').textContent = `${spec.qty} × ${spec.model} removed from the job`;
+  document.getElementById('move-units-qty-wrap').style.display = 'none';
+  document.getElementById('move-units-btn').textContent = 'Place';
+  document.getElementById('move-units-error').style.display = 'none';
+  populateMoveDest();
+  document.getElementById('move-units-modal').classList.add('open');
+}
+function closeMoveUnits() {
+  document.getElementById('move-units-modal').classList.remove('open');
+  moveState = null;
+}
+async function placeUnits(spec, dest) {
+  const key = m => (m || '').trim().toLowerCase();
+  const notConsumable = i => !(Array.isArray(f(i, F.item_sku)) && f(i, F.item_sku).length);
+  let target;
+  if (dest === 'stock') {
+    target = items.find(i => (f(i, F.item_status) || '').toLowerCase() === 'stock' && (f(i, F.item_location) || '') === spec.loc && key(f(i, F.item_model)) === key(spec.model) && notConsumable(i));
+  } else {
+    target = items.find(i => key(f(i, F.item_model)) === key(spec.model) && notConsumable(i) && (() => { const o = f(i, F.item_owner); return Array.isArray(o) && o.some(x => (typeof x === 'string' ? x : x.id) === dest); })());
+  }
+  if (target) {
+    const nq = (Number(f(target, F.item_qty)) || 0) + spec.qty;
+    await patchRecord(ITEMS_TBL, target.id, { 'Quantity': nq });
+    target.fields['Quantity'] = nq;
+  } else {
+    const nf = { 'Model number': spec.model, 'Quantity': spec.qty, 'Physical location': spec.loc || 'Unit Tent' };
+    if (spec.desc) nf['Description'] = spec.desc;
+    if (spec.type) nf['Type tag'] = spec.type;
+    if (dest === 'stock') { nf['Status'] = 'Stock'; nf['Owner'] = []; }
+    else { nf['Status'] = 'Allocated'; nf['Owner'] = [dest]; }
+    const created = await createRecord(ITEMS_TBL, nf);
+    items.push(created);
+  }
+}
+async function saveMoveUnits() {
+  if (!moveState) return;
+  const errEl = document.getElementById('move-units-error'); errEl.style.display = 'none';
+  const dest = document.getElementById('move-units-dest').value;
+  if (!dest) { errEl.textContent = 'Pick a destination.'; errEl.style.display = 'block'; return; }
+  let qty = moveState.qty;
+  if (moveState.mode === 'move') {
+    const src = items.find(i => i.id === moveState.sourceId);
+    if (!src) { closeMoveUnits(); return; }
+    const avail = Number(f(src, F.item_qty)) || 1;
+    qty = parseInt(document.getElementById('move-units-qty').value, 10);
+    if (!qty || qty < 1) { errEl.textContent = 'Enter how many to move.'; errEl.style.display = 'block'; return; }
+    qty = Math.min(qty, avail);
+    try {
+      if (qty >= avail) { await deleteRecord(ITEMS_TBL, src.id); items = items.filter(i => i.id !== src.id); }
+      else { await patchRecord(ITEMS_TBL, src.id, { 'Quantity': avail - qty }); src.fields['Quantity'] = avail - qty; }
+      await placeUnits({ model: moveState.model, desc: moveState.desc, type: moveState.type, loc: moveState.loc, qty }, dest);
+    } catch(e) { errEl.textContent = 'Could not move. Check your connection.'; errEl.style.display = 'block'; return; }
+  } else {
+    try { await placeUnits({ model: moveState.model, desc: moveState.desc, type: moveState.type, loc: moveState.loc, qty }, dest); }
+    catch(e) { errEl.textContent = 'Could not place the units. Check your connection.'; errEl.style.display = 'block'; return; }
+  }
+  closeMoveUnits();
+  renderInventory(); renderLoadList();
+  if (currentJobId) renderDetailBody(currentJobId);
 }
 
 async function deleteEquipFromEdit() {
