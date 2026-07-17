@@ -2683,7 +2683,7 @@ function renderDetailBody(jobId) {
           <select onchange="updateJobField('${jobId}','Contact rule',this.value)" style="flex:1;font-size:12px;padding:4px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:${contactRuleColor(contactrule)};font-weight:600;">
             <option value=""${!contactrule?' selected':''}>— Not set —</option>
             <option value="Contractor only - do not contact customer"${contactrule==='Contractor only - do not contact customer'?' selected':''}>Contractor only — don't contact customer</option>
-            <option value="Coordinate with GC first, custoer OK"${contactrule==='Coordinate with GC first, custoer OK'?' selected':''}>Coordinate with GC first, customer OK</option>
+            <option value="Coordinate with GC first, customer OK"${contactrule==='Coordinate with GC first, customer OK'?' selected':''}>Coordinate with GC first, customer OK</option>
             <option value="Customer OK direct"${contactrule==='Customer OK direct'?' selected':''}>Customer OK direct</option>
             <option value="Both fine"${contactrule==='Both fine'?' selected':''}>Both fine</option>
           </select>
