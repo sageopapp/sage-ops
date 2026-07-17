@@ -95,7 +95,7 @@
   .cal-arrow { background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 12px; cursor: pointer; font-size: 16px; color: var(--text-muted); transition: all 0.15s; }
   .cal-arrow:hover { border-color: var(--border-strong); color: var(--text); }
   .cal-arrow.drop-armed { background: var(--accent); color: white; border-color: var(--accent); transform: scale(1.1); }
-  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
   .cal-day-label { text-align: center; font-size: 11px; font-weight: 600; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 0; }
   .cal-cell { min-height: 80px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 7px; transition: background 0.1s, border-color 0.1s; -webkit-tap-highlight-color: transparent; }
   .cal-cell.other-month { background: var(--bg); }
@@ -2386,6 +2386,26 @@ function contactRuleColor(r) {
   return 'var(--surface,#ffffff)';
 }
 
+function contractorOptionsHtml(selectedId) {
+  const list = accounts.filter(a => (f(a, 'Type') || '') === 'Contractor');
+  if (selectedId && !list.some(a => a.id === selectedId)) { const cur = accounts.find(a => a.id === selectedId); if (cur) list.push(cur); }
+  list.sort((a, b) => (f(a, 'Customer display name') || '').toLowerCase().localeCompare((f(b, 'Customer display name') || '').toLowerCase()));
+  let html = '<option value=""' + (!selectedId ? ' selected' : '') + '>— None —</option>';
+  html += list.map(a => `<option value="${a.id}"${a.id === selectedId ? ' selected' : ''}>${escapeHtml(f(a, 'Customer display name') || 'Account')}</option>`).join('');
+  return html;
+}
+async function setJobContractor(jobId, accId) {
+  const job = jobs.find(j => j.id === jobId);
+  if (!job) return;
+  try {
+    await patchRecord(JOBS_TBL, jobId, { 'Contractor': accId ? [accId] : [] });
+    job.fields['Contractor'] = accId ? [accId] : [];
+    showSaved();
+    renderDetailBody(jobId);
+    renderJobs();
+  } catch(e) { alert('Could not update contractor. Check your connection.'); }
+}
+
 function jobCardHtml(j, isComplete) {
   const name=f(j,F.job_name)||'Unnamed', status=f(j,F.job_status)||'', type=f(j,F.job_next_type)||'';
   const nextDate=jobNextDate(j), scheduled=f(j,F.job_scheduled)||'', readiness=f(j,F.job_readiness)||'';
@@ -2434,6 +2454,7 @@ function renderDetailBody(jobId) {
   const detailNotes=f(job,F.job_detail_notes)||'';
   const phone=f(job,F.job_phone)||'', email=f(job,F.job_email)||'', address=f(job,F.job_address)||'', coca=f(job,F.job_coca)||'';
   const contractor=jobContractorName(job), contactrule=f(job,F.job_contactrule)||'';
+  const _cl=f(job,F.job_contractor); const contractorId=(Array.isArray(_cl)&&_cl.length)?((typeof _cl[0]==='string')?_cl[0]:_cl[0].id):'';
   const contact=f(job,F.job_contact)||'';
   const island=f(job,F.job_island)||'';
   const schedStatus=f(job,F.job_sched_status)||'';
@@ -2637,6 +2658,13 @@ function renderDetailBody(jobId) {
     <div class="detail-section">
       <div class="detail-section-title">Contact</div>
       <div class="detail-field" style="align-items:center;">
+        <span class="detail-field-label">Contractor</span>
+        <span class="detail-field-val" style="flex:1;max-width:72%;display:flex;align-items:center;gap:8px;justify-content:flex-end;">
+          <select onchange="setJobContractor('${jobId}',this.value)" style="flex:1;font-size:13px;padding:4px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;">${contractorOptionsHtml(contractorId)}</select>
+          ${contractorId?`<span style="font-size:10px;font-weight:700;color:white;background:#D33;padding:2px 7px;border-radius:99px;letter-spacing:.03em;">SUB</span>`:''}
+        </span>
+      </div>
+      <div class="detail-field" style="align-items:center;">
         <span class="detail-field-label">Contact</span>
         <span class="detail-field-val" style="flex:1;max-width:65%;">
           <input type="text" value="${escapeHtml(contact).replace(/"/g,'&quot;')}" placeholder="Homeowner, GC, property mgr…" onchange="updateJobField('${jobId}','Primary contact name',this.value)" style="width:100%;font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;text-align:right;" />
@@ -2670,13 +2698,6 @@ function renderDetailBody(jobId) {
           ${coca?`<a href="${escapeHtml(coca).replace(/"/g,'&quot;')}" target="_blank" rel="noopener" style="font-size:12px;color:white;background:var(--action,#B37936);border:1px solid var(--action,#B37936);padding:4px 10px;border-radius:var(--radius-sm);text-decoration:none;font-weight:600;white-space:nowrap;">📷 Open</a>`:''}
         </span>
       </div>
-      ${contractor?`<div class="detail-field" style="align-items:center;">
-        <span class="detail-field-label">Contractor</span>
-        <span class="detail-field-val" style="flex:1;max-width:65%;display:flex;align-items:center;gap:6px;justify-content:flex-end;">
-          <span style="font-size:13px;font-weight:600;">${escapeHtml(contractor)}</span>
-          <span style="font-size:10px;font-weight:700;color:white;background:#D33;padding:2px 7px;border-radius:99px;letter-spacing:.03em;">SUB</span>
-        </span>
-      </div>`:''}
       <div class="detail-field" style="align-items:center;">
         <span class="detail-field-label">Contact rule</span>
         <span class="detail-field-val" style="flex:1;max-width:70%;display:flex;align-items:center;gap:8px;justify-content:flex-end;">
