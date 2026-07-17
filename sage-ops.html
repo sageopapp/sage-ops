@@ -2413,14 +2413,15 @@ function renderDetailBody(jobId) {
     const owners=f(item,F.item_owner); if (!Array.isArray(owners)) return false;
     return owners.some(o=>(typeof o==='string'?o:o.id)===jobId);
   });
-  const consumables = jobItems.filter(i => {
+  // A job item is a material/consumable if it links a Stock SKU, or it's a custom one-off
+  // (tagged at creation). Everything else is a tracked equipment unit.
+  const isMaterial = i => {
     const skuLinks = f(i, F.item_sku);
-    return Array.isArray(skuLinks) && skuLinks.length > 0;
-  });
-  const equipment = jobItems.filter(i => {
-    const skuLinks = f(i, F.item_sku);
-    return !Array.isArray(skuLinks) || skuLinks.length === 0;
-  });
+    if (Array.isArray(skuLinks) && skuLinks.length > 0) return true;
+    return (f(i, 'Combo tag') || '').toLowerCase() === 'material';
+  };
+  const consumables = jobItems.filter(isMaterial);
+  const equipment = jobItems.filter(i => !isMaterial(i));
 
   let matHtml = '';
   if (consumables.length) {
@@ -3722,6 +3723,7 @@ async function saveCustomItem() {
       'Quantity': qty,
       'Status': 'Allocated',
       'Owner': [customItemJobId],
+      'Combo tag': 'material',
     };
     if (unit) fields['Unit'] = unit;
     const newItem = await createRecord(ITEMS_TBL, fields);
