@@ -515,6 +515,11 @@
       <button class="detail-close" onclick="closeNewJobModal()" title="Cancel" style="margin-top:-4px;">×</button>
     </div>
     <p>Add a job to the schedule. You can update details, add items, and notes after creating.</p>
+    <div style="background:var(--accent-light,#E3EDF3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:14px;">
+      <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Paste from calendar <span style="font-weight:400;color:var(--text-faint);">(optional — auto-fills the fields below)</span></label>
+      <textarea id="nj-paste" rows="3" placeholder="Paste the whole job block here, then Parse…" style="width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:13px;outline:none;font-family:inherit;resize:vertical;box-sizing:border-box;"></textarea>
+      <div style="text-align:right;margin-top:6px;"><button type="button" class="btn-sm btn-sm-accent" style="font-size:12px;padding:6px 12px;" onclick="parseJobPaste()">Parse &amp; fill &#8595;</button></div>
+    </div>
     <div style="display:flex;flex-direction:column;gap:14px;">
       <div>
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Customer / Job name *</label>
@@ -3764,6 +3769,60 @@ async function saveCustomItem() {
 }
 
 // ── NEW JOB ──
+function parseJobPaste() {
+  const raw = document.getElementById('nj-paste').value || '';
+  if (!raw.trim()) return;
+  const nonEmpty = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+  const setSel = (id, v) => { const el = document.getElementById(id); if (!el || !v) return; for (let i = 0; i < el.options.length; i++) { if (el.options[i].value.toLowerCase() === v.toLowerCase()) { el.value = el.options[i].value; return; } } };
+
+  const emails = raw.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) || [];
+  if (emails[0]) setVal('nj-email', emails[0]);
+
+  const phones = raw.match(/(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/g) || [];
+  if (phones[0]) setVal('nj-phone', phones[0].trim());
+
+  const islands = ['San Juan','Lopez','Orcas','Shaw','Decatur','Center','Blakely','Mainland'];
+  for (let i = 0; i < islands.length; i++) { if (new RegExp('\\b' + islands[i] + '\\b', 'i').test(raw)) { setSel('nj-island', islands[i]); break; } }
+
+  const typeMap = [['furnace swap','Furnace Swap'],['retrofit','Retrofit'],['trim','Trim-Out'],['rough','Rough-In'],['fire-up','Fire-Up'],['fireup','Fire-Up'],['ducting','Ducting Install'],['punch','Punch-List'],['clean','Clean'],['service','Service'],['dhp install','DHP Install']];
+  const low = raw.toLowerCase();
+  let jobType = '';
+  for (let i = 0; i < typeMap.length; i++) { if (low.indexOf(typeMap[i][0]) !== -1) { jobType = typeMap[i][1]; break; } }
+  if (jobType) { setSel('nj-type', jobType); setSel('nj-visit-type', jobType); }
+
+  const months = { january:0, february:1, march:2, april:3, may:4, june:5, july:6, august:7, september:8, october:9, november:10, december:11, jan:0, feb:1, mar:2, apr:3, jun:5, jul:6, aug:7, sep:8, sept:8, oct:9, nov:10, dec:11 };
+  const mm = raw.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(\d{4}))?/i);
+  if (mm) {
+    const mo = months[mm[1].toLowerCase()];
+    const day = parseInt(mm[2], 10);
+    let yr = mm[3] ? parseInt(mm[3], 10) : (new Date()).getFullYear();
+    if (mo != null && day) {
+      if (!mm[3]) { const now = new Date(); now.setHours(0,0,0,0); if (new Date(yr, mo, day) < now) yr += 1; }
+      setVal('nj-start', yr + '-' + String(mo + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0'));
+    }
+  }
+
+  const streetRe = /\b\d{1,6}\s+.+\b(?:rd|road|st|street|ave|avenue|ln|lane|dr|drive|way|blvd|ct|court|hwy|highway|pl|place|ter|terrace|cir|circle)\b/i;
+  for (let i = 0; i < nonEmpty.length; i++) { if (streetRe.test(nonEmpty[i])) { setVal('nj-address', nonEmpty[i]); break; } }
+
+  let name = (nonEmpty[0] || '').replace(/^[?\s]+/, '');
+  name = name.split(/,?\s*DHP\b/i)[0].split(':')[0].replace(/[,\s]+$/, '').trim();
+  if (name) setVal('nj-name', name);
+
+  const nameLike = s => /^[A-Z][a-zA-Z'.-]+(?:\s+[A-Z][a-zA-Z'.-]+){1,3}$/.test(s);
+  let contact = '';
+  const ei = nonEmpty.findIndex(l => l.indexOf('@') !== -1);
+  if (ei > 0 && nameLike(nonEmpty[ei - 1])) contact = nonEmpty[ei - 1];
+  if (!contact) { for (let i = nonEmpty.length - 1; i >= 0; i--) { if (nonEmpty[i] !== name && nameLike(nonEmpty[i])) { contact = nonEmpty[i]; break; } } }
+  if (contact) setVal('nj-contact', contact);
+
+  const notesEl = document.getElementById('nj-detail-notes');
+  if (notesEl) notesEl.value = (notesEl.value ? notesEl.value + '\n\n' : '') + raw.trim();
+
+  if (typeof showSaved === 'function') showSaved('Filled from paste — review below');
+}
+
 function openNewJobModal() {
   document.getElementById('nj-name').value = '';
   document.getElementById('nj-contact').value = '';
@@ -3776,6 +3835,7 @@ function openNewJobModal() {
   document.getElementById('nj-phone').value = '';
   document.getElementById('nj-email').value = '';
   document.getElementById('nj-detail-notes').value = '';
+  document.getElementById('nj-paste').value = '';
   document.getElementById('nj-error').style.display = 'none';
 
   // Populate the customer-name datalist with existing names (deduped, alphabetical)
