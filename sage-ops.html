@@ -441,6 +441,7 @@
     <div style="text-align:center;margin-bottom: 12px;">
       <button class="btn-sm btn-sm-action" onclick="openNewJobModal()" style="padding: 5px 12px;font-size:12px;">+ New Job</button>
     </div>
+    <div style="margin-bottom:10px;"><input type="text" id="job-search" placeholder="Search jobs by name, contact, or address…" oninput="onJobSearch(this.value)" style="width:100%;padding:8px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;box-sizing:border-box;" /></div>
     <div class="loc-tabs" id="island-tabs" style="display:none;margin-bottom:10px;"></div>
     <div class="stats" id="jobs-stats"></div>
     <div id="jobs-body"></div>
@@ -2310,6 +2311,8 @@ function jobScheduleStatus(j) {
 }
 
 let currentSchedFilter = 'all';
+let currentJobSearch = '';
+function onJobSearch(v) { currentJobSearch = v; renderJobs(); }
 
 function setSchedFilter(filter) {
   currentSchedFilter = currentSchedFilter === filter ? 'all' : filter; // tap again to clear
@@ -2318,7 +2321,9 @@ function setSchedFilter(filter) {
 
 function renderJobs() {
   renderIslandTabs();
-  const visible = islandFilteredJobs();
+  let visible = islandFilteredJobs();
+  const _q = (currentJobSearch || '').trim().toLowerCase();
+  if (_q) visible = visible.filter(j => [f(j,F.job_name), f(j,F.job_contact), f(j,F.job_address), f(j,F.job_island)].some(x => (x||'').toLowerCase().includes(_q)));
 
   const activeAll=visible.filter(j=>(f(j,F.job_status)||'').toLowerCase()!=='complete');
   const complete=visible.filter(j=>(f(j,F.job_status)||'').toLowerCase()==='complete');
