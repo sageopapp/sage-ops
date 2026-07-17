@@ -697,7 +697,7 @@
 <!-- ADD TO ORDER MODAL — manual entry OR from an existing SKU -->
 <div class="modal-bg" id="add-order-modal" onclick="if(event.target===this)closeAddOrderModal()">
   <div class="modal" style="max-width:520px;">
-    <h3>Add to order list</h3>
+    <h3 id="add-order-title">Add to order list</h3>
     <div style="display:flex;gap:6px;margin-bottom:14px;">
       <button class="loc-tab active" id="ord-mode-sku" onclick="setAddOrderMode('sku')">From SKU</button>
       <button class="loc-tab" id="ord-mode-manual" onclick="setAddOrderMode('manual')">Manual entry</button>
@@ -750,7 +750,7 @@
 
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeAddOrderModal()">Cancel</button>
-      <button class="btn-sm btn-sm-accent" onclick="saveAddOrder()" style="padding:10px 20px;">Add to order list</button>
+      <button class="btn-sm btn-sm-accent" id="add-order-save-btn" onclick="saveAddOrder()" style="padding:10px 20px;">Add to order list</button>
     </div>
   </div>
 </div>
@@ -4036,7 +4036,7 @@ function renderOrders() {
           ${notes?`<div style="margin-top:4px;font-size:12px;color:var(--text-muted);font-style:italic;">${escapeHtml(notes)}</div>`:''}
           ${receivedInfo}
         </div>
-        <button class="mat-del" onclick="deleteOrder('${oid}')" title="Remove">×</button>
+        <div style="display:flex;gap:4px;flex:none;"><button class="btn-sm btn-sm-ghost" title="Edit" style="font-size:12px;padding:3px 7px;" onclick="openEditOrderModal('${oid}')">✎</button><button class="mat-del" onclick="deleteOrder('${oid}')" title="Remove">×</button></div>
       </div>
       <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;">${actionBtns}</div>
     </div>`;
@@ -4208,6 +4208,27 @@ async function deleteOrder(orderId) {
 }
 
 // ── ADD TO ORDER MODAL ──
+let orderEditId = null;
+function openEditOrderModal(orderId) {
+  const ord = orders.find(o => o.id === orderId);
+  if (!ord) return;
+  orderEditId = orderId;
+  setAddOrderMode('manual');
+  document.getElementById('ord-item').value = f(ord, F.order_item) || '';
+  document.getElementById('ord-qty').value = f(ord, F.order_qty) ?? '';
+  document.getElementById('ord-unit').innerHTML = renderUnitOptions(f(ord, F.order_unit) || '', true);
+  document.getElementById('ord-unit').value = f(ord, F.order_unit) || '';
+  document.getElementById('ord-vendor').value = f(ord, F.order_vendor) || '';
+  document.getElementById('ord-itemnumber').value = f(ord, F.order_itemnumber) || '';
+  document.getElementById('ord-notes').value = f(ord, F.order_notes) || '';
+  document.getElementById('ord-error').style.display = 'none';
+  document.getElementById('add-order-title').textContent = 'Edit order item';
+  document.getElementById('add-order-save-btn').textContent = 'Save changes';
+  const tabs = document.getElementById('ord-mode-sku').parentElement;
+  if (tabs) tabs.style.display = 'none';
+  document.getElementById('add-order-modal').classList.add('open');
+}
+
 function openAddOrderModal() {
   // Default to SKU mode
   setAddOrderMode('sku');
@@ -4246,10 +4267,15 @@ function openAddOrderModal() {
   document.getElementById('ord-itemnumber').value = '';
   document.getElementById('ord-notes').value = '';
   document.getElementById('ord-error').style.display = 'none';
+  orderEditId = null;
+  document.getElementById('add-order-title').textContent = 'Add to order list';
+  document.getElementById('add-order-save-btn').textContent = 'Add to order list';
+  document.getElementById('ord-mode-sku').parentElement.style.display = '';
   document.getElementById('add-order-modal').classList.add('open');
 }
 
 function closeAddOrderModal() {
+  orderEditId = null;
   document.getElementById('add-order-modal').classList.remove('open');
 }
 
@@ -4302,6 +4328,41 @@ async function saveAddOrder() {
   const vendor = document.getElementById('ord-vendor').value.trim();
   const itemNumber = document.getElementById('ord-itemnumber').value.trim();
   const notes = document.getElementById('ord-notes').value.trim();
+
+  // Edit mode: patch the existing order record and stop.
+  if (orderEditId) {
+    const itemName = document.getElementById('ord-item').value.trim();
+    if (!itemName) { errEl.textContent = 'Item name is required.'; errEl.style.display = 'block'; return; }
+    const updates = {
+      'Item': itemName,
+      'Quantity': (qty && qty > 0) ? qty : null,
+      'Unit': unit || null,
+      'Vendor': vendor || null,
+      'Item number': itemNumber || null,
+      'Notes': notes || null,
+    };
+    const vLink = vendor ? await ensureVendorLink(vendor) : null;
+    updates['Vendor link'] = vLink ? [vLink] : null;
+    try {
+      await patchRecord(ORDERS_TBL, orderEditId, updates);
+      const ord = orders.find(o => o.id === orderEditId);
+      if (ord) {
+        ord.fields['Item'] = itemName;
+        ord.fields['Quantity'] = (qty && qty > 0) ? qty : undefined;
+        ord.fields['Unit'] = unit || undefined;
+        ord.fields['Vendor'] = vendor || undefined;
+        ord.fields['Item number'] = itemNumber || undefined;
+        ord.fields['Notes'] = notes || undefined;
+      }
+      orderEditId = null;
+      closeAddOrderModal();
+      renderOrders();
+    } catch(e) {
+      errEl.textContent = 'Could not save changes. Check your connection and try again.';
+      errEl.style.display = 'block';
+    }
+    return;
+  }
 
   let itemName = '', skuLink = null;
   if (addOrderMode === 'sku') {
