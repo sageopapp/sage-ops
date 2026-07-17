@@ -2446,6 +2446,7 @@ function closeDetail() {
 function renderDetailBody(jobId) {
   const job = jobs.find(j=>j.id===jobId); if (!job) return;
   const name=f(job,F.job_name)||'Unnamed', status=f(job,F.job_status)||'', type=f(job,F.job_type)||'';
+  { const _t=document.getElementById('detail-title'); if(_t) _t.textContent = name; }
   const nextDate=jobNextDate(job), nextType=f(job,F.job_next_type)||'', scheduled=f(job,F.job_scheduled)||'';
   const endDate=f(job,F.job_end_date)||'';
   const readiness=f(job,F.job_readiness)||'', comments=f(job,F.job_comments)||'';
@@ -2562,6 +2563,12 @@ function renderDetailBody(jobId) {
   document.getElementById('detail-body').innerHTML = `
     <div class="detail-section">
       <div class="detail-section-title">Job info</div>
+      <div class="detail-field" style="align-items:center;">
+        <span class="detail-field-label">Job name</span>
+        <span class="detail-field-val" style="flex:1;max-width:70%;">
+          <input type="text" value="${escapeHtml(f(job,F.job_name)||'').replace(/"/g,'&quot;')}" onchange="updateJobField('${jobId}','Job label',this.value)" style="width:100%;font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;text-align:right;" />
+        </span>
+      </div>
       <div class="detail-field" style="align-items:center;">
         <span class="detail-field-label">Status</span>
         <span class="detail-field-val">
