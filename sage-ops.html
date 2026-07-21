@@ -4147,6 +4147,26 @@ function setOrderStatusFilter(status) {
   renderOrders();
 }
 
+// ── Stock math ───────────────────────────────────────────────────────────────
+// The Airtable "Total on-hand" formula drops the Ducting Tent bucket (and folds in
+// the Rig), so ducting parts read 0 even when stocked. Compute stock from the location
+// buckets directly and use it everywhere. "Available" = shelf stock across all six
+// storage locations (Barn, Unit Tent, Susie, Lumber Rack, Shop, Ducting Tent),
+// excluding the Rig, which is tracked separately.
+function skuNum(sku, key) { const x = Number(f(sku, key)); return Number.isFinite(x) ? x : 0; }
+function skuAvailable(sku) {
+  if (!sku) return 0;
+  return skuNum(sku, F.sku_barn) + skuNum(sku, F.sku_tent) + skuNum(sku, F.sku_susie) +
+         skuNum(sku, F.sku_lumber) + skuNum(sku, F.sku_shop) + skuNum(sku, F.sku_ducting);
+}
+function skuOnRig(sku) { return skuNum(sku, F.sku_rig); }
+function skuIsLow(sku) {
+  const thr = Number(f(sku, F.sku_threshold));
+  if (Number.isFinite(thr) && thr > 0) return skuAvailable(sku) <= thr;
+  const flag = f(sku, F.sku_order_flag);
+  return !!(flag && String(flag).includes('order'));
+}
+
 // Resolve the Stock SKU behind an order row: prefer the explicit "Stock SKU"
 // link, fall back to matching on Item number so manually-typed orders that
 // name a stocked part still surface current inventory.
@@ -4165,19 +4185,14 @@ function orderResolveSku(o) {
   return null;
 }
 
-// Compact "In stock" line for an order row, read live from the linked SKU.
-// Highlights amber when on-hand is at/below the reorder threshold.
+// Compact on-hand line for an order row, read live from the linked SKU.
+// On-hand only — Barn + yard locations, no Rig, no reorder threshold.
 function orderStockLine(o, fallbackUnit) {
   const sku = orderResolveSku(o);
   if (!sku) return '';
-  const total = Number(f(sku, F.sku_total));
-  const oh = Number.isFinite(total) ? total : (Number(f(sku, F.sku_available)) || 0);
-  const thr = Number(f(sku, F.sku_threshold));
+  const oh = skuAvailable(sku);
   const su = f(sku, F.sku_unit) || fallbackUnit || '';
-  const hasThr = Number.isFinite(thr) && thr > 0;
-  const low = hasThr && oh <= thr;
-  const thrStr = hasThr ? ` · reorder at ${thr}` : '';
-  return `<div style="margin-top:3px;font-size:12px;font-weight:600;color:${low ? 'var(--warn)' : 'var(--text-muted)'};">📦 In stock: ${oh}${su ? ' ' + escapeHtml(su) : ''}${thrStr}${low ? ' · low' : ''}</div>`;
+  return `<div style="margin-top:3px;font-size:12px;font-weight:600;color:var(--text-muted);">📦 On hand: ${oh}${su ? ' ' + escapeHtml(su) : ''}</div>`;
 }
 
 function renderOrders() {
@@ -4832,10 +4847,7 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     const vendor = (f(s, F.sku_vendor) || '').toLowerCase();
     return name.includes(search) || itemNum.includes(search) || type.includes(search) || vendor.includes(search);
   });
-  if (lowOnly) filtered = filtered.filter(s => {
-    const flag = f(s,F.sku_order_flag);
-    return flag && String(flag).includes('order');
-  });
+  if (lowOnly) filtered = filtered.filter(s => skuIsLow(s));
   // Location tab filter: only show SKUs that have a non-zero, non-null count at this location
   if (currentInvLocation !== 'all') {
     filtered = filtered.filter(s => {
@@ -4884,7 +4896,7 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
   filtered.forEach(s => {
     const t = (f(s, F.sku_type) || '').trim();
     if (!t) return;
-    const qty = onAllTab ? (Number(f(s, F.sku_total)) || 0) : (Number(f(s, currentInvLocation)) || 0);
+    const qty = onAllTab ? skuAvailable(s) : (Number(f(s, currentInvLocation)) || 0);
     if (qty > 0) typeCounts[t] = (typeCounts[t] || 0) + qty;
   });
   inScopeItems.forEach(it => {
@@ -5044,11 +5056,10 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     const vendor = f(sku,F.sku_vendor)||'';
     const itemNumber = f(sku,F.sku_itemnumber)||'';
     const threshold = f(sku,F.sku_threshold);
-    const total = f(sku,F.sku_total) ?? 0;
-    const available = f(sku,F.sku_available) ?? total; // fall back to total if Available field missing
-    const onRig = total - available; // implied Rig count
-    const flag = f(sku,F.sku_order_flag);
-    const isLow = flag && String(flag).includes('order');
+    const available = skuAvailable(sku); // shelf stock across all six storage locations
+    const onRig = skuOnRig(sku);         // units currently out on the rig
+    const total = available + onRig;
+    const isLow = skuIsLow(sku);
 
     let locsHtml = '';
     LOCATIONS.forEach(loc => {
