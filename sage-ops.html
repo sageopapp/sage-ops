@@ -1931,8 +1931,9 @@ function renderCalendar() {
       }
       // Type color class (by visit phase)
       cls += ' ' + typeToClass(phase);
-      // Penciled dates render dashed + faded; Firm renders solid
-      if ((f(entry.visit, F.visit_sched) || '').toLowerCase() === 'penciled') cls += ' penciled';
+      // Firm/Penciled is per-visit (each visit row has its own dropdown). A visit is "firm"
+      // only when explicitly tagged Firm; Penciled or untagged (the default) render dashed.
+      if ((f(entry.visit, F.visit_sched) || '').toLowerCase() !== 'firm') cls += ' penciled';
       // Only show the name on the first day; mid/end show invisible text so the bar continues but stays the same height
       const name = (f(j, F.job_name) || 'Job') + (phase ? ' · ' + phase : '');
       const showName = entry.isStart ? name : name; // text is there but transparent on mid/end via CSS
@@ -2309,9 +2310,30 @@ function jobNextDate(j) {
   return bestRaw || f(j, F.job_next_date) || '';
 }
 
+// The next upcoming visit record for a job (today-or-later, not complete), mirroring
+// jobNextDate. Used to roll a job's overall firm/penciled state up from its visits.
+function jobNextVisit(j) {
+  const t = today0();
+  let best = null, bestD = null;
+  visits.forEach(v => {
+    const vj = visitJob(v);
+    if (!vj || vj.id !== j.id) return;
+    if (f(v, F.visit_complete) === true) return;
+    const d = parseDate(f(v, F.visit_date));
+    if (!d) return;
+    d.setHours(0,0,0,0);
+    if (d < t) return;
+    if (!bestD || d < bestD) { bestD = d; best = v; }
+  });
+  return best;
+}
+
 function jobScheduleStatus(j) {
   if (!jobNextDate(j)) return 'unscheduled';
-  const s = (f(j, F.job_sched_status) || '').toLowerCase();
+  // Firm/Penciled is now per-visit; a job rolls up from its next upcoming visit.
+  // Fall back to the legacy job-level flag only if there's no visit record (legacy date).
+  const nv = jobNextVisit(j);
+  const s = (nv ? (f(nv, F.visit_sched) || '') : (f(j, F.job_sched_status) || '')).toLowerCase();
   return s === 'firm' ? 'firm' : 'penciled';
 }
 
@@ -2611,12 +2633,9 @@ function renderDetailBody(jobId) {
       </div>
       <div class="detail-field" style="align-items:center;">
         <span class="detail-field-label">Schedule</span>
-        <span class="detail-field-val">
-          <select onchange="updateJobField('${jobId}','Schedule status',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">
-            <option value=""${!schedStatus?' selected':''}>Penciled (default)</option>
-            <option value="Penciled"${schedStatus==='Penciled'?' selected':''}>Penciled</option>
-            <option value="Firm"${schedStatus==='Firm'?' selected':''}>Firm</option>
-          </select>
+        <span class="detail-field-val" style="font-size:13px;color:var(--text-muted);display:flex;align-items:center;gap:8px;justify-content:flex-end;">
+          ${(()=>{const st=jobScheduleStatus(job);return st==='firm'?'<b style="color:var(--text);">✓ Firm</b>':st==='penciled'?'<span>✎ Penciled</span>':'<span style="color:var(--text-faint);">— Not scheduled</span>';})()}
+          <span style="color:var(--text-faint);font-size:11px;">set per visit ↓</span>
         </span>
       </div>
       <div class="detail-field" style="align-items:center;">
@@ -2636,14 +2655,19 @@ function renderDetailBody(jobId) {
       const PHASES = ['Rough-In','Trim-Out','Clean','Service','Retrofit','Fire-Up','DHP Install','Ducting Install','Furnace Swap','Punch-List','Walk'];
       const phaseOpts = (sel) => `<option value=""${!sel?' selected':''}>— None —</option>` +
         PHASES.map(p=>`<option value="${p}"${sel===p?' selected':''}>${p}</option>`).join('');
+      // Per-visit firm/penciled. Untagged defaults to Penciled (matches the calendar's !== 'firm' rule).
+      const schedOpts = (sel) => { const s=(sel||'').toLowerCase();
+        return `<option value="Penciled"${s!=='firm'?' selected':''}>✎ Penciled</option>`+
+               `<option value="Firm"${s==='firm'?' selected':''}>✓ Firm</option>`; };
       let rows = '';
       if (jobVisits.length) {
         jobVisits.forEach(v => {
-          const vd = f(v,F.visit_date)||'', vend = f(v,F.visit_end)||'', vph = f(v,F.visit_phase)||'', vcomp = f(v,F.visit_complete)===true;
+          const vd = f(v,F.visit_date)||'', vend = f(v,F.visit_end)||'', vph = f(v,F.visit_phase)||'', vcomp = f(v,F.visit_complete)===true, vsched = f(v,F.visit_sched)||'';
           rows += `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 0;border-bottom:1px solid var(--border);">
             <input type="date" value="${vd}" onchange="updateVisitField('${v.id}','Date',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;" />
             <select onchange="updateVisitField('${v.id}','Phase',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">${phaseOpts(vph)}</select>
             <input type="date" value="${vend}" title="End date (optional)" onchange="updateVisitField('${v.id}','End date',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;" />
+            <select onchange="updateVisitField('${v.id}','Schedule status',this.value)" title="Firm or penciled" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">${schedOpts(vsched)}</select>
             <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-muted);"><input type="checkbox" ${vcomp?'checked':''} onchange="toggleVisitComplete('${v.id}')" /> Done</label>
             <button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:3px 8px;" onclick="deleteVisit('${v.id}')" title="Delete visit">×</button>
           </div>`;
@@ -2657,6 +2681,7 @@ function renderDetailBody(jobId) {
         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 0 2px;">
           <input type="date" id="add-visit-date" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;" />
           <select id="add-visit-phase" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">${phaseOpts('')}</select>
+          <select id="add-visit-sched" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">${schedOpts('')}</select>
           <button class="btn-sm btn-sm-accent" style="font-size:12px;padding:4px 12px;" onclick="addVisit('${jobId}')">Add visit</button>
         </div>
       </div>`;
@@ -3274,9 +3299,10 @@ async function addVisit(jobId){
   const job=jobs.find(j=>j.id===jobId); if(!job) return;
   const date=document.getElementById('add-visit-date').value;
   const phase=document.getElementById('add-visit-phase').value;
+  const sched=(document.getElementById('add-visit-sched')||{}).value||'';
   if(!date){ alert('Pick a date for the visit.'); return; }
   const label=(f(job,F.job_name)||'Job')+' — '+(phase||'Visit');
-  const fields={'Date':date,'Job':[jobId],'Visit':label}; if(phase) fields['Phase']=phase;
+  const fields={'Date':date,'Job':[jobId],'Visit':label}; if(phase) fields['Phase']=phase; if(sched) fields['Schedule status']=sched;
   try{ const nv=await createRecord(VISITS_TBL,fields); visits.push(nv);
     renderDetailBody(jobId); renderCalendar(); renderLoadList(); }
   catch(e){ alert('Could not add visit. Check your connection.'); }
@@ -3324,6 +3350,7 @@ function showDayJobs(dateStr) {
     const j = m.job;
     const name = escapeHtml(f(j, F.job_name) || 'Unnamed');
     const vt = f(m.visit, F.visit_phase) || '';
+    const vsBadge = ((f(m.visit, F.visit_sched) || '').toLowerCase() === 'firm') ? '✓ Firm' : '✎ Penciled';
     const spans = visitSpanDates(m.visit);
     const isMulti = spans.length > 1;
     const dayLabel = isMulti ? ` (day ${spans.findIndex(s => s.date === dateStr)+1} of ${spans.length})` : '';
@@ -3333,7 +3360,7 @@ function showDayJobs(dateStr) {
     if (pc === 'type-clean' || pc === 'type-service') { bg = 'var(--type-clean-light)'; fg = 'var(--type-clean)'; }
     else if (pc === 'type-other') { bg = 'var(--type-other-light)'; fg = 'var(--type-other)'; }
     return `<button onclick="closeDayJobsModal();openDetail('${j.id}')" style="text-align:left;padding:10px 12px;background:${bg};color:${fg};border:none;border-radius:var(--radius-sm);font-size:14px;font-weight:500;cursor:pointer;display:flex;flex-direction:column;gap:2px;">
-      <div>${name}${dayLabel}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><span>${name}${dayLabel}</span><span style="font-size:10px;font-weight:600;opacity:.7;white-space:nowrap;">${vsBadge}</span></div>
       ${vt?`<div style="font-size:11px;color:var(--text-muted);font-weight:400;">${escapeHtml(vt)}</div>`:''}
     </button>`;
   }).join('');
