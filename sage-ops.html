@@ -3490,7 +3490,7 @@ function onAuStockChange() {
     const loc = f(it, F.item_location); if (loc) document.getElementById('au-location').value = loc;
     const avail = Number(f(it, F.item_qty)) || 1;
     availEl.textContent = `(${avail} in stock)`;
-    qtyEl.max = avail; qtyEl.value = avail;
+    qtyEl.max = avail; qtyEl.value = 1;
   } else {
     availEl.textContent = ''; qtyEl.removeAttribute('max'); qtyEl.value = '1';
   }
