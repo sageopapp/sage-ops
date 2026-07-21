@@ -4147,6 +4147,39 @@ function setOrderStatusFilter(status) {
   renderOrders();
 }
 
+// Resolve the Stock SKU behind an order row: prefer the explicit "Stock SKU"
+// link, fall back to matching on Item number so manually-typed orders that
+// name a stocked part still surface current inventory.
+function orderResolveSku(o) {
+  const links = f(o, F.order_sku);
+  if (Array.isArray(links) && links.length) {
+    const id = typeof links[0] === 'string' ? links[0] : links[0].id;
+    const s = skus.find(x => x.id === id);
+    if (s) return s;
+  }
+  const num = (f(o, F.order_itemnumber) || '').trim().toLowerCase();
+  if (num) {
+    const s = skus.find(x => ((f(x, F.sku_itemnumber) || '').trim().toLowerCase()) === num);
+    if (s) return s;
+  }
+  return null;
+}
+
+// Compact "In stock" line for an order row, read live from the linked SKU.
+// Highlights amber when on-hand is at/below the reorder threshold.
+function orderStockLine(o, fallbackUnit) {
+  const sku = orderResolveSku(o);
+  if (!sku) return '';
+  const total = Number(f(sku, F.sku_total));
+  const oh = Number.isFinite(total) ? total : (Number(f(sku, F.sku_available)) || 0);
+  const thr = Number(f(sku, F.sku_threshold));
+  const su = f(sku, F.sku_unit) || fallbackUnit || '';
+  const hasThr = Number.isFinite(thr) && thr > 0;
+  const low = hasThr && oh <= thr;
+  const thrStr = hasThr ? ` · reorder at ${thr}` : '';
+  return `<div style="margin-top:3px;font-size:12px;font-weight:600;color:${low ? 'var(--warn)' : 'var(--text-muted)'};">📦 In stock: ${oh}${su ? ' ' + escapeHtml(su) : ''}${thrStr}${low ? ' · low' : ''}</div>`;
+}
+
 function renderOrders() {
   const tabsEl = document.getElementById('order-status-tabs');
   const body = document.getElementById('orders-body');
@@ -4239,6 +4272,7 @@ function renderOrders() {
         <div style="min-width:0;flex:1;">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><div class="mat-name" style="font-weight:600;">${escapeHtml(item)}</div>${sourceBadge}</div>
           ${metaBits?`<div class="mat-qty" style="margin-top:2px;">${metaBits}</div>`:''}
+          ${orderStockLine(o, unit)}
           ${notes?`<div style="margin-top:4px;font-size:12px;color:var(--text-muted);font-style:italic;">${escapeHtml(notes)}</div>`:''}
           ${receivedInfo}
         </div>
