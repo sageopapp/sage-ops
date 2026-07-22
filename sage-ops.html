@@ -106,6 +106,11 @@
   .cal-cell.today .cal-num { color: var(--accent-text); font-weight: 700; }
   .cal-event { font-size: 10px; font-weight: 500; background: var(--type-install-light); color: var(--type-install); border-radius: 3px; padding: 2px 5px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: grab; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; touch-action: none; border: 1px solid transparent; box-sizing: border-box; }
   .cal-event.penciled.penciled { background: var(--surface); border: 1.5px dashed currentColor; opacity: 1; font-style: italic; }
+  /* Penciled multi-day spans: drop the dashed border on the edges that continue to the
+     next/previous day so the outline reads as ONE continuous dashed bar, not a box per day. */
+  .cal-event.penciled.span-start { border-right: none; }
+  .cal-event.penciled.span-mid { border-left: none; border-right: none; }
+  .cal-event.penciled.span-end { border-left: none; }
   .cal-event.type-clean { background: var(--type-clean-light); color: var(--type-clean); }
   .cal-event.type-service { background: var(--type-service-light); color: var(--type-service); }
   .cal-event.type-furnace { background: var(--type-furnace-light); color: var(--type-furnace); }
@@ -115,8 +120,8 @@
   .cal-event.dragging { opacity: 0.4; }
   /* Multi-day spanning bar — flat edges on the side that continues to adjacent day */
   .cal-event.span-start { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: -8px; padding-right: 11px; position: relative; z-index: 2; }
-  .cal-event.span-mid { border-radius: 0; margin-left: -8px; margin-right: -8px; padding-left: 11px; padding-right: 11px; color: transparent; }
-  .cal-event.span-end { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -8px; padding-left: 11px; color: transparent; }
+  .cal-event.span-mid { border-radius: 0; margin-left: -8px; margin-right: -8px; padding-left: 11px; padding-right: 11px; }
+  .cal-event.span-end { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -8px; padding-left: 11px; }
   .cal-event-ghost { position: fixed; pointer-events: none; z-index: 9999; background: var(--accent); color: white; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); transform: translate(-50%, -50%); }
   .cal-more { font-size: 10px; color: var(--text-faint); cursor: pointer; padding: 1px 3px; border-radius: 3px; transition: background 0.1s, color 0.1s; }
   .cal-more:hover { background: var(--info-light); color: var(--info); }
@@ -1912,7 +1917,10 @@ function renderCalendar() {
       if ((f(entry.visit, F.visit_sched) || '').toLowerCase() !== 'firm') cls += ' penciled';
       // Only show the name on the first day; mid/end show invisible text so the bar continues but stays the same height
       const name = (f(j, F.job_name) || 'Job') + (phase ? ' · ' + phase : '');
-      const showName = entry.isStart ? name : name; // text is there but transparent on mid/end via CSS
+      // Name shows on the start day only; continuation days use a non-breaking space to
+      // hold the bar height WITHOUT setting color:transparent (which would also erase the
+      // penciled dashed border, since it's drawn in currentColor).
+      const showName = entry.isStart ? name : '&nbsp;';
       return `<div class="cal-event${cls}" data-job-id="${j.id}" data-visit-id="${entry.visit.id}" data-from-date="${entry.fromDate}" draggable="true">${showName}</div>`;
     }).join('');
     html+=`<div class="cal-cell${isToday?' today':''}" data-date="${ds}" data-past="${isPast?'1':'0'}"><div class="cal-num">${d}</div>
