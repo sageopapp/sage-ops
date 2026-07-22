@@ -1358,7 +1358,7 @@ const F = {
   job_comms_log: 'Client comms log', job_siu: 'SIU?',
   visit_label:'Visit', visit_date:'Date', visit_end:'End date', visit_phase:'Phase', visit_job:'Job', visit_notes:'Notes', visit_complete:'Complete', visit_sched:'Schedule status',
   visit_gcal:'Google event id', visit_source:'Source calendar', visit_time:'Start time',
-  cal_title:'Title', cal_start:'Start', cal_end:'End', cal_allday:'All Day', cal_loc:'Location', cal_desc:'Description', cal_eventid:'Event ID',
+  cal_title:'Title', cal_start:'Start', cal_end:'End', cal_allday:'All Day', cal_loc:'Location', cal_desc:'Description', cal_eventid:'Event ID', cal_dismissed:'Dismissed',
   item_model: 'Model number', item_description: 'Description', item_type: 'Type tag', item_qty: 'Quantity',
   item_status: 'Status', item_location: 'Physical location',
   item_loaded: 'Loaded?', item_owner: 'Owner', item_visit: 'Visit consumed at',
@@ -2004,9 +2004,12 @@ function calImportables() {
   calEvents.forEach(ev => {
     const id = f(ev, F.cal_eventid) || '';
     if (id && done.has(id)) return;
+    if (f(ev, F.cal_dismissed) === true) return; // dismissed from the import list
     if (!isCalJob(ev)) return;
     const p = parseCalEvent(ev);
     if (!p.startDate || p.startDate < todayStr || p.startDate > horizonStr) return;
+    p.recId = ev.id;
+    p.srcTable = ev._source === 'DHP Service' ? DHPSVC_CAL_TBL : DHP_CAL_TBL;
     out.push(p);
   });
   out.sort((a,b) => a.startDate < b.startDate ? -1 : a.startDate > b.startDate ? 1 : a.customer.localeCompare(b.customer));
@@ -2069,6 +2072,7 @@ function renderCalImport() {
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none;">
           <div style="display:flex;gap:5px;align-items:center;">${badge}<span style="font-size:10px;color:var(--text-faint);">${escapeHtml(p.source)}</span></div>
           <button class="btn-sm btn-sm-accent" style="font-size:12px;padding:5px 12px;" onclick="calImportAdd('${(p.eventId||'').replace(/'/g,"\\'")}')">+ Add</button>
+          <button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:2px 8px;color:var(--text-faint);" onclick="calImportDismiss('${(p.eventId||'').replace(/'/g,"\\'")}')" title="Remove from this list — does NOT delete the Google event">Dismiss</button>
         </div>
       </div>
     </div>`;
@@ -2080,6 +2084,19 @@ function calImportAdd(eventId) {
   pendingCalImport = { eventId: p.eventId, source: p.source, penciled: p.penciled, startTime: p.startTime };
   closeCalImport();
   openNewJobModal({ name: p.customer, start: p.startDate, end: p.endDate, startTime: p.startTime, island: p.island, visitType: p.phase, address: p.address, notes: p.notes });
+}
+// Dismiss: flag the synced event (not delete — the sync would just re-create it) so it
+// leaves the import list. The Google Calendar event is untouched.
+async function calImportDismiss(eventId) {
+  const p = (window._calImportCache||{})[eventId];
+  if (!p || !p.recId) return;
+  try {
+    await patchRecord(p.srcTable, p.recId, { 'Dismissed': true });
+    const ev = calEvents.find(e => e.id === p.recId);
+    if (ev) { ev.fields = ev.fields || {}; ev.fields['Dismissed'] = true; }
+    renderCalImport();
+    updateCalImportBtn();
+  } catch(e) { alert('Could not dismiss. Check your connection.'); }
 }
 
 function setCalView(v) { calView = v; renderCalendar(); }
