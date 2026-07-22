@@ -1933,6 +1933,24 @@ function renderCalendar() {
 }
 
 // ── LOAD LIST ──
+// Load-list ordering: Equipment first, then SKU materials, then manual/misc.
+// "Equipment" = no Stock SKU link AND a real-gear type tag. SKU materials have a
+// Stock SKU link. Everything else with no SKU link (other, box of parts, pad,
+// mounting feet, line-set, lumber, sheet metal, electrical, filters, grille, gasket)
+// is manual/misc.
+const EQUIPMENT_TYPES = new Set([
+  'outdoor unit','indoor cassette','indoor wallhead','indoor floor','indoor all-in-one',
+  'indoor air handler','air handler','hrv','branch box','controller','wifi adapter',
+  'storage tank','bath exhaust fan','quilt iu front panel','quilt ou front panel'
+]);
+const LOAD_GROUP_LABELS = ['Equipment','Materials','Manual / misc'];
+function itemLoadGroup(item) {
+  const skuLinks = f(item, F.item_sku);
+  if (Array.isArray(skuLinks) && skuLinks.length) return 1; // SKU material
+  const type = (f(item, F.item_type) || '').trim().toLowerCase();
+  return EQUIPMENT_TYPES.has(type) ? 0 : 2; // equipment vs manual/misc
+}
+
 function renderLoadList() {
   const days = parseInt(document.getElementById('load-window').value);
   const t = today0(); const cutoff = new Date(t); cutoff.setDate(cutoff.getDate()+days);
@@ -1980,6 +1998,12 @@ function renderLoadList() {
       }
       return true;
     });
+    // Order: Equipment → SKU materials → Manual/misc; alphabetical within each group.
+    jobItems.sort((a,b) => {
+      const ga=itemLoadGroup(a), gb=itemLoadGroup(b);
+      if (ga!==gb) return ga-gb;
+      return (f(a,F.item_model)||'').toLowerCase().localeCompare((f(b,F.item_model)||'').toLowerCase());
+    });
     const loadedCount=jobItems.filter(i=>checkedLocally[i.id]!==undefined?checkedLocally[i.id]:f(i,F.item_loaded)===true).length;
     const total=jobItems.length;
     const dayLabel = entry.totalDays > 1 ? ` <span style="font-size:12px;color:var(--text-faint);font-weight:500;">(day ${entry.dayIdx} of ${entry.totalDays})</span>` : '';
@@ -1999,8 +2023,14 @@ function renderLoadList() {
     if (!jobItems.length) {
       html+=`<div style="font-size:13px;color:var(--text-faint);padding:10px 0;">No items assigned yet</div>`;
     } else {
+      let lastGroup=-1;
       jobItems.forEach(item=>{
         const iid=item.id;
+        const grp=itemLoadGroup(item);
+        if (grp!==lastGroup) {
+          html+=`<div style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-faint);padding:9px 0 3px;">${LOAD_GROUP_LABELS[grp]}</div>`;
+          lastGroup=grp;
+        }
         const isLoaded=checkedLocally[iid]!==undefined?checkedLocally[iid]:f(item,F.item_loaded)===true;
         const model=f(item,F.item_model)||'Unknown', type=f(item,F.item_type)||'', qty=f(item,F.item_qty)??1, status=f(item,F.item_status)||'';
         // Physical storage location of the item (Barn/yard). Loading no longer moves
