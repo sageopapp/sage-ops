@@ -485,7 +485,7 @@
 <div class="modal-bg" id="complete-modal">
   <div class="modal">
     <h3>Confirm job complete</h3>
-    <p>Confirm the materials actually used, then close the job. Inventory is decremented from stock here.</p>
+    <p>Materials were pulled from stock when loaded. Confirm what was actually used — anything loaded but not used goes back to stock.</p>
     <div id="modal-items"></div>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeModal()">Cancel</button>
@@ -2106,14 +2106,15 @@ async function applySkuMove(sku, fromLabel, toLabel, qty) {
   sku.fields[toField] = updates[toField];
 }
 
-// Decrement a SKU's on-hand at one location (materials consumed on a job).
-// Clamps at zero so a count never goes negative.
-async function applySkuDecrement(sku, fromLabel, qty) {
-  const fromField = locationToSkuField(fromLabel);
-  if (!fromField || !qty || qty <= 0) return;
-  const next = Math.max(0, (Number(f(sku, fromField)) || 0) - qty);
-  await patchRecord(SKUS_TBL, sku.id, { [fromField]: next });
-  sku.fields[fromField] = next;
+// Adjust a SKU's on-hand at one location by a signed delta. Negative reserves
+// stock out (loaded onto a job); positive returns it. Clamps at zero.
+// Used by the reserve-at-load / return-at-unload / reconcile-at-completion flow.
+async function applySkuAdjust(sku, label, delta) {
+  const field = locationToSkuField(label);
+  if (!field || !delta) return;
+  const next = Math.max(0, (Number(f(sku, field)) || 0) + delta);
+  await patchRecord(SKUS_TBL, sku.id, { [field]: next });
+  sku.fields[field] = next;
 }
 
 // Detect length-based units (tracked by linear feet, not whole units).
@@ -2153,15 +2154,24 @@ async function toggleLoaded(itemId) {
   });
 
   try {
-    // The load list is a pure checklist: loading/unloading only flips the item's
-    // status. No stock moves here and the Rig is not involved — inventory is
-    // decremented at job completion, when materials are confirmed actually used.
+    // Reserve-at-load: checking a counted SKU material onto the load list pulls its
+    // quantity OUT of stock immediately (so it can't be double-promised while on the
+    // truck); unchecking returns the full quantity. Length-based rolls (feet) are
+    // reconciled physically — no auto-math. Equipment is tracked by status only.
     if (newVal) {
+      if (isConsumable && sku && !lengthBased) {
+        const src = consumableSourceLocation(item, sku);
+        if (src) await applySkuAdjust(sku, src, -qty);
+      }
       await patchRecord(ITEMS_TBL, itemId, { 'Loaded?': true, 'Status': 'Loaded' });
       checkedLocally[itemId] = true;
       item.fields['Loaded?'] = true;
       item.fields['Status'] = 'Loaded';
     } else {
+      if (isConsumable && sku && !lengthBased) {
+        const src = consumableSourceLocation(item, sku);
+        if (src) await applySkuAdjust(sku, src, +qty);
+      }
       await patchRecord(ITEMS_TBL, itemId, { 'Loaded?': false, 'Status': 'Allocated' });
       checkedLocally[itemId] = false;
       item.fields['Loaded?'] = false;
@@ -2946,44 +2956,42 @@ function startComplete(jobId) {
     return s !== 'installed' && s !== 'archived';
   });
   const isCons = i => { const l=f(i,F.item_sku); return Array.isArray(l)&&l.length>0; };
-  const consumables = pending.filter(isCons);
-  const equipment  = pending.filter(i => !isCons(i));
+  const wasLoaded = i => f(i,F.item_loaded)===true;
+  // Only LOADED, counted (non-length) materials get reconciled — those are the ones
+  // whose stock was reserved out at load time. Everything else just flips to Installed.
+  const reconcile = pending.filter(i => isCons(i) && wasLoaded(i) && !isLengthBasedUnit(f(i,'Unit')||''));
+  const others    = pending.filter(i => !reconcile.includes(i));
 
   let html = '';
   if (!jobItems.length) {
     html = `<div style="font-size:14px;color:var(--text-muted);padding:12px 0 20px;">No items on this job.</div>`;
   } else {
-    if (consumables.length) {
-      html += `<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint);margin:4px 0 6px;">Materials used — confirm quantities</div>`;
-      consumables.forEach(item => {
+    if (reconcile.length) {
+      html += `<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint);margin:4px 0 6px;">Materials used — confirm what was used</div>`;
+      reconcile.forEach(item => {
         const model = f(item,F.item_model) || 'Item';
-        const alloc = Number(f(item,F.item_qty)) || 1;
+        const loaded = Number(f(item,F.item_qty)) || 1;
         const unit = f(item,'Unit') || '';
-        if (isLengthBasedUnit(unit)) {
-          html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
-            <span style="font-weight:500;font-size:14px;">${escapeHtml(model)}</span>
-            <span style="font-size:12px;color:var(--text-faint);white-space:nowrap;">${alloc}${unit?' '+escapeHtml(unit):''} · counted physically</span>
-          </div>`;
-        } else {
-          html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
-            <span style="font-weight:500;font-size:14px;min-width:0;flex:1;">${escapeHtml(model)}</span>
-            <span style="font-size:13px;color:var(--text-muted);white-space:nowrap;">used
-              <input type="number" id="use-qty-${item.id}" value="${alloc}" min="0" step="1" style="width:56px;padding:4px 6px;margin:0 4px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;text-align:center;outline:none;" />
-              of ${alloc}${unit?' '+escapeHtml(unit):''}</span>
-          </div>`;
-        }
+        html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+          <span style="font-weight:500;font-size:14px;min-width:0;flex:1;">${escapeHtml(model)}</span>
+          <span style="font-size:13px;color:var(--text-muted);white-space:nowrap;">used
+            <input type="number" id="use-qty-${item.id}" value="${loaded}" min="0" step="1" style="width:56px;padding:4px 6px;margin:0 4px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;text-align:center;outline:none;" />
+            of ${loaded}${unit?' '+escapeHtml(unit):''} loaded</span>
+        </div>`;
       });
-      html += `<div style="font-size:12px;color:var(--text-faint);padding:8px 0 2px;">Lower a line if less was used, or set it to 0 if it came back to stock. Confirming decrements inventory.</div>`;
+      html += `<div style="font-size:12px;color:var(--text-faint);padding:8px 0 2px;">These were pulled from stock when loaded. Lower a line if less was used — the remainder goes back to stock.</div>`;
     }
-    if (equipment.length) {
-      html += `<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint);margin:14px 0 6px;">Equipment — will be marked Installed</div>`;
-      equipment.forEach(item => {
+    if (others.length) {
+      html += `<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint);margin:14px 0 6px;">Also marked Installed</div>`;
+      others.forEach(item => {
         const model = f(item,F.item_model) || 'Item';
         const qty = Number(f(item,F.item_qty)) || 1;
-        html += `<div style="padding:6px 0;font-size:14px;border-bottom:1px solid var(--border);"><span style="font-weight:500;">${escapeHtml(model)}</span><span style="color:var(--text-muted);font-size:13px;"> · ×${qty}</span></div>`;
+        const note = (isCons(item) && !wasLoaded(item)) ? ' · not loaded — no stock change'
+                   : (isCons(item) ? ' · counted physically' : '');
+        html += `<div style="padding:6px 0;font-size:14px;border-bottom:1px solid var(--border);"><span style="font-weight:500;">${escapeHtml(model)}</span><span style="color:var(--text-muted);font-size:13px;"> · ×${qty}${note}</span></div>`;
       });
     }
-    if (!consumables.length && !equipment.length) {
+    if (!reconcile.length && !others.length) {
       html += `<div style="font-size:13px;color:var(--text-faint);padding:6px 0;">All items already marked Installed — completing just updates the job status.</div>`;
     }
   }
@@ -3001,9 +3009,10 @@ async function confirmComplete() {
   });
 
   try {
-    // Materials are decremented from stock HERE, at completion, using the confirmed
-    // "used" quantity from the modal. Length-based items (feet) are reconciled
-    // physically. Equipment just flips to Installed.
+    // Reserve-at-load model: stock was already pulled when each material was loaded.
+    // At completion we RETURN the unused remainder (loaded − used) to stock. If more
+    // was used than loaded, the difference is pulled (negative restore). Length-based
+    // items are reconciled physically; equipment just flips to Installed.
     for (const item of jobItems) {
       const status = (f(item,F.item_status)||'').toLowerCase();
       // Skip items already installed or archived — no need to re-patch
@@ -3011,16 +3020,19 @@ async function confirmComplete() {
 
       const skuLinks = f(item, F.item_sku);
       const isConsumable = Array.isArray(skuLinks) && skuLinks.length > 0;
-      if (isConsumable) {
+      const wasLoaded = f(item, F.item_loaded) === true;
+      if (isConsumable && wasLoaded) {
         const unit = f(item, 'Unit') || '';
         const input = document.getElementById(`use-qty-${item.id}`);
         if (input && !isLengthBasedUnit(unit)) {
+          const loaded = Number(f(item, F.item_qty)) || 0;
           const used = Math.max(0, Number(input.value) || 0);
-          if (used > 0) {
+          const restore = loaded - used; // >0 returns unused; <0 pulls extra
+          if (restore !== 0) {
             const sku = skus.find(s => s.id === (typeof skuLinks[0]==='string'?skuLinks[0]:skuLinks[0].id));
             if (sku) {
               const src = consumableSourceLocation(item, sku);
-              if (src) await applySkuDecrement(sku, src, used);
+              if (src) await applySkuAdjust(sku, src, restore);
             }
           }
         }
