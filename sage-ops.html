@@ -115,7 +115,25 @@
   .cal-event.type-service { background: var(--type-service-light); color: var(--type-service); }
   .cal-event.type-furnace { background: var(--type-furnace-light); color: var(--type-furnace); }
   .cal-event.type-other { background: var(--type-other-light); color: var(--type-other); }
+  .cal-event .cal-time { font-weight: 700; margin-right: 3px; }
   .cal-event:hover { opacity: 0.75; }
+  /* Agenda (list) view */
+  #cal-body.agenda-list { display: block; }
+  .agenda-date { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 16px 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+  .agenda-date:first-child { margin-top: 4px; }
+  .agenda-row { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--type-install); border-radius: var(--radius-sm); padding: 9px 12px; margin-bottom: 6px; cursor: pointer; transition: border-color 0.1s; }
+  .agenda-row:hover { border-color: var(--border-strong); }
+  .agenda-row.penciled { border-left-style: dashed; background: var(--bg); }
+  .agenda-time { font-size: 12px; font-weight: 700; color: var(--text); min-width: 58px; }
+  .agenda-time.allday { color: var(--text-faint); font-weight: 500; }
+  .agenda-main { flex: 1; min-width: 0; }
+  .agenda-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .agenda-sub { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+  .agenda-tag { font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 99px; white-space: nowrap; }
+  .calview-tab { background: none; border: 1px solid var(--border-strong); padding: 5px 18px; font-size: 12px; font-weight: 500; color: var(--text-muted); cursor: pointer; }
+  .calview-tab:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+  .calview-tab:last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; border-left: none; }
+  .calview-tab.active { background: var(--accent); color: white; border-color: var(--accent); }
   .cal-event:active { cursor: grabbing; }
   .cal-event.dragging { opacity: 0.4; }
   /* Multi-day spanning bar — flat edges on the side that continues to adjacent day */
@@ -406,17 +424,35 @@
   <div id="error-bar" class="error-bar" style="display:none"></div>
 
   <div id="view-schedule" class="view active">
-    <div class="cal-nav">
+    <div style="text-align:center;margin-bottom:10px;">
+      <button id="calview-month" class="calview-tab active" onclick="setCalView('month')">Month</button>
+      <button id="calview-agenda" class="calview-tab" onclick="setCalView('agenda')">Agenda</button>
+    </div>
+    <div class="cal-nav" id="cal-nav">
       <button class="cal-arrow" onclick="changeMonth(-1)">‹</button>
       <h2 id="cal-title"></h2>
       <button class="cal-arrow" onclick="changeMonth(1)">›</button>
     </div>
     <div style="text-align:center;margin-bottom: 12px;">
       <button class="btn-sm btn-sm-action" onclick="openNewJobModal()" style="padding: 5px 12px;font-size:12px;">+ New Job</button>
+      <button class="btn-sm" id="cal-import-btn" onclick="openCalImport()" style="display:none;padding:5px 12px;font-size:12px;margin-left:8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);cursor:pointer;">📥 Import from Calendar</button>
     </div>
+    <div id="cal-source-tabs" style="display:none;text-align:center;margin-bottom:8px;"></div>
     <div class="loc-tabs" id="island-tabs-cal" style="display:none;margin-bottom:10px;"></div>
     <div class="cal-grid" id="cal-labels"></div>
     <div class="cal-grid" id="cal-body"></div>
+  </div>
+
+  <!-- IMPORT FROM CALENDAR MODAL -->
+  <div class="modal-bg" id="cal-import-modal" onclick="if(event.target===this)closeCalImport()">
+    <div class="modal" style="max-width:560px;max-height:82vh;overflow-y:auto;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+        <h3>Import from Calendar</h3>
+        <button class="detail-close" onclick="closeCalImport()" title="Close" style="margin-top:-4px;">×</button>
+      </div>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Upcoming jobs from your Google calendars that aren't on the schedule yet. Tap Add to review &amp; create — Doug's title, dates, address, and notes come pre-filled.</p>
+      <div id="cal-import-body"></div>
+    </div>
   </div>
 
   <div id="view-loadlist" class="view">
@@ -1302,6 +1338,8 @@ const ACCOUNTS_TBL = 'tblfJNtq425aFBkGU';
 const PROPERTIES_TBL = 'tblqcXsAEtmT19OYK';
 const UNITS_TBL = 'tblT4U3YI7YBnycwO';
 const VISITS_TBL = 'tblBuenCnGta2Tzp7';
+const DHP_CAL_TBL = 'tblXUqGsPT5NH7hsD';    // synced Google Calendar — DHP (installs)
+const DHPSVC_CAL_TBL = 'tbldVtJD01d2uIYFX'; // synced Google Calendar — DHP Service (routine service)
 
 const F = {
   job_name: 'Job label', job_type: 'Job type', job_status: 'Status',
@@ -1315,6 +1353,8 @@ const F = {
   job_customer: 'Customer', job_property: 'Property', job_unit: 'Unit',
   job_comms_log: 'Client comms log', job_siu: 'SIU?',
   visit_label:'Visit', visit_date:'Date', visit_end:'End date', visit_phase:'Phase', visit_job:'Job', visit_notes:'Notes', visit_complete:'Complete', visit_sched:'Schedule status',
+  visit_gcal:'Google event id', visit_source:'Source calendar', visit_time:'Start time',
+  cal_title:'Title', cal_start:'Start', cal_end:'End', cal_allday:'All Day', cal_loc:'Location', cal_desc:'Description', cal_eventid:'Event ID',
   item_model: 'Model number', item_description: 'Description', item_type: 'Type tag', item_qty: 'Quantity',
   item_status: 'Status', item_location: 'Physical location',
   item_loaded: 'Loaded?', item_owner: 'Owner', item_visit: 'Visit consumed at',
@@ -1330,7 +1370,10 @@ const F = {
   order_received_date: 'Received date', order_received_location: 'Received location', order_received_qty: 'Received quantity',
 };
 
-let apiKey = '', jobs = [], items = [], skus = [], orders = [], vendors = [], accounts = [], properties = [], units = [], visits = [];
+let apiKey = '', jobs = [], items = [], skus = [], orders = [], vendors = [], accounts = [], properties = [], units = [], visits = [], calEvents = [];
+let pendingCalImport = null; // {eventId, source, penciled} while importing a calendar event via the New Job modal
+let calSourceHidden = {};    // { 'DHP Service': true } → that calendar's jobs hidden on the Schedule
+let calView = 'month';       // 'month' grid or 'agenda' list
 let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
 let checkedLocally = {};
 let currentJobId = null, completeJobId = null;
@@ -1424,7 +1467,10 @@ async function syncData() {
   btn.classList.add('spinning');
   showError('');
   try {
-    [jobs, items, skus, orders, vendors, accounts, properties, units, visits] = await Promise.all([fetchAll(JOBS_TBL), fetchAll(ITEMS_TBL), fetchAll(SKUS_TBL), fetchAll(ORDERS_TBL), fetchAll(VENDORS_TBL), fetchAll(ACCOUNTS_TBL), fetchAll(PROPERTIES_TBL), fetchAll(UNITS_TBL), fetchAll(VISITS_TBL)]);
+    const _r = await Promise.all([fetchAll(JOBS_TBL), fetchAll(ITEMS_TBL), fetchAll(SKUS_TBL), fetchAll(ORDERS_TBL), fetchAll(VENDORS_TBL), fetchAll(ACCOUNTS_TBL), fetchAll(PROPERTIES_TBL), fetchAll(UNITS_TBL), fetchAll(VISITS_TBL), fetchAll(DHP_CAL_TBL).catch(()=>[]), fetchAll(DHPSVC_CAL_TBL).catch(()=>[])]);
+    [jobs, items, skus, orders, vendors, accounts, properties, units, visits] = _r;
+    // Tag each synced calendar event with its source (transient property, not a stored field).
+    calEvents = (_r[9]||[]).map(e => (e._source = 'DHP', e)).concat((_r[10]||[]).map(e => (e._source = 'DHP Service', e)));
     // Denormalize: pull address/island from each job's linked Property into the job record
     const propById = {};
     properties.forEach(p => { propById[p.id] = p; });
@@ -1850,8 +1896,233 @@ function visitSpanDates(v){
   return dates;
 }
 
+// ── GOOGLE CALENDAR IMPORT ───────────────────────────────────────────────────
+const CAL_SOURCES = ['DHP','DHP Service'];
+const CAL_ISLANDS = [['lopez','Lopez'],['orcas','Orcas'],['eastsound','Orcas'],['san juan','San Juan'],['friday harbor','San Juan'],['\\bfh\\b','San Juan'],['shaw','Shaw'],['decatur','Decatur']];
+const CAL_PHASES = [['rough','Rough-In'],['trim','Trim-Out'],['fire','Fire-Up'],['retrofit','Retrofit'],['furnace','Furnace Swap'],['punch','Punch-List'],['ducting','Ducting Install'],['measure','Walk'],['walk','Walk'],['quilt','DHP Install'],['install','DHP Install'],['\\bdhp\\b','DHP Install'],['clean','Clean'],['filter','Service'],['inspection','Service'],['service','Service'],['troubleshoot','Service'],['stat','Service']];
+// Titles that are NOT customer jobs — team ops, time off, logistics.
+const CAL_NOISE = /\b(out|away|off|birthday|sageaversary|meeting|consult|training|recycling|dumpster|delivery|holiday|gensco|vacation|pto)\b/i;
+
+// Local (Pacific) YYYY-MM-DD for a synced dateTime ISO string.
+function calLocalDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+}
+function stripHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,'').replace(/&nbsp;/gi,' ')
+    .replace(/&amp;/gi,'&').replace(/&quot;/gi,'"').replace(/&#39;/gi,"'").replace(/&gt;/gi,'>').replace(/&lt;/gi,'<')
+    .replace(/\n{3,}/g,'\n\n').trim();
+}
+// Turn a synced calendar event into a pre-filled job guess.
+function parseCalEvent(ev) {
+  const rawTitle = (f(ev, F.cal_title) || '').trim();
+  const penciled = /^\s*\?/.test(rawTitle);
+  const title = rawTitle.replace(/^\s*\?\s*/, '').trim();
+  const startDate = calLocalDate(f(ev, F.cal_start));
+  let endDate = calLocalDate(f(ev, F.cal_end));
+  if (!endDate || endDate < startDate) endDate = startDate;
+  // Time-of-day for timed (non-all-day) events, in Pacific.
+  const allDay = f(ev, F.cal_allday) === true;
+  let startTime = '';
+  if (!allDay) {
+    const _sd = new Date(f(ev, F.cal_start));
+    if (!isNaN(_sd)) startTime = _sd.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' });
+  }
+  const address = f(ev, F.cal_loc) || '';
+  const notes = stripHtml(f(ev, F.cal_desc) || '');
+  const eventId = f(ev, F.cal_eventid) || '';
+  const source = ev._source || '';
+  const tl = title.toLowerCase();
+  let phase = '';
+  for (const [kw, ph] of CAL_PHASES) { if (new RegExp(kw).test(tl)) { phase = ph; break; } }
+  let island = '';
+  const hay = (title + ' ' + address).toLowerCase();
+  for (const [kw, isl] of CAL_ISLANDS) { if (new RegExp(kw).test(hay)) { island = isl; break; } }
+  // Customer: prefer "Last, First" (optionally "& Second"); else text up to the first phase keyword / separator.
+  let customer = '';
+  const lf = title.match(/^([A-Z][A-Za-z'.\-]+(?:\s+[A-Z][A-Za-z'.\-]+)?,\s*[A-Z][A-Za-z'.\-]+(?:\s*&\s*[A-Z][A-Za-z'.\-]+)?)/);
+  if (lf) { customer = lf[1].trim(); }
+  else {
+    let cut = title.length;
+    for (const [kw] of CAL_PHASES) { const m = tl.search(new RegExp(kw)); if (m > 0 && m < cut) cut = m; }
+    const sepM = title.search(/\s[-:]/); if (sepM > 0 && sepM < cut) cut = sepM;
+    customer = title.slice(0, cut).replace(/[\s,\-:]+$/,'').trim();
+  }
+  if (!customer) customer = title;
+  const multiDay = endDate && endDate !== startDate;
+  return { eventId, source, penciled, customer, phase, island, startDate, endDate: multiDay ? endDate : '', startTime, address, notes, rawTitle, title };
+}
+// Is this event a real customer job (vs time off / meeting / logistics)?
+function isCalJob(ev) {
+  const rawTitle = (f(ev, F.cal_title) || '').trim();
+  if (!rawTitle) return false;
+  const title = rawTitle.replace(/^\s*\?\s*/, '');
+  if (CAL_NOISE.test(title)) return false;
+  const hasAddr = !!(f(ev, F.cal_loc) || '').trim();
+  const p = parseCalEvent(ev);
+  const lastFirst = /^[A-Z][A-Za-z'.\-]+.*,\s*[A-Z]/.test(title);
+  return hasAddr || !!p.phase || lastFirst;
+}
+function importedEventIds() {
+  const s = new Set();
+  visits.forEach(v => { const id = f(v, F.visit_gcal); if (id) s.add(id); });
+  return s;
+}
+function appJobNames() {
+  const s = new Set();
+  jobs.forEach(j => { const n = (f(j, F.job_name)||'').trim().toLowerCase(); if (n) s.add(n); });
+  return s;
+}
+// Importable list: job-like, not already imported, starting within [today, today+horizon].
+// The horizon keeps recurring service instances (which sync out to 2028) from flooding the
+// list — far-future jobs simply appear as they come within the window on later syncs.
+const CAL_IMPORT_HORIZON_DAYS = 120;
+function calImportables() {
+  const todayStr = calLocalDate(new Date().toISOString());
+  const _h = new Date(); _h.setDate(_h.getDate() + CAL_IMPORT_HORIZON_DAYS);
+  const horizonStr = calLocalDate(_h.toISOString());
+  const done = importedEventIds();
+  const out = [];
+  calEvents.forEach(ev => {
+    const id = f(ev, F.cal_eventid) || '';
+    if (id && done.has(id)) return;
+    if (!isCalJob(ev)) return;
+    const p = parseCalEvent(ev);
+    if (!p.startDate || p.startDate < todayStr || p.startDate > horizonStr) return;
+    out.push(p);
+  });
+  out.sort((a,b) => a.startDate < b.startDate ? -1 : a.startDate > b.startDate ? 1 : a.customer.localeCompare(b.customer));
+  return out;
+}
+function updateCalImportBtn() {
+  const btn = document.getElementById('cal-import-btn');
+  if (!btn) return;
+  if (!calEvents.length) { btn.style.display = 'none'; return; }
+  const n = calImportables().length;
+  btn.style.display = '';
+  btn.textContent = `📥 Import from Calendar${n ? ' (' + n + ')' : ''}`;
+}
+// Per-calendar show/hide checkboxes (only for calendars that have imported visits).
+function renderCalSourceTabs() {
+  const el = document.getElementById('cal-source-tabs');
+  if (!el) return;
+  const present = CAL_SOURCES.filter(s => visits.some(v => f(v, F.visit_source) === s));
+  if (!present.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = '';
+  el.innerHTML = '<span style="font-size:11px;color:var(--text-faint);margin-right:4px;">Calendars:</span>' + present.map(s =>
+    `<label style="font-size:12px;color:var(--text-muted);margin:0 8px;cursor:pointer;white-space:nowrap;"><input type="checkbox" ${calSourceHidden[s]?'':'checked'} onchange="toggleCalSource('${s.replace(/'/g,"\\'")}')" style="vertical-align:middle;margin-right:3px;" />${escapeHtml(s)}</label>`
+  ).join('');
+}
+function toggleCalSource(src) { calSourceHidden[src] = !calSourceHidden[src]; renderCalendar(); }
+function openCalImport() { renderCalImport(); document.getElementById('cal-import-modal').classList.add('open'); }
+function closeCalImport() { document.getElementById('cal-import-modal').classList.remove('open'); }
+function renderCalImport() {
+  const body = document.getElementById('cal-import-body');
+  if (!body) return;
+  const list = calImportables();
+  if (!list.length) {
+    body.innerHTML = `<div style="font-size:13px;color:var(--text-faint);padding:14px 0;">Nothing new to import — you're all caught up.</div>`;
+    return;
+  }
+  const names = appJobNames();
+  window._calImportCache = {};
+  body.innerHTML = list.map(p => {
+    window._calImportCache[p.eventId] = p;
+    const dupe = names.has((p.customer||'').trim().toLowerCase());
+    const dateStr = fmtDate(p.startDate) + (p.endDate ? ' – ' + fmtDate(p.endDate) : '') + (p.startTime ? ' · ' + p.startTime : '');
+    const bits = [p.phase, p.island].filter(Boolean).join(' · ');
+    const badge = p.penciled
+      ? `<span style="font-size:10px;font-weight:600;color:var(--text-muted);border:1px dashed var(--text-muted);border-radius:99px;padding:1px 7px;">Penciled</span>`
+      : `<span style="font-size:10px;font-weight:600;color:white;background:var(--accent);border-radius:99px;padding:1px 7px;">Firm</span>`;
+    return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+        <div style="min-width:0;flex:1;">
+          <div style="font-weight:600;font-size:14px;">${escapeHtml(p.customer||p.title)}${dupe?' <span style="font-size:10px;color:var(--warn);font-weight:600;">· already in app</span>':''}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${escapeHtml(dateStr)}${bits?' · '+escapeHtml(bits):''}</div>
+          ${p.address?`<div style="font-size:11px;color:var(--text-faint);margin-top:2px;">${escapeHtml(p.address)}</div>`:''}
+          <div style="font-size:11px;color:var(--text-faint);margin-top:3px;font-style:italic;">“${escapeHtml(p.rawTitle)}”</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none;">
+          <div style="display:flex;gap:5px;align-items:center;">${badge}<span style="font-size:10px;color:var(--text-faint);">${escapeHtml(p.source)}</span></div>
+          <button class="btn-sm btn-sm-accent" style="font-size:12px;padding:5px 12px;" onclick="calImportAdd('${(p.eventId||'').replace(/'/g,"\\'")}')">+ Add</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function calImportAdd(eventId) {
+  const p = (window._calImportCache||{})[eventId];
+  if (!p) return;
+  pendingCalImport = { eventId: p.eventId, source: p.source, penciled: p.penciled, startTime: p.startTime };
+  closeCalImport();
+  openNewJobModal({ name: p.customer, start: p.startDate, end: p.endDate, island: p.island, visitType: p.phase, address: p.address, notes: p.notes });
+}
+
+function setCalView(v) { calView = v; renderCalendar(); }
+function updateCalViewToggle() {
+  const m = document.getElementById('calview-month'), a = document.getElementById('calview-agenda'), nav = document.getElementById('cal-nav');
+  if (m) m.classList.toggle('active', calView === 'month');
+  if (a) a.classList.toggle('active', calView === 'agenda');
+  if (nav) nav.style.display = calView === 'agenda' ? 'none' : '';
+}
+// Agenda (list) view — upcoming visits grouped by date, respecting the island + calendar filters.
+function renderAgenda() {
+  const body = document.getElementById('cal-body');
+  const labels = document.getElementById('cal-labels');
+  if (labels) labels.innerHTML = '';
+  const title = document.getElementById('cal-title'); if (title) title.textContent = 'Upcoming';
+  const t = today0();
+  const rows = [];
+  visits.forEach(v => {
+    const job = visitJob(v); if (!job) return;
+    if (f(v, F.visit_complete) === true) return;
+    const vsrc = f(v, F.visit_source); if (vsrc && calSourceHidden[vsrc]) return;
+    if (currentIslandFilter !== 'all' && (f(job, F.job_island) || '') !== currentIslandFilter) return;
+    const ds = f(v, F.visit_date); if (!ds) return;
+    const d = parseDate(ds); if (!d || d < t) return;
+    rows.push({ v, job, ds });
+  });
+  rows.sort((a, b) => a.ds < b.ds ? -1 : a.ds > b.ds ? 1 : (f(a.job, F.job_name) || '').localeCompare(f(b.job, F.job_name) || ''));
+  if (!rows.length) {
+    body.className = 'agenda-list';
+    body.innerHTML = `<div style="font-size:13px;color:var(--text-faint);padding:20px 0;text-align:center;">No upcoming jobs on the schedule.</div>`;
+    return;
+  }
+  let html = '', lastDate = '';
+  rows.forEach(({ v, job, ds }) => {
+    if (ds !== lastDate) { html += `<div class="agenda-date">${escapeHtml(fmtDate(ds))}</div>`; lastDate = ds; }
+    const name = f(job, F.job_name) || 'Job';
+    const phase = f(v, F.visit_phase) || '';
+    const time = f(v, F.visit_time) || '';
+    const island = f(job, F.job_island) || '';
+    const penciled = (f(v, F.visit_sched) || '').toLowerCase() !== 'firm';
+    const tag = penciled
+      ? `<span class="agenda-tag" style="color:var(--text-muted);border:1px dashed var(--text-muted);">Penciled</span>`
+      : `<span class="agenda-tag" style="color:white;background:var(--accent);">Firm</span>`;
+    const sub = [phase, island].filter(Boolean).join(' · ');
+    html += `<div class="agenda-row${penciled ? ' penciled' : ''}" onclick="openDetail('${job.id}')">
+      <div class="agenda-time${time ? '' : ' allday'}">${time ? escapeHtml(time) : 'All day'}</div>
+      <div class="agenda-main">
+        <div class="agenda-name">${escapeHtml(name)}</div>
+        ${sub ? `<div class="agenda-sub">${escapeHtml(sub)}</div>` : ''}
+      </div>
+      ${tag}
+    </div>`;
+  });
+  body.className = 'agenda-list';
+  body.innerHTML = html;
+}
+
 function renderCalendar() {
   renderIslandTabs();
+  renderCalSourceTabs();
+  updateCalImportBtn();
+  updateCalViewToggle();
+  if (calView === 'agenda') { renderAgenda(); return; }
+  { const _cb = document.getElementById('cal-body'); if (_cb) _cb.className = 'cal-grid'; }
   document.getElementById('cal-title').textContent = MONTHS[calMonth] + ' ' + calYear;
   document.getElementById('cal-labels').innerHTML = DAYS.map(d=>`<div class="cal-day-label">${d}</div>`).join('');
   // Build byDate map — each job appears on every date in its span, with positioning info
@@ -1859,6 +2130,9 @@ function renderCalendar() {
   visits.forEach(v => {
     const job = visitJob(v);
     if (!job) return;
+    // Per-calendar checkbox filter (imported visits carry a Source calendar; app-made visits don't and always show)
+    const _vsrc = f(v, F.visit_source);
+    if (_vsrc && calSourceHidden[_vsrc]) return;
     // Island filter
     if (currentIslandFilter !== 'all' && (f(job, F.job_island) || '') !== currentIslandFilter) return;
     const span = visitSpanDates(v);
@@ -1917,10 +2191,13 @@ function renderCalendar() {
       if ((f(entry.visit, F.visit_sched) || '').toLowerCase() !== 'firm') cls += ' penciled';
       // Only show the name on the first day; mid/end show invisible text so the bar continues but stays the same height
       const name = (f(j, F.job_name) || 'Job') + (phase ? ' · ' + phase : '');
+      // Compact time prefix for timed visits (e.g. "3p"), shown on the start day only.
+      const _vt = f(entry.visit, F.visit_time) || '';
+      const _tpre = (_vt && entry.isStart) ? `<span class="cal-time">${escapeHtml(_vt.replace(':00','').replace(' AM','a').replace(' PM','p'))}</span>` : '';
       // Name shows on the start day only; continuation days use a non-breaking space to
       // hold the bar height WITHOUT setting color:transparent (which would also erase the
       // penciled dashed border, since it's drawn in currentColor).
-      const showName = entry.isStart ? name : '&nbsp;';
+      const showName = entry.isStart ? (_tpre + name) : '&nbsp;';
       return `<div class="cal-event${cls}" data-job-id="${j.id}" data-visit-id="${entry.visit.id}" data-from-date="${entry.fromDate}" draggable="true">${showName}</div>`;
     }).join('');
     html+=`<div class="cal-cell${isToday?' today':''}" data-date="${ds}" data-past="${isPast?'1':'0'}"><div class="cal-num">${d}</div>
@@ -3910,7 +4187,7 @@ function parseJobPaste() {
   if (typeof showSaved === 'function') showSaved('Filled from paste — review below');
 }
 
-function openNewJobModal() {
+function openNewJobModal(prefill) {
   document.getElementById('nj-name').value = '';
   document.getElementById('nj-contact').value = '';
   document.getElementById('nj-start').value = '';
@@ -3924,6 +4201,18 @@ function openNewJobModal() {
   document.getElementById('nj-detail-notes').value = '';
   document.getElementById('nj-paste').value = '';
   document.getElementById('nj-error').style.display = 'none';
+
+  // Pre-fill from a calendar import (values may be tweaked before Create).
+  if (prefill && typeof prefill === 'object') {
+    const setV = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+    setV('nj-name', prefill.name);
+    setV('nj-start', prefill.start);
+    setV('nj-end', prefill.end);
+    setV('nj-visit-type', prefill.visitType); // select silently ignores an unknown value
+    setV('nj-island', prefill.island);
+    setV('nj-address', prefill.address);
+    setV('nj-detail-notes', prefill.notes);
+  }
 
   // Populate the customer-name datalist with existing names (deduped, alphabetical)
   const seen = new Set();
@@ -3945,6 +4234,7 @@ function openNewJobModal() {
 
 function closeNewJobModal() {
   document.getElementById('new-job-modal').classList.remove('open');
+  pendingCalImport = null;
 }
 
 function njShowError(msg) {
@@ -4016,13 +4306,28 @@ async function saveNewJob() {
     }
     const newJob = await createRecord(JOBS_TBL, fields);
     jobs.push(newJob);
-    if (startDate) { const vlabel=name+' — '+(visitType||'Visit'); const vf={'Date':startDate,'Job':[newJob.id],'Visit':vlabel}; if(endDate) vf['End date']=endDate; if(visitType) vf['Phase']=visitType; try{ const nv=await createRecord(VISITS_TBL, vf); visits.push(nv);}catch(e){ console.warn('visit create failed', e); alert('Heads up: the job was created, but its calendar visit did not save. Open the job and add the date/visit manually so it shows on the schedule.'); } }
-    closeNewJobModal();
+    if (startDate) {
+      const vlabel=name+' — '+(visitType||'Visit');
+      const vf={'Date':startDate,'Job':[newJob.id],'Visit':vlabel};
+      if(endDate) vf['End date']=endDate;
+      if(visitType) vf['Phase']=visitType;
+      // Calendar import: stamp source event + firm/penciled so it never re-imports.
+      if (pendingCalImport) {
+        vf['Google event id'] = pendingCalImport.eventId;
+        vf['Source calendar'] = pendingCalImport.source;
+        if (pendingCalImport.startTime) vf['Start time'] = pendingCalImport.startTime;
+        if (!pendingCalImport.penciled) vf['Schedule status'] = 'Firm';
+      }
+      try{ const nv=await createRecord(VISITS_TBL, vf); visits.push(nv);}catch(e){ console.warn('visit create failed', e); alert('Heads up: the job was created, but its calendar visit did not save. Open the job and add the date/visit manually so it shows on the schedule.'); }
+    }
+    const wasImport = pendingCalImport;
+    closeNewJobModal(); // clears pendingCalImport
     renderCalendar();
     renderLoadList();
     renderJobs();
-    // Open detail panel for the new job
-    openDetail(newJob.id);
+    // After a calendar import, return to the import list (to add the next one); otherwise open the job.
+    if (wasImport) openCalImport();
+    else openDetail(newJob.id);
   } catch(e) {
     njShowError('Could not create job. Check your connection and try again.');
   }
