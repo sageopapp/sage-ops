@@ -464,7 +464,6 @@
         <button class="loc-tab" data-loc="On-hand (Lumber Rack)" onclick="setInvLocation('On-hand (Lumber Rack)')">Lumber</button>
         <button class="loc-tab" data-loc="On-hand (Susie)" onclick="setInvLocation('On-hand (Susie)')">Susie</button>
         <button class="loc-tab" data-loc="On-hand (Shop)" onclick="setInvLocation('On-hand (Shop)')">Shop</button>
-        <button class="loc-tab" data-loc="On-hand (Rig)" onclick="setInvLocation('On-hand (Rig)')">Rig</button>
       </div>
       <div class="type-chips" id="type-chips" style="display:none;"></div>
     </div>
@@ -486,7 +485,7 @@
 <div class="modal-bg" id="complete-modal">
   <div class="modal">
     <h3>Confirm job complete</h3>
-    <p>This will mark all items as Installed and close the job. Inventory already moved at load — no count changes here.</p>
+    <p>Confirm the materials actually used, then close the job. Inventory is decremented from stock here.</p>
     <div id="modal-items"></div>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeModal()">Cancel</button>
@@ -912,26 +911,6 @@
   </div>
 </div>
 
-<!-- UNLOAD PICKER MODAL (consumable returning from Rig to stock location) -->
-<div class="modal-bg" id="unload-modal" onclick="if(event.target===this)closeUnloadPicker()">
-  <div class="modal" style="max-width:440px;">
-    <h3 id="unload-title">Unload from Rig</h3>
-    <p id="unload-sub" style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">Where is this going back to?</p>
-    <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Return location</label>
-    <select id="unload-location" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);margin-bottom:18px;">
-      <option value="Unit Tent" selected>Unit Tent</option>
-      <option value="Barn">Barn</option>
-      <option value="Susie">Susie</option>
-      <option value="Lumber Rack">Lumber Rack</option>
-      <option value="Shop">Shop</option>
-      <option value="Ducting Tent">Ducting Tent</option>
-    </select>
-    <div class="modal-btns">
-      <button class="btn-cancel" onclick="closeUnloadPicker()">Cancel</button>
-      <button class="btn-sm btn-sm-accent" onclick="confirmUnload()" style="padding:10px 20px;">Unload here</button>
-    </div>
-  </div>
-</div>
 
 <!-- REMOVE EQUIPMENT MODAL (from Job Detail) -->
 <div class="modal-bg" id="remove-equip-modal">
@@ -1040,7 +1019,6 @@
             <option value="Lumber Rack">Lumber Rack</option>
             <option value="Shop">Shop</option>
             <option value="Ducting Tent">Ducting Tent</option>
-            <option value="Rig">Rig</option>
           </select>
         </div>
         <div style="flex:1;">
@@ -1137,7 +1115,6 @@
             <input type="number" id="sku-edit-ducting" step="1" min="0" style="width:100%;padding:7px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
           </div>
         </div>
-        <div style="font-size:11px;color:var(--text-faint);margin-top:6px;">Rig is managed by the load list and not editable here.</div>
       </div>
     </div>
 
@@ -1365,7 +1342,6 @@ const LOCATIONS = [
   { field: 'On-hand (Unit Tent)', label: 'Unit Tent' },
   { field: 'On-hand (Susie)', label: 'Susie' },
   { field: 'On-hand (Lumber Rack)', label: 'Lumber Rack' },
-  { field: 'On-hand (Rig)', label: 'Rig' },
   { field: 'On-hand (Shop)', label: 'Shop' },
   { field: 'On-hand (Ducting Tent)', label: 'Ducting Tent' },
 ];
@@ -2027,16 +2003,10 @@ function renderLoadList() {
         const iid=item.id;
         const isLoaded=checkedLocally[iid]!==undefined?checkedLocally[iid]:f(item,F.item_loaded)===true;
         const model=f(item,F.item_model)||'Unknown', type=f(item,F.item_type)||'', qty=f(item,F.item_qty)??1, status=f(item,F.item_status)||'';
-        // Location follows the same source of truth as the checkbox: if an optimistic
-        // override is active, reflect it; otherwise use the stored field. This prevents
-        // the "unchecked but still says Rig" divergence.
-        let loc;
-        if (checkedLocally[iid]!==undefined) {
-          loc = checkedLocally[iid] ? 'Rig' : (f(item,F.item_location)==='Rig' ? 'Unit Tent' : (f(item,F.item_location)||''));
-        } else {
-          loc = f(item,F.item_location)||'';
-        }
-        const locClass=loc.toLowerCase()==='rig'?'item-loc rig':'item-loc';
+        // Physical storage location of the item (Barn/yard). Loading no longer moves
+        // anything to a Rig, so this just reflects where the stock lives.
+        const loc = f(item,F.item_location)||'';
+        const locClass='item-loc';
         html+=`<div class="item-row${isLoaded?' done':''}" data-item-id="${iid}">
           <div class="item-check${isLoaded?' checked':''}" onclick="toggleLoaded('${iid}')" title="Mark as loaded">
             <svg class="checkmark" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="white" stroke-width="2.5"><polyline points="2,6 5,9 10,3"/></svg>
@@ -2106,6 +2076,16 @@ async function applySkuMove(sku, fromLabel, toLabel, qty) {
   sku.fields[toField] = updates[toField];
 }
 
+// Decrement a SKU's on-hand at one location (materials consumed on a job).
+// Clamps at zero so a count never goes negative.
+async function applySkuDecrement(sku, fromLabel, qty) {
+  const fromField = locationToSkuField(fromLabel);
+  if (!fromField || !qty || qty <= 0) return;
+  const next = Math.max(0, (Number(f(sku, fromField)) || 0) - qty);
+  await patchRecord(SKUS_TBL, sku.id, { [fromField]: next });
+  sku.fields[fromField] = next;
+}
+
 // Detect length-based units (tracked by linear feet, not whole units).
 // For these items: skip SKU count math on Load → Rig and on Unload. The
 // weekly rig walk reconciles physical board/roll counts. The job's spec
@@ -2136,13 +2116,6 @@ async function toggleLoaded(itemId) {
   const itemUnit = f(item, 'Unit') || '';
   const lengthBased = isLengthBasedUnit(itemUnit);
 
-  // UNLOAD path (newVal === false) for consumables: ask where it's going back to BEFORE making any changes.
-  // SKIP the picker for length-based items — no SKU math means nothing to reverse.
-  if (!newVal && isConsumable && sku && !lengthBased) {
-    openUnloadPicker(itemId);
-    return; // The picker handles the rest; restore checkbox state visually in case
-  }
-
   // Show loading state on all row instances
   rows.forEach(row => {
     const c = row.querySelector('.item-check');
@@ -2150,30 +2123,19 @@ async function toggleLoaded(itemId) {
   });
 
   try {
+    // The load list is a pure checklist: loading/unloading only flips the item's
+    // status. No stock moves here and the Rig is not involved — inventory is
+    // decremented at job completion, when materials are confirmed actually used.
     if (newVal) {
-      // LOAD path
-      // SKU count math only for non-length-based consumables. Length-based items
-      // (lumber, lineset, cable in feet) are reconciled via the weekly rig walk.
-      if (isConsumable && sku && !lengthBased) {
-        const sourceLoc = consumableSourceLocation(item, sku);
-        if (sourceLoc) {
-          await applySkuMove(sku, sourceLoc, 'Rig', qty);
-        }
-      }
-      const fields = { 'Loaded?': true, 'Status': 'Loaded', 'Physical location': 'Rig' };
-      await patchRecord(ITEMS_TBL, itemId, fields);
+      await patchRecord(ITEMS_TBL, itemId, { 'Loaded?': true, 'Status': 'Loaded' });
       checkedLocally[itemId] = true;
       item.fields['Loaded?'] = true;
       item.fields['Status'] = 'Loaded';
-      item.fields['Physical location'] = 'Rig';
     } else {
-      // UNLOAD path for equipment only (consumable unload handled by picker above)
-      const fields = { 'Loaded?': false, 'Status': 'Allocated', 'Physical location': 'Unit Tent' };
-      await patchRecord(ITEMS_TBL, itemId, fields);
+      await patchRecord(ITEMS_TBL, itemId, { 'Loaded?': false, 'Status': 'Allocated' });
       checkedLocally[itemId] = false;
       item.fields['Loaded?'] = false;
       item.fields['Status'] = 'Allocated';
-      item.fields['Physical location'] = 'Unit Tent';
     }
     renderLoadList();
     if (typeof renderInventory === 'function') renderInventory();
@@ -2184,67 +2146,6 @@ async function toggleLoaded(itemId) {
       if (wasLoaded) c.classList.add('checked');
     });
     showError('Could not update item.');
-  }
-}
-
-// ── UNLOAD PICKER (consumables only) ──
-let unloadItemId = null;
-
-function openUnloadPicker(itemId) {
-  unloadItemId = itemId;
-  const item = items.find(i => i.id === itemId);
-  if (!item) return;
-  const model = f(item, F.item_model) || 'this item';
-  const qty = Number(f(item, F.item_qty)) || 1;
-  document.getElementById('unload-title').textContent = `Unload ${model}`;
-  document.getElementById('unload-sub').textContent = `Returning ${qty} from Rig — where is it going?`;
-  document.getElementById('unload-location').value = 'Unit Tent';
-  document.getElementById('unload-modal').classList.add('open');
-}
-
-function closeUnloadPicker() {
-  document.getElementById('unload-modal').classList.remove('open');
-  unloadItemId = null;
-}
-
-async function confirmUnload() {
-  if (!unloadItemId) return;
-  const item = items.find(i => i.id === unloadItemId);
-  if (!item) { closeUnloadPicker(); return; }
-  const skuLinks = f(item, F.item_sku);
-  const sku = (Array.isArray(skuLinks) && skuLinks.length)
-    ? skus.find(s => s.id === (typeof skuLinks[0] === 'string' ? skuLinks[0] : skuLinks[0].id))
-    : null;
-  const qty = Number(f(item, F.item_qty)) || 1;
-  const returnLoc = document.getElementById('unload-location').value;
-
-  // Show loading state on UI rows
-  const rows = document.querySelectorAll(`[data-item-id="${unloadItemId}"]`);
-  rows.forEach(row => {
-    const c = row.querySelector('.item-check');
-    if (c) { c.classList.add('loading'); c.classList.remove('checked'); }
-  });
-
-  try {
-    if (sku) {
-      await applySkuMove(sku, 'Rig', returnLoc, qty);
-    }
-    const fields = { 'Loaded?': false, 'Status': 'Allocated', 'Physical location': returnLoc };
-    await patchRecord(ITEMS_TBL, unloadItemId, fields);
-    checkedLocally[unloadItemId] = false;
-    item.fields['Loaded?'] = false;
-    item.fields['Status'] = 'Allocated';
-    item.fields['Physical location'] = returnLoc;
-    closeUnloadPicker();
-    renderLoadList();
-    if (typeof renderInventory === 'function') renderInventory();
-  } catch(e) {
-    rows.forEach(row => {
-      const c = row.querySelector('.item-check');
-      if (c) { c.classList.remove('loading'); c.classList.add('checked'); } // revert visually
-    });
-    closeUnloadPicker();
-    showError('Could not unload item.');
   }
 }
 
@@ -3014,25 +2915,46 @@ function startComplete(jobId) {
     const s = (f(i,F.item_status)||'').toLowerCase();
     return s !== 'installed' && s !== 'archived';
   });
+  const isCons = i => { const l=f(i,F.item_sku); return Array.isArray(l)&&l.length>0; };
+  const consumables = pending.filter(isCons);
+  const equipment  = pending.filter(i => !isCons(i));
 
   let html = '';
   if (!jobItems.length) {
     html = `<div style="font-size:14px;color:var(--text-muted);padding:12px 0 20px;">No items on this job.</div>`;
   } else {
-    html = `<div style="font-size:13px;color:var(--text-muted);padding:4px 0 12px;">${pending.length} item${pending.length===1?'':'s'} will be marked Installed:</div>`;
-    pending.forEach(item => {
-      const model = f(item,F.item_model) || 'Item';
-      const qty = f(item,F.item_qty) ?? 1;
-      const unit = f(item,'Unit') || '';
-      const skuLinks = f(item,F.item_sku);
-      const isConsumable = Array.isArray(skuLinks) && skuLinks.length > 0;
-      const qtyText = isConsumable ? ` · qty ${qty}${unit?' '+unit:''}` : ` · ×${qty}`;
-      html += `<div style="padding:6px 0;font-size:14px;border-bottom:1px solid var(--border);">
-        <span style="font-weight:500;">${escapeHtml(model)}</span><span style="color:var(--text-muted);font-size:13px;">${qtyText}</span>
-      </div>`;
-    });
-    if (!pending.length) {
-      html += `<div style="font-size:13px;color:var(--text-faint);padding:6px 0;">All items already marked Installed — completing the job will just update its status.</div>`;
+    if (consumables.length) {
+      html += `<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint);margin:4px 0 6px;">Materials used — confirm quantities</div>`;
+      consumables.forEach(item => {
+        const model = f(item,F.item_model) || 'Item';
+        const alloc = Number(f(item,F.item_qty)) || 1;
+        const unit = f(item,'Unit') || '';
+        if (isLengthBasedUnit(unit)) {
+          html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+            <span style="font-weight:500;font-size:14px;">${escapeHtml(model)}</span>
+            <span style="font-size:12px;color:var(--text-faint);white-space:nowrap;">${alloc}${unit?' '+escapeHtml(unit):''} · counted physically</span>
+          </div>`;
+        } else {
+          html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+            <span style="font-weight:500;font-size:14px;min-width:0;flex:1;">${escapeHtml(model)}</span>
+            <span style="font-size:13px;color:var(--text-muted);white-space:nowrap;">used
+              <input type="number" id="use-qty-${item.id}" value="${alloc}" min="0" step="1" style="width:56px;padding:4px 6px;margin:0 4px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;text-align:center;outline:none;" />
+              of ${alloc}${unit?' '+escapeHtml(unit):''}</span>
+          </div>`;
+        }
+      });
+      html += `<div style="font-size:12px;color:var(--text-faint);padding:8px 0 2px;">Lower a line if less was used, or set it to 0 if it came back to stock. Confirming decrements inventory.</div>`;
+    }
+    if (equipment.length) {
+      html += `<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint);margin:14px 0 6px;">Equipment — will be marked Installed</div>`;
+      equipment.forEach(item => {
+        const model = f(item,F.item_model) || 'Item';
+        const qty = Number(f(item,F.item_qty)) || 1;
+        html += `<div style="padding:6px 0;font-size:14px;border-bottom:1px solid var(--border);"><span style="font-weight:500;">${escapeHtml(model)}</span><span style="color:var(--text-muted);font-size:13px;"> · ×${qty}</span></div>`;
+      });
+    }
+    if (!consumables.length && !equipment.length) {
+      html += `<div style="font-size:13px;color:var(--text-faint);padding:6px 0;">All items already marked Installed — completing just updates the job status.</div>`;
     }
   }
   document.getElementById('modal-items').innerHTML = html;
@@ -3049,13 +2971,31 @@ async function confirmComplete() {
   });
 
   try {
-    // No SKU count changes here. Load → Rig already moved inventory at load time.
-    // Rig counts get reconciled via the weekly rig walk.
-    // Just mark items as Installed (lifecycle complete).
+    // Materials are decremented from stock HERE, at completion, using the confirmed
+    // "used" quantity from the modal. Length-based items (feet) are reconciled
+    // physically. Equipment just flips to Installed.
     for (const item of jobItems) {
       const status = (f(item,F.item_status)||'').toLowerCase();
       // Skip items already installed or archived — no need to re-patch
       if (status === 'installed' || status === 'archived') continue;
+
+      const skuLinks = f(item, F.item_sku);
+      const isConsumable = Array.isArray(skuLinks) && skuLinks.length > 0;
+      if (isConsumable) {
+        const unit = f(item, 'Unit') || '';
+        const input = document.getElementById(`use-qty-${item.id}`);
+        if (input && !isLengthBasedUnit(unit)) {
+          const used = Math.max(0, Number(input.value) || 0);
+          if (used > 0) {
+            const sku = skus.find(s => s.id === (typeof skuLinks[0]==='string'?skuLinks[0]:skuLinks[0].id));
+            if (sku) {
+              const src = consumableSourceLocation(item, sku);
+              if (src) await applySkuDecrement(sku, src, used);
+            }
+          }
+        }
+      }
+
       await patchRecord(ITEMS_TBL, item.id, {'Status':'Installed','Loaded?':false});
       // Update local cache
       item.fields['Status'] = 'Installed';
@@ -3071,7 +3011,7 @@ async function confirmComplete() {
 
 // ── REVERT JOB TO ACTIVE ──
 async function revertComplete(jobId) {
-  if (!confirm('Revert this job back to Active?\n\nThis will set job status to Active and flip Installed items back to Allocated. Inventory counts are not touched (Rig is reconciled weekly).')) return;
+  if (!confirm('Revert this job back to Active?\n\nThis will set job status to Active and flip Installed items back to Allocated. Note: inventory decremented at completion is not automatically added back — adjust counts manually if materials were returned to stock.')) return;
   try {
     // Flip items: Installed → Allocated, Physical location installed → Unit Tent
     const jobItems = items.filter(item => {
@@ -3441,7 +3381,7 @@ function openAddUnitModal() {
   // Group the stock units by location so you can find "the OU in the Unit Tent" quickly
   const auByLoc = {};
   auStockUnits.forEach(it => { const loc = f(it, F.item_location) || 'No location'; (auByLoc[loc] = auByLoc[loc] || []).push(it); });
-  const auLocOrder = ['Unit Tent','Barn','Shop','Lumber Rack','Susie','Ducting Tent','Rig','No location'];
+  const auLocOrder = ['Unit Tent','Barn','Shop','Lumber Rack','Susie','Ducting Tent','No location'];
   const auLocs = Object.keys(auByLoc).sort((a,b) => { const ia = auLocOrder.indexOf(a), ib = auLocOrder.indexOf(b); return (ia<0?99:ia) - (ib<0?99:ib) || a.localeCompare(b); });
   let auOpts = '<option value="">— Select a stock unit —</option>';
   auLocs.forEach(loc => {
@@ -5057,8 +4997,7 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     const itemNumber = f(sku,F.sku_itemnumber)||'';
     const threshold = f(sku,F.sku_threshold);
     const available = skuAvailable(sku); // shelf stock across all six storage locations
-    const onRig = skuOnRig(sku);         // units currently out on the rig
-    const total = available + onRig;
+    const total = available;
     const isLow = skuIsLow(sku);
 
     let locsHtml = '';
@@ -5096,10 +5035,10 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
           })()}
           ${(() => {
             // Headline number depends on current tab:
-            //  - 'all': show Available (what's available for new jobs); note if any on rig
+            //  - 'all': show Available (what's available for new jobs)
             //  - any specific location tab: show that location's count
             if (currentInvLocation === 'all') {
-              return `<div class="inv-total">${available}<span class="inv-total-label">available${onRig>0?` · +${onRig} on rig`:''}</span></div>`;
+              return `<div class="inv-total">${available}<span class="inv-total-label">available</span></div>`;
             }
             const tabVal = f(sku, currentInvLocation) ?? 0;
             const tabLabel = (LOCATIONS.find(l => l.field === currentInvLocation) || {}).label || '';
