@@ -1975,9 +1975,20 @@ function importedEventIds() {
   visits.forEach(v => { const id = f(v, F.visit_gcal); if (id) s.add(id); });
   return s;
 }
+// Canonical form of a customer/job name so "Hobi, Mike" and "Mike Hobi" match.
+// Lowercase, drop parentheticals/punctuation, treat & as a separator, then sort the tokens.
+function normName(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/&/g, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/).filter(Boolean)
+    .sort().join(' ');
+}
 function appJobNames() {
   const s = new Set();
-  jobs.forEach(j => { const n = (f(j, F.job_name)||'').trim().toLowerCase(); if (n) s.add(n); });
+  jobs.forEach(j => { const n = normName(f(j, F.job_name)); if (n) s.add(n); });
   return s;
 }
 // Importable list: job-like, not already imported, starting within [today, today+horizon].
@@ -2041,7 +2052,7 @@ function renderCalImport() {
   window._calImportCache = {};
   body.innerHTML = list.map(p => {
     window._calImportCache[p.eventId] = p;
-    const dupe = names.has((p.customer||'').trim().toLowerCase());
+    const dupe = names.has(normName(p.customer));
     const dateStr = fmtDate(p.startDate) + (p.endDate ? ' – ' + fmtDate(p.endDate) : '') + (p.startTime ? ' · ' + p.startTime : '');
     const bits = [p.phase, p.island].filter(Boolean).join(' · ');
     const badge = p.penciled
@@ -4279,11 +4290,12 @@ async function saveNewJob() {
   if (endDate && !startDate) { njShowError('Please set a start date before adding an end date.'); return; }
 
   // Guard: if this customer already has a job, offer to open it instead of creating a duplicate.
-  const dupAcct = accounts.find(a => (f(a,'Customer display name')||'').trim().toLowerCase() === name.trim().toLowerCase());
+  const _nn = normName(name);
+  const dupAcct = accounts.find(a => normName(f(a,'Customer display name')) === _nn);
   const dupJob = jobs.find(j => {
     const cust = f(j, F.job_customer);
     if (dupAcct && Array.isArray(cust) && cust.some(c => (typeof c === 'string' ? c : c.id) === dupAcct.id)) return true;
-    return (f(j, F.job_name) || '').trim().toLowerCase() === name.trim().toLowerCase();
+    return normName(f(j, F.job_name)) === _nn;
   });
   if (dupJob) {
     const openExisting = confirm(`"${name}" already has a job.\n\nOK = open that existing job (recommended — set its date and add equipment there).\nCancel = create a second job anyway.`);
@@ -4311,7 +4323,7 @@ async function saveNewJob() {
 
   try {
     // Customer link: reuse an existing account or create one.
-    const existing = accounts.find(a => (f(a,'Customer display name')||'').toLowerCase() === name.trim().toLowerCase());
+    const existing = accounts.find(a => normName(f(a,'Customer display name')) === normName(name));
     if (existing) {
       fields['Customer'] = [existing.id];
     } else if (name.trim()) {
