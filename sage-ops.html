@@ -1378,6 +1378,7 @@ let apiKey = '', jobs = [], items = [], skus = [], orders = [], vendors = [], ac
 let pendingCalImport = null; // {eventId, source, penciled} while importing a calendar event via the New Job modal
 let calSourceHidden = {};    // { 'DHP Service': true } → that calendar's jobs hidden on the Schedule
 let calView = 'month';       // 'month' grid or 'agenda' list
+let calShowDismissed = false; // reveal the dismissed section in the import panel
 let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
 let checkedLocally = {};
 let currentJobId = null, completeJobId = null;
@@ -2047,13 +2048,10 @@ function renderCalImport() {
   const body = document.getElementById('cal-import-body');
   if (!body) return;
   const list = calImportables();
-  if (!list.length) {
-    body.innerHTML = `<div style="font-size:13px;color:var(--text-faint);padding:14px 0;">Nothing new to import — you're all caught up.</div>`;
-    return;
-  }
+  const dismissed = calDismissedList();
   const names = appJobNames();
   window._calImportCache = {};
-  body.innerHTML = list.map(p => {
+  const rowHtml = (p, isDismissed) => {
     window._calImportCache[p.eventId] = p;
     const dupe = names.has(normName(p.customer));
     const dateStr = fmtDate(p.startDate) + (p.endDate ? ' – ' + fmtDate(p.endDate) : '') + (p.startTime ? ' · ' + p.startTime : '');
@@ -2061,7 +2059,12 @@ function renderCalImport() {
     const badge = p.penciled
       ? `<span style="font-size:10px;font-weight:600;color:var(--text-muted);border:1px dashed var(--text-muted);border-radius:99px;padding:1px 7px;">Penciled</span>`
       : `<span style="font-size:10px;font-weight:600;color:white;background:var(--accent);border-radius:99px;padding:1px 7px;">Firm</span>`;
-    return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;">
+    const eid = (p.eventId||'').replace(/'/g,"\\'");
+    const actions = isDismissed
+      ? `<button class="btn-sm btn-sm-ghost" style="font-size:12px;padding:5px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);" onclick="calImportRestore('${eid}')">↺ Restore</button>`
+      : `<button class="btn-sm btn-sm-accent" style="font-size:12px;padding:5px 12px;" onclick="calImportAdd('${eid}')">+ Add</button>
+         <button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:2px 8px;color:var(--text-faint);" onclick="calImportDismiss('${eid}')" title="Remove from this list — does NOT delete the Google event">Dismiss</button>`;
+    return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;${isDismissed?'opacity:0.7;':''}">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
         <div style="min-width:0;flex:1;">
           <div style="font-weight:600;font-size:14px;">${escapeHtml(p.customer||p.title)}${dupe?' <span style="font-size:10px;color:var(--warn);font-weight:600;">· already in app</span>':''}</div>
@@ -2071,12 +2074,56 @@ function renderCalImport() {
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none;">
           <div style="display:flex;gap:5px;align-items:center;">${badge}<span style="font-size:10px;color:var(--text-faint);">${escapeHtml(p.source)}</span></div>
-          <button class="btn-sm btn-sm-accent" style="font-size:12px;padding:5px 12px;" onclick="calImportAdd('${(p.eventId||'').replace(/'/g,"\\'")}')">+ Add</button>
-          <button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:2px 8px;color:var(--text-faint);" onclick="calImportDismiss('${(p.eventId||'').replace(/'/g,"\\'")}')" title="Remove from this list — does NOT delete the Google event">Dismiss</button>
+          ${actions}
         </div>
       </div>
     </div>`;
-  }).join('');
+  };
+  let html = '';
+  html += list.length
+    ? list.map(p => rowHtml(p, false)).join('')
+    : `<div style="font-size:13px;color:var(--text-faint);padding:14px 0;">Nothing new to import — you're all caught up.</div>`;
+  if (dismissed.length) {
+    html += `<div style="text-align:center;margin-top:12px;"><a onclick="toggleShowDismissed()" style="font-size:12px;color:var(--text-faint);cursor:pointer;text-decoration:underline;">${calShowDismissed?'Hide':'Show'} ${dismissed.length} dismissed</a></div>`;
+    if (calShowDismissed) {
+      html += `<div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint);margin:12px 0 6px;">Dismissed</div>`;
+      html += dismissed.map(p => rowHtml(p, true)).join('');
+    }
+  }
+  body.innerHTML = html;
+}
+function toggleShowDismissed() { calShowDismissed = !calShowDismissed; renderCalImport(); }
+async function calImportRestore(eventId) {
+  const p = (window._calImportCache||{})[eventId];
+  if (!p || !p.recId) return;
+  try {
+    await patchRecord(p.srcTable, p.recId, { 'Dismissed': false });
+    const ev = calEvents.find(e => e.id === p.recId);
+    if (ev && ev.fields) ev.fields['Dismissed'] = false;
+    renderCalImport();
+    updateCalImportBtn();
+  } catch(e) { alert('Could not restore. Check your connection.'); }
+}
+// Dismissed events (still job-like + upcoming), for the Restore list.
+function calDismissedList() {
+  const todayStr = calLocalDate(new Date().toISOString());
+  const _h = new Date(); _h.setDate(_h.getDate() + CAL_IMPORT_HORIZON_DAYS);
+  const horizonStr = calLocalDate(_h.toISOString());
+  const done = importedEventIds();
+  const out = [];
+  calEvents.forEach(ev => {
+    if (f(ev, F.cal_dismissed) !== true) return;
+    const id = f(ev, F.cal_eventid) || '';
+    if (id && done.has(id)) return;
+    if (!isCalJob(ev)) return;
+    const p = parseCalEvent(ev);
+    if (!p.startDate || p.startDate < todayStr || p.startDate > horizonStr) return;
+    p.recId = ev.id;
+    p.srcTable = ev._source === 'DHP Service' ? DHPSVC_CAL_TBL : DHP_CAL_TBL;
+    out.push(p);
+  });
+  out.sort((a, b) => a.startDate < b.startDate ? -1 : a.startDate > b.startDate ? 1 : a.customer.localeCompare(b.customer));
+  return out;
 }
 function calImportAdd(eventId) {
   const p = (window._calImportCache||{})[eventId];
