@@ -438,6 +438,9 @@
       <button class="btn-sm" id="cal-import-btn" onclick="openCalImport()" style="display:none;padding:5px 12px;font-size:12px;margin-left:8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);cursor:pointer;">📥 Import from Calendar</button>
     </div>
     <div id="cal-source-tabs" style="display:none;text-align:center;margin-bottom:8px;"></div>
+    <div style="text-align:center;margin-bottom:10px;">
+      <input id="sched-search" type="text" placeholder="🔍 Search jobs by name…" oninput="setScheduleSearch(this.value)" autocomplete="off" style="width:100%;max-width:320px;padding:7px 12px;font-size:13px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);box-sizing:border-box;">
+    </div>
     <div class="loc-tabs" id="island-tabs-cal" style="display:none;margin-bottom:10px;"></div>
     <div class="cal-grid" id="cal-labels"></div>
     <div class="cal-grid" id="cal-body"></div>
@@ -2254,6 +2257,7 @@ function renderAgenda() {
     if (f(v, F.visit_complete) === true) return;
     const vsrc = (f(v, F.visit_source) === 'DHP Service') ? 'DHP Service' : 'DHP'; if (calSourceHidden[vsrc]) return;
     if (currentIslandFilter !== 'all' && (f(job, F.job_island) || '') !== currentIslandFilter) return;
+    if (!scheduleNameMatch(job)) return;
     const ds = f(v, F.visit_date); if (!ds) return;
     const d = parseDate(ds); if (!d || d < t) return;
     rows.push({ v, job, ds });
@@ -2309,6 +2313,8 @@ function renderCalendar() {
     if (calSourceHidden[_vsrc]) return;
     // Island filter
     if (currentIslandFilter !== 'all' && (f(job, F.job_island) || '') !== currentIslandFilter) return;
+    // Name search filter
+    if (!scheduleNameMatch(job)) return;
     const span = visitSpanDates(v);
     span.forEach(seg => {
       if (!byDate[seg.date]) byDate[seg.date] = [];
@@ -2650,6 +2656,17 @@ async function toggleLoaded(itemId) {
 
 // ── JOBS ──
 let currentIslandFilter = 'all';
+
+// Schedule-tab name search (filters both Month grid and Agenda by job name)
+let currentScheduleSearch = '';
+function setScheduleSearch(val) {
+  currentScheduleSearch = (val || '').trim().toLowerCase();
+  renderCalendar();
+}
+function scheduleNameMatch(job) {
+  if (!currentScheduleSearch) return true;
+  return (f(job, F.job_name) || '').toLowerCase().includes(currentScheduleSearch);
+}
 
 function setIslandFilter(island) {
   currentIslandFilter = island;
