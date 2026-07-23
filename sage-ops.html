@@ -1357,8 +1357,8 @@ const F = {
   job_customer: 'Customer', job_property: 'Property', job_unit: 'Unit',
   job_comms_log: 'Client comms log', job_siu: 'SIU?',
   visit_label:'Visit', visit_date:'Date', visit_end:'End date', visit_phase:'Phase', visit_job:'Job', visit_notes:'Notes', visit_complete:'Complete', visit_sched:'Schedule status',
-  visit_gcal:'Google event id', visit_source:'Source calendar', visit_time:'Start time',
-  cal_title:'Title', cal_start:'Start', cal_end:'End', cal_allday:'All Day', cal_loc:'Location', cal_desc:'Description', cal_eventid:'Event ID', cal_dismissed:'Dismissed',
+  visit_gcal:'Google event id', visit_source:'Source calendar', visit_time:'Start time', visit_calupdated:'Cal updated',
+  cal_title:'Title', cal_start:'Start', cal_end:'End', cal_allday:'All Day', cal_loc:'Location', cal_desc:'Description', cal_eventid:'Event ID', cal_dismissed:'Dismissed', cal_updated:'Updated',
   item_model: 'Model number', item_description: 'Description', item_type: 'Type tag', item_qty: 'Quantity',
   item_status: 'Status', item_location: 'Physical location',
   item_loaded: 'Loaded?', item_owner: 'Owner', item_visit: 'Visit consumed at',
@@ -1476,6 +1476,18 @@ async function syncData() {
     [jobs, items, skus, orders, vendors, accounts, properties, units, visits] = _r;
     // Tag each synced calendar event with its source (transient property, not a stored field).
     calEvents = (_r[9]||[]).map(e => (e._source = 'DHP', e)).concat((_r[10]||[]).map(e => (e._source = 'DHP Service', e)));
+    // Backfill the "Cal updated" baseline on imported visits that lack it, so change-detection has
+    // a reference point and pre-feature imports don't all flag as "changed" at once. Fire-and-forget.
+    (async () => {
+      const _byId = {}; calEvents.forEach(ev => { const id = f(ev, F.cal_eventid); if (id) _byId[id] = ev; });
+      for (const v of visits) {
+        if (f(v, F.visit_calupdated)) continue;
+        const gid = f(v, F.visit_gcal); if (!gid) continue;
+        const ev = _byId[gid]; if (!ev) continue;
+        const up = f(ev, F.cal_updated); if (!up) continue;
+        try { await patchRecord(VISITS_TBL, v.id, { 'Cal updated': up }); v.fields['Cal updated'] = up; } catch(e) {}
+      }
+    })();
     // Denormalize: pull address/island from each job's linked Property into the job record
     const propById = {};
     properties.forEach(p => { propById[p.id] = p; });
@@ -1958,7 +1970,8 @@ function parseCalEvent(ev) {
   }
   if (!customer) customer = title;
   const multiDay = endDate && endDate !== startDate;
-  return { eventId, source, penciled, customer, phase, island, startDate, endDate: multiDay ? endDate : '', startTime, address, notes, rawTitle, title };
+  const updated = f(ev, F.cal_updated) || '';
+  return { eventId, source, penciled, customer, phase, island, startDate, endDate: multiDay ? endDate : '', startTime, address, notes, rawTitle, title, updated };
 }
 // Is this event a real customer job (vs time off / meeting / logistics)?
 function isCalJob(ev) {
@@ -2020,7 +2033,7 @@ function updateCalImportBtn() {
   const btn = document.getElementById('cal-import-btn');
   if (!btn) return;
   if (!calEvents.length) { btn.style.display = 'none'; return; }
-  const n = calImportables().length;
+  const n = calImportables().length + calChangedList().length;
   btn.style.display = '';
   btn.textContent = `📥 Import from Calendar${n ? ' (' + n + ')' : ''}`;
 }
@@ -2079,10 +2092,33 @@ function renderCalImport() {
       </div>
     </div>`;
   };
+  const changed = calChangedList();
+  window._calChangeCache = {};
   let html = '';
-  html += list.length
-    ? list.map(p => rowHtml(p, false)).join('')
-    : `<div style="font-size:13px;color:var(--text-faint);padding:14px 0;">Nothing new to import — you're all caught up.</div>`;
+  if (changed.length) {
+    html += `<div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--warn);margin:2px 0 6px;">Changed on calendar</div>`;
+    html += changed.map(c => {
+      window._calChangeCache[c.visitId] = c;
+      return `<div style="border:1px solid var(--warn);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+          <div style="min-width:0;flex:1;">
+            <div style="font-weight:600;font-size:14px;">${escapeHtml(c.name)}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${c.changes.map(x => escapeHtml(x)).join(' · ')}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none;">
+            <button class="btn-sm btn-sm-accent" style="font-size:12px;padding:5px 12px;" onclick="calChangeApply('${c.visitId}')">Apply</button>
+            <button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:2px 8px;color:var(--text-faint);" onclick="calChangeKeep('${c.visitId}')" title="Keep the app version, ignore this change">Keep mine</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  if (list.length) {
+    if (changed.length) html += `<div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint);margin:12px 0 6px;">New to import</div>`;
+    html += list.map(p => rowHtml(p, false)).join('');
+  } else if (!changed.length) {
+    html += `<div style="font-size:13px;color:var(--text-faint);padding:14px 0;">Nothing new to import — you're all caught up.</div>`;
+  }
   if (dismissed.length) {
     html += `<div style="text-align:center;margin-top:12px;"><a onclick="toggleShowDismissed()" style="font-size:12px;color:var(--text-faint);cursor:pointer;text-decoration:underline;">${calShowDismissed?'Hide':'Show'} ${dismissed.length} dismissed</a></div>`;
     if (calShowDismissed) {
@@ -2093,6 +2129,58 @@ function renderCalImport() {
   body.innerHTML = html;
 }
 function toggleShowDismissed() { calShowDismissed = !calShowDismissed; renderCalImport(); }
+// Imported visits whose Google event was edited (Updated timestamp moved) since import.
+function calChangedList() {
+  const byId = {};
+  calEvents.forEach(ev => { const id = f(ev, F.cal_eventid); if (id) byId[id] = ev; });
+  const out = [];
+  visits.forEach(v => {
+    const gid = f(v, F.visit_gcal); if (!gid) return;
+    const ev = byId[gid]; if (!ev) return;
+    const stored = f(v, F.visit_calupdated) || '';
+    const cur = f(ev, F.cal_updated) || '';
+    if (!stored || !cur || cur === stored) return; // no baseline (not yet detectable) or unchanged
+    const p = parseCalEvent(ev);
+    const changes = [];
+    const vDate = f(v, F.visit_date) || '';
+    if (p.startDate && p.startDate !== vDate) changes.push(`date ${vDate ? fmtDate(vDate) : '—'} → ${fmtDate(p.startDate)}`);
+    if ((p.endDate || '') !== (f(v, F.visit_end) || '')) changes.push(p.endDate ? `ends ${fmtDate(p.endDate)}` : 'end cleared');
+    const wasFirm = (f(v, F.visit_sched) || '').toLowerCase() === 'firm';
+    if (wasFirm !== !p.penciled) changes.push(!p.penciled ? 'now Firm' : 'now Penciled');
+    if (p.phase && p.phase !== (f(v, F.visit_phase) || '')) changes.push(`phase → ${p.phase}`);
+    if ((p.startTime || '') !== (f(v, F.visit_time) || '')) changes.push(p.startTime ? `time → ${p.startTime}` : 'time cleared');
+    if (!changes.length) return; // only untracked fields changed (notes, etc.) — nothing to apply
+    out.push({ visitId: v.id, name: f(visitJob(v), F.job_name) || 'Job', p, changes, cur });
+  });
+  return out;
+}
+async function calChangeApply(visitId) {
+  const c = (window._calChangeCache || {})[visitId];
+  if (!c) return;
+  const p = c.p;
+  const updates = { 'Cal updated': c.cur };
+  if (p.startDate) updates['Date'] = p.startDate;
+  updates['End date'] = p.endDate || null;
+  if (p.phase) updates['Phase'] = p.phase;
+  updates['Schedule status'] = p.penciled ? null : 'Firm';
+  updates['Start time'] = p.startTime || null;
+  try {
+    await patchRecord(VISITS_TBL, visitId, updates);
+    const v = visits.find(x => x.id === visitId);
+    if (v) Object.keys(updates).forEach(k => { v.fields[k] = (updates[k] === null ? undefined : updates[k]); });
+    renderCalImport(); renderCalendar();
+  } catch(e) { alert('Could not apply the change. Check your connection.'); }
+}
+async function calChangeKeep(visitId) {
+  const c = (window._calChangeCache || {})[visitId];
+  if (!c) return;
+  try {
+    await patchRecord(VISITS_TBL, visitId, { 'Cal updated': c.cur });
+    const v = visits.find(x => x.id === visitId);
+    if (v) v.fields['Cal updated'] = c.cur;
+    renderCalImport();
+  } catch(e) { alert('Could not update. Check your connection.'); }
+}
 async function calImportRestore(eventId) {
   const p = (window._calImportCache||{})[eventId];
   if (!p || !p.recId) return;
@@ -2128,7 +2216,7 @@ function calDismissedList() {
 function calImportAdd(eventId) {
   const p = (window._calImportCache||{})[eventId];
   if (!p) return;
-  pendingCalImport = { eventId: p.eventId, source: p.source, penciled: p.penciled, startTime: p.startTime };
+  pendingCalImport = { eventId: p.eventId, source: p.source, penciled: p.penciled, startTime: p.startTime, updated: p.updated };
   closeCalImport();
   openNewJobModal({ name: p.customer, start: p.startDate, end: p.endDate, startTime: p.startTime, island: p.island, visitType: p.phase, address: p.address, notes: p.notes });
 }
@@ -4407,6 +4495,7 @@ async function saveNewJob() {
       if (pendingCalImport) {
         vf['Google event id'] = pendingCalImport.eventId;
         vf['Source calendar'] = pendingCalImport.source;
+        if (pendingCalImport.updated) vf['Cal updated'] = pendingCalImport.updated;
         if (!pendingCalImport.penciled) vf['Schedule status'] = 'Firm';
       }
       try{ const nv=await createRecord(VISITS_TBL, vf); visits.push(nv);}catch(e){ console.warn('visit create failed', e); alert('Heads up: the job was created, but its calendar visit did not save. Open the job and add the date/visit manually so it shows on the schedule.'); }
