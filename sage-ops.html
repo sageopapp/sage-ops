@@ -5679,6 +5679,38 @@ function equipEditShowError(msg) {
   el.textContent = msg; el.style.display = 'block';
 }
 
+// Merge a just-edited item into an existing identical pile (same model + status + owner +
+// location, neither linked to a Stock SKU). Keeps the older record, sums Quantity, deletes the
+// newer duplicate. Returns the id of the surviving record. This is what prevents a reassign
+// (Allocated<->Stock, or job-to-job) from leaving a second line for the same pile.
+async function mergeIntoExistingPile(itemId) {
+  const rec = items.find(i => i.id === itemId);
+  if (!rec) return itemId;
+  const hasSku = i => Array.isArray(f(i, F.item_sku)) && f(i, F.item_sku).length;
+  if (hasSku(rec)) return itemId; // consumables tracked by SKU count — leave alone
+  const status = (f(rec, F.item_status) || '').toLowerCase();
+  if (status !== 'stock' && status !== 'allocated') return itemId;
+  const model = (f(rec, F.item_model) || '').trim().toLowerCase();
+  const loc = (f(rec, F.item_location) || '').trim().toLowerCase();
+  const ownerIdOf = i => { const o = f(i, F.item_owner); return (Array.isArray(o) && o.length) ? (typeof o[0] === 'string' ? o[0] : o[0].id) : ''; };
+  const ownerId = ownerIdOf(rec);
+  const twin = items.find(i => i.id !== itemId
+    && !hasSku(i)
+    && (f(i, F.item_status) || '').toLowerCase() === status
+    && (f(i, F.item_model) || '').trim().toLowerCase() === model
+    && (f(i, F.item_location) || '').trim().toLowerCase() === loc
+    && ownerIdOf(i) === ownerId);
+  if (!twin) return itemId;
+  const survivor = (twin.createdTime || '') <= (rec.createdTime || '') ? twin : rec;
+  const dup = (survivor === twin) ? rec : twin;
+  const total = (Number(f(survivor, F.item_qty)) || 0) + (Number(f(dup, F.item_qty)) || 0);
+  await patchRecord(ITEMS_TBL, survivor.id, { 'Quantity': total });
+  survivor.fields['Quantity'] = total;
+  await deleteRecord(ITEMS_TBL, dup.id);
+  items = items.filter(i => i.id !== dup.id);
+  return survivor.id;
+}
+
 async function saveEquipEdit() {
   if (!equipEditId) return;
   const _srcItem = items.find(i => i.id === equipEditId);
@@ -5727,6 +5759,8 @@ async function saveEquipEdit() {
         item.fields['Owner'] = undefined;
       }
     }
+    // Merge this reassigned unit into an existing identical pile so it doesn't leave a duplicate line.
+    try { await mergeIntoExistingPile(equipEditId); } catch(e) { console.warn('consolidate failed', e); }
     closeEquipEdit();
     renderInventory();
     if (currentJobId) renderDetailBody(currentJobId);
