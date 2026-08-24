@@ -508,6 +508,7 @@
         <button class="loc-tab" data-loc="On-hand (Lumber Rack)" onclick="setInvLocation('On-hand (Lumber Rack)')">Lumber</button>
         <button class="loc-tab" data-loc="On-hand (Susie)" onclick="setInvLocation('On-hand (Susie)')">Susie</button>
         <button class="loc-tab" data-loc="On-hand (Shop)" onclick="setInvLocation('On-hand (Shop)')">Shop</button>
+        <button class="loc-tab" data-loc="archive" onclick="setInvLocation('archive')">Archive</button>
       </div>
       <div class="type-chips" id="type-chips" style="display:none;"></div>
     </div>
@@ -1054,6 +1055,7 @@
             <option value="Allocated">Allocated</option>
             <option value="Loaded">Loaded</option>
             <option value="Installed">Installed</option>
+            <option value="Archived">Archived</option>
           </select>
         </div>
       </div>
@@ -1386,6 +1388,9 @@ let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
 let checkedLocally = {};
 let currentJobId = null, completeJobId = null;
 let showAddMat = false;
+// Job detail: whether the "previously installed" equipment roll-up is expanded. Collapsed by
+// default so a returning customer's reused job record doesn't open buried in old units.
+let showRetiredEquip = false;
 let showCompleted = false;
 let invEditState = null; // {skuId, locField, locLabel, skuName}
 let xferState = null; // {skuId, skuName}
@@ -2868,7 +2873,7 @@ function toggleCompleted() { showCompleted = !showCompleted; renderJobs(); }
 
 // ── JOB DETAIL ──
 function openDetail(jobId) {
-  currentJobId = jobId; showAddMat = false; editingCommIdx = null;
+  currentJobId = jobId; showAddMat = false; showRetiredEquip = false; editingCommIdx = null;
   const job = jobs.find(j=>j.id===jobId);
   document.getElementById('detail-title').textContent = f(job,F.job_name)||'Job';
   renderDetailBody(jobId);
@@ -2912,7 +2917,26 @@ function renderDetailBody(jobId) {
     return (f(i, 'Combo tag') || '').toLowerCase() === 'material';
   };
   const consumables = jobItems.filter(isMaterial);
-  const equipment = jobItems.filter(i => !isMaterial(i));
+  const allEquipment = jobItems.filter(i => !isMaterial(i));
+  // The app steers each customer to ONE reusable job record (see saveNewJob), so without this
+  // split every unit ever installed for that customer piles up here forever. Live equipment
+  // stays in the main list; retired units collapse into a roll-up below it.
+  const equipment = allEquipment.filter(i => !isRetired(i));
+  const retiredEquipment = allEquipment.filter(i => isRetired(i));
+
+  // Collapsed roll-up of units already installed (or written off) on this job. Read-only:
+  // Move/Remove don't apply to something that's no longer in the shop. Use "Revert to active"
+  // if a whole job was completed by mistake, or the unit's Edit card for a one-off correction.
+  let retiredEquipHtml = '';
+  if (retiredEquipment.length) {
+    const rQty = retiredEquipment.reduce((a, i) => a + (Number(f(i, F.item_qty)) || 1), 0);
+    retiredEquipHtml = `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;">
+      <div onclick="showRetiredEquip=!showRetiredEquip;renderDetailBody('${jobId}')" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-faint);font-weight:600;padding:4px 0;">
+        <span>${showRetiredEquip ? '▾' : '▸'} Previously installed (${rQty} unit${rQty !== 1 ? 's' : ''})</span>
+      </div>
+      ${showRetiredEquip ? retiredEquipment.map(i => `<div class="mat-row" style="opacity:.7;"><div class="mat-info"><div class="mat-name">${escapeHtml(f(i, F.item_model) || 'Unknown')}</div><div class="mat-qty">${['×' + (f(i, F.item_qty) ?? 1), f(i, F.item_type) || '', (f(i, F.item_status) || '').toLowerCase() === 'archived' ? 'written off' : 'installed'].filter(Boolean).map(escapeHtml).join(' · ')}</div></div></div>`).join('') : ''}
+    </div>`;
+  }
 
   let matHtml = '';
   if (consumables.length) {
@@ -3213,10 +3237,11 @@ function renderDetailBody(jobId) {
 
     <div class="detail-section">
       <div class="detail-section-title" style="display:flex;justify-content:space-between;align-items:center;">
-        <span>Equipment (${equipment.length} items)</span>
+        <span>Equipment (${equipment.length} item${equipment.length !== 1 ? 's' : ''})</span>
         <button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:4px 10px;" onclick="openAddItemPicker('${jobId}')">+ Add unit</button>
       </div>
       ${equipment.length ? equipment.map(i=>`<div class="mat-row"><div class="mat-info"><div class="mat-name">${f(i,F.item_model)||'Unknown'}</div><div class="mat-qty">${['×'+(f(i,F.item_qty)??1), f(i,F.item_type)||'', f(i,F.item_status)||''].filter(Boolean).join(' · ')}</div></div><div style="display:flex;gap:4px;flex:none;"><button class="btn-sm btn-sm-ghost" onclick="openMoveUnits('${i.id}')" title="Move to stock or another customer" style="font-size:11px;padding:2px 8px;border-radius:var(--radius-sm);">Move</button><button class="mat-del" onclick="openRemoveEquipModal('${i.id}')" title="Remove from job" style="font-size:11px;width:auto;padding:0 8px;border-radius:var(--radius-sm);">Remove</button></div></div>`).join('') : `<div style="font-size:13px;color:var(--text-faint);padding:8px 0;">No equipment linked</div>`}
+      ${retiredEquipHtml}
     </div>
 
     ${!isComplete ? `<button class="btn-complete" onclick="startComplete('${jobId}')">Mark job complete →</button>` : `
@@ -3893,6 +3918,7 @@ function openAddUnitModal() {
   const auStockSel = document.getElementById('au-stock');
   const auStockUnits = items.filter(it => {
     const sk = f(it, F.item_sku); if (Array.isArray(sk) && sk.length) return false; // exclude consumables
+    if (isRetired(it)) return false; // belt-and-braces: retired units are never allocatable
     const own = f(it, F.item_owner); const hasOwner = Array.isArray(own) && own.length;
     const st = (f(it, F.item_status) || '').toLowerCase();
     return !hasOwner && (st === 'stock' || st === '');
@@ -4057,6 +4083,10 @@ async function saveAddUnit() {
         const m = stockModel.trim().toLowerCase();
         mergeTarget = m ? items.find(i =>
           i.id !== auStockId &&
+          // Never fold a fresh allocation into a unit that's already installed or written off.
+          // Customers reuse one job record, so a returning customer's old installed unit would
+          // otherwise swallow the new allocation and it would disappear from the load list.
+          !isRetired(i) &&
           (() => { const own = f(i, F.item_owner); return Array.isArray(own) && own.some(o => (typeof o === 'string' ? o : o.id) === customerId); })() &&
           (f(i, F.item_model) || '').trim().toLowerCase() === m &&
           !(Array.isArray(f(i, F.item_sku)) && f(i, F.item_sku).length)
@@ -5247,7 +5277,11 @@ function setInvLocation(loc) {
   currentInvType = 'all';
   // Update tab UI
   document.querySelectorAll('.loc-tab').forEach(b => {
-    b.classList.toggle('active', b.getAttribute('data-loc') === loc);
+    const on = b.getAttribute('data-loc') === loc;
+    b.classList.toggle('active', on);
+    // The tab row scrolls horizontally and Archive sits off the right edge on a phone —
+    // pull the selected tab into view so you can see which one you're on.
+    if (on && b.scrollIntoView) { try { b.scrollIntoView({ block:'nearest', inline:'center' }); } catch(e) {} }
   });
   renderInventory();
 }
@@ -5264,6 +5298,29 @@ function startTentVerifyFromTab() {
   if (tentIdx >= 0 && typeof beginWalk === 'function') {
     beginWalk(tentIdx);
   }
+}
+
+// ── RETIRED UNITS ──────────────────────────────────────────────────────────────
+// A unit that has been Installed at a jobsite, or Archived (damaged / returned to
+// vendor / sold), is physically gone from the shop. Its record stays in Airtable for
+// history, but it must not appear in any live inventory tab, count, chip, or search
+// result — otherwise completed jobs slowly bury the stock you can actually pull from.
+// Everything retired is reachable on the Inventory → Archive tab.
+const RETIRED_STATUSES = ['installed', 'archived'];
+function isRetired(item) {
+  return RETIRED_STATUSES.includes((f(item, F.item_status) || '').toLowerCase());
+}
+
+// Shared search predicate for equipment units — model, description, type tag, or owning
+// job name. Unallocated units are searchable as "stock" so typing that finds free units.
+function equipMatchesSearch(item, search) {
+  if (!search) return true;
+  const m = (f(item, F.item_model) || '').toLowerCase();
+  const d = (f(item, F.item_description) || '').toLowerCase();
+  const t = (f(item, F.item_type) || '').toLowerCase();
+  let onm = (itemOwnerName(item) || '').toLowerCase();
+  if (!onm) onm = 'stock';
+  return m.includes(search) || d.includes(search) || t.includes(search) || onm.includes(search);
 }
 
 // Resolve an equipment unit's owning job (customer) name — handles ID strings or {name} objects.
@@ -5302,6 +5359,13 @@ function equipCardHtml(item, showLoc) {
       <span style="font-size:13px;font-weight:600;color:var(--warn);">${escapeHtml(ownerName || 'Loaded')}</span>
       <span style="font-size:10px;color:var(--warn);text-transform:uppercase;letter-spacing:0.04em;font-weight:600;">Loaded</span>
     </div>`;
+  } else if (isRetired(item)) {
+    // Retired units only surface on the Archive tab. Show where it went, not just the word.
+    const retLabel = statusLower === 'installed' ? 'Installed' : 'Written off';
+    statusBadge = `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
+      ${ownerName ? `<span style="font-size:13px;font-weight:600;color:var(--text-muted);">${escapeHtml(ownerName)}</span>` : ''}
+      <span style="font-size:10px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.04em;font-weight:600;">${retLabel}</span>
+    </div>`;
   } else if (status) {
     statusBadge = `<span style="font-size:11px;padding:3px 9px;border-radius:99px;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);">${escapeHtml(status)}</span>`;
   }
@@ -5321,7 +5385,7 @@ function equipCardHtml(item, showLoc) {
       </div>
       <div style="flex-shrink:0;display:flex;align-items:center;gap:8px;">
         ${statusBadge}
-        <button class="sku-edit-btn small" onclick="event.stopPropagation();openEquipXfer('${iid}')" title="Transfer between locations">⇄</button>
+        ${isRetired(item) ? '' : `<button class="sku-edit-btn small" onclick="event.stopPropagation();openEquipXfer('${iid}')" title="Transfer between locations">⇄</button>`}
       </div>
     </div>
   </div>`;
@@ -5343,8 +5407,12 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     return name.includes(search) || itemNum.includes(search) || type.includes(search) || vendor.includes(search);
   });
   if (lowOnly) filtered = filtered.filter(s => skuIsLow(s));
+  // The Archive tab is units-only — consumable SKUs are a running balance, not something
+  // that gets retired, so no SKU cards there.
+  const onArchiveTab = (currentInvLocation === 'archive');
+  if (onArchiveTab) filtered = [];
   // Location tab filter: only show SKUs that have a non-zero, non-null count at this location
-  if (currentInvLocation !== 'all') {
+  if (currentInvLocation !== 'all' && !onArchiveTab) {
     filtered = filtered.filter(s => {
       const v = f(s, currentInvLocation);
       return v !== null && v !== undefined && Number(v) > 0;
@@ -5356,33 +5424,37 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
   // Doing it here (instead of inside the equipment section below) lets us share the result
   // with the chip count computation so chip totals reflect what's actually visible.
   const onAllTab = (currentInvLocation === 'all');
-  // Flat per-location equipment shows on the physical-location tabs, but NOT on "All"
-  // (consumables only there) and NOT on the Unit Tent tab (which uses the by-customer grouped view).
-  const showEquipment = !onAllTab && currentInvLocation !== 'On-hand (Unit Tent)';
-  const tabLocLabel = onAllTab ? '' : ((LOCATIONS.find(l => l.field === currentInvLocation) || {}).label || '');
+  // Flat per-location equipment shows on the physical-location tabs, and on "All" when
+  // there's a search term (so you can find a unit by model without knowing where it lives).
+  // NOT on the Unit Tent tab (which uses the by-customer grouped view) or Archive (its own section).
+  const showEquipment = !onArchiveTab &&
+    ((!onAllTab && currentInvLocation !== 'On-hand (Unit Tent)') || (onAllTab && !!search));
+  const tabLocLabel = (onAllTab || onArchiveTab) ? '' : ((LOCATIONS.find(l => l.field === currentInvLocation) || {}).label || '');
+  const isEquipment = item => {
+    const skuLinks = f(item, F.item_sku);
+    // Equipment has no SKU link; consumables have one.
+    return !Array.isArray(skuLinks) || skuLinks.length === 0;
+  };
   let inScopeItems = [];
   if (showEquipment) {
     inScopeItems = items.filter(item => {
+      // Installed / Archived units are physically gone — never in live inventory scope.
+      if (isRetired(item)) return false;
       if (!onAllTab) {
         const loc = f(item, F.item_location);
         if (loc !== tabLocLabel) return false;
       }
-      const skuLinks = f(item, F.item_sku);
-      // Equipment has no SKU link; consumables have one. Show only equipment here.
-      return !Array.isArray(skuLinks) || skuLinks.length === 0;
+      return isEquipment(item);
     });
-    // Apply the same search filter that's applied to SKUs — by model, description, type tag, or owner name
-    if (search) {
-      inScopeItems = inScopeItems.filter(item => {
-        const m = (f(item, F.item_model) || '').toLowerCase();
-        const d = (f(item, F.item_description) || '').toLowerCase();
-        const t = (f(item, F.item_type) || '').toLowerCase();
-        // Match on the owning job/customer name; unallocated units are searchable as "stock"
-        let onm = itemOwnerName(item).toLowerCase();
-        if (!onm) onm = 'stock';
-        return m.includes(search) || d.includes(search) || t.includes(search) || onm.includes(search);
-      });
-    }
+    // Apply the same search filter that's applied to SKUs
+    if (search) inScopeItems = inScopeItems.filter(item => equipMatchesSearch(item, search));
+  }
+
+  // ── Archive scope: everything retired, newest-looking first, searchable within the tab ──
+  let archiveItems = [];
+  if (onArchiveTab) {
+    archiveItems = items.filter(item => isRetired(item) && isEquipment(item));
+    if (search) archiveItems = archiveItems.filter(item => equipMatchesSearch(item, search));
   }
 
   // ── Build type-tag counts (qty-weighted) from current SKU + equipment scope ──
@@ -5394,7 +5466,7 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     const qty = onAllTab ? skuAvailable(s) : (Number(f(s, currentInvLocation)) || 0);
     if (qty > 0) typeCounts[t] = (typeCounts[t] || 0) + qty;
   });
-  inScopeItems.forEach(it => {
+  (onArchiveTab ? archiveItems : inScopeItems).forEach(it => {
     const t = (f(it, F.item_type) || '').trim();
     if (!t) return;
     const q = Number(f(it, F.item_qty)) || 1;
@@ -5510,13 +5582,17 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
 
   // ── BY-CUSTOMER GROUPED EQUIPMENT — the Unit Tent tab: every unit under its job header, Stock last ──
   if (currentInvLocation === 'On-hand (Unit Tent)') {
-    let ge = items.filter(it => { const sk = f(it, F.item_sku); return !Array.isArray(sk) || sk.length === 0; });
-    if (currentInvType !== 'all') ge = ge.filter(it => (f(it, F.item_type) || '').trim() === currentInvType);
-    if (search) ge = ge.filter(it => {
-      const m=(f(it,F.item_model)||'').toLowerCase(), d=(f(it,F.item_description)||'').toLowerCase(), t=(f(it,F.item_type)||'').toLowerCase();
-      let onm=(itemOwnerName(it)||'').toLowerCase(); if(!onm) onm='stock';
-      return m.includes(search)||d.includes(search)||t.includes(search)||onm.includes(search);
+    const tentLabel = (LOCATIONS.find(l => l.field === 'On-hand (Unit Tent)') || {}).label || 'Unit Tent';
+    let ge = items.filter(it => {
+      // This is a location tab, so it must respect Physical location — it previously
+      // pulled every equipment record in the base, which parked units stored elsewhere
+      // (and every completed job's units) under stale customer headers forever.
+      if (isRetired(it)) return false;
+      if (f(it, F.item_location) !== tentLabel) return false;
+      return isEquipment(it);
     });
+    if (currentInvType !== 'all') ge = ge.filter(it => (f(it, F.item_type) || '').trim() === currentInvType);
+    if (search) ge = ge.filter(it => equipMatchesSearch(it, search));
     const groups = {};
     ge.forEach(it => {
       let nm = (itemOwnerName(it) || '').trim();
@@ -5531,6 +5607,41 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
       equipHtml += `<div class="detail-section-title" style="margin-top:16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;"><span>${escapeHtml(nm)}</span><span style="color:var(--text-faint);font-weight:500;">${qtySum} unit${qtySum !== 1 ? 's' : ''}</span></div>`;
       list.forEach(it => { equipHtml += equipCardHtml(it, true); });
     });
+  }
+
+  // ── ARCHIVE TAB: retired units grouped by the job they went to, Installed before Archived ──
+  // Read-only history. Nothing here counts toward stock, and nothing here is offered when
+  // allocating. To bring a unit back, open its card and set Status to Stock.
+  if (onArchiveTab) {
+    let av = archiveItems.slice();
+    if (currentInvType !== 'all') av = av.filter(it => (f(it, F.item_type) || '').trim() === currentInvType);
+    const instN = av.reduce((a, it) => a + (((f(it, F.item_status) || '').toLowerCase() === 'installed') ? (Number(f(it, F.item_qty)) || 1) : 0), 0);
+    const archN = av.reduce((a, it) => a + (((f(it, F.item_status) || '').toLowerCase() === 'archived') ? (Number(f(it, F.item_qty)) || 1) : 0), 0);
+    const bits = [];
+    if (instN) bits.push(`${instN} installed`);
+    if (archN) bits.push(`${archN} written off`);
+    equipHtml += `<div class="inv-summary" style="margin-top:4px;">Archive · ${bits.length ? escapeHtml(bits.join(' · ')) : 'nothing retired yet'}</div>`;
+    equipHtml += `<div style="font-size:12px;color:var(--text-faint);padding:2px 0 10px;line-height:1.5;">Units that left the shop — installed at a jobsite or written off. Not counted in stock and not offered when allocating.</div>`;
+
+    // Group by owning job so you can answer "what did we put in at the Kealas'?" at a glance.
+    // Write-offs have their Owner cleared, so they collect under "No job".
+    const agroups = {};
+    av.forEach(it => {
+      let nm = (itemOwnerName(it) || '').trim();
+      if (!nm || nm.toLowerCase() === 'stock') nm = 'No job';
+      (agroups[nm] = agroups[nm] || []).push(it);
+    });
+    const anames = Object.keys(agroups).filter(n => n !== 'No job').sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+    if (agroups['No job']) anames.push('No job');
+    anames.forEach(nm => {
+      const list = agroups[nm].slice().sort((a, b) => (f(a, F.item_model) || '').localeCompare(f(b, F.item_model) || ''));
+      const qtySum = list.reduce((a, it) => a + (Number(f(it, F.item_qty)) || 1), 0);
+      equipHtml += `<div class="detail-section-title" style="margin-top:16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;"><span>${escapeHtml(nm)}</span><span style="color:var(--text-faint);font-weight:500;">${qtySum} unit${qtySum !== 1 ? 's' : ''}</span></div>`;
+      list.forEach(it => { equipHtml += equipCardHtml(it, true); });
+    });
+    if (!av.length) {
+      equipHtml += `<div class="empty"><div class="icon">🗄</div>${search || currentInvType !== 'all' ? 'No retired units match' : 'Nothing retired yet'}</div>`;
+    }
   }
 
   // Empty-state handling: if equipment exists, show it even if no SKUs match
