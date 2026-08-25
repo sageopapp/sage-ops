@@ -1003,6 +1003,36 @@
   </div>
 </div>
 
+<!-- MARK INSTALLED MODAL (from Job Detail) — only shown when the pile has more than one unit -->
+<div class="modal-bg" id="install-modal">
+  <div class="modal" style="max-width:420px;">
+    <h3>Install <span id="mi-model">this unit</span></h3>
+    <p id="mi-sub">How many went in?</p>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+      <input type="number" id="mi-qty" min="1" step="1" style="flex:1;padding:10px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:16px;outline:none;" />
+      <span id="mi-of" style="font-size:14px;color:var(--text-muted);white-space:nowrap;"></span>
+    </div>
+    <p style="font-size:12.5px;color:var(--text-faint);line-height:1.5;">Installing fewer than the whole pile splits the line — the rest stays on the job.</p>
+    <div id="mi-error" style="display:none;color:var(--danger);font-size:13px;margin-top:14px;background:var(--danger-light);padding:8px 12px;border-radius:var(--radius-sm);"></div>
+    <div class="modal-btns" style="margin-top:18px;">
+      <button class="btn-cancel" onclick="closeInstallModal()">Cancel</button>
+      <button class="btn-sm btn-sm-accent" style="padding:10px 20px;" onclick="confirmInstall()">Mark installed</button>
+    </div>
+  </div>
+</div>
+
+<!-- OFFER TO COMPLETE once the last unit on a job is installed -->
+<div class="modal-bg" id="alldone-modal">
+  <div class="modal" style="max-width:420px;">
+    <h3>That was the last unit</h3>
+    <p id="ad-sub">Every unit on this job is installed. Mark the job complete?</p>
+    <div class="modal-btns" style="margin-top:18px;">
+      <button class="btn-cancel" onclick="closeAllDoneModal()">Not yet</button>
+      <button class="btn-sm btn-sm-accent" style="padding:10px 20px;" onclick="allDoneComplete()">Complete job →</button>
+    </div>
+  </div>
+</div>
+
 <!-- DELETE JOB CONFIRM MODAL -->
 <div class="modal-bg" id="delete-job-modal">
   <div class="modal">
@@ -2964,7 +2994,7 @@ function renderDetailBody(jobId) {
       <div onclick="showRetiredEquip=!showRetiredEquip;renderDetailBody('${jobId}')" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-faint);font-weight:600;padding:4px 0;">
         <span>${showRetiredEquip ? '▾' : '▸'} Previously installed (${rQty} unit${rQty !== 1 ? 's' : ''})</span>
       </div>
-      ${showRetiredEquip ? retiredEquipment.map(i => `<div class="mat-row" style="opacity:.7;"><div class="mat-info"><div class="mat-name">${escapeHtml(f(i, F.item_model) || 'Unknown')}</div><div class="mat-qty">${['×' + (f(i, F.item_qty) ?? 1), f(i, F.item_type) || '', (f(i, F.item_status) || '').toLowerCase() === 'archived' ? 'written off' : 'installed'].filter(Boolean).map(escapeHtml).join(' · ')}</div></div></div>`).join('') : ''}
+      ${showRetiredEquip ? retiredEquipment.map(i => `<div class="mat-row" style="opacity:.75;"><div class="mat-info"><div class="mat-name">${escapeHtml(f(i, F.item_model) || 'Unknown')}</div><div class="mat-qty">${['×' + (f(i, F.item_qty) ?? 1), f(i, F.item_type) || '', (f(i, F.item_status) || '').toLowerCase() === 'archived' ? 'written off' : 'installed'].filter(Boolean).map(escapeHtml).join(' · ')}</div></div>${(f(i, F.item_status) || '').toLowerCase() === 'installed' ? `<div style="flex:none;"><button class="btn-sm btn-sm-ghost" onclick="undoInstall('${i.id}')" title="Put this unit back on the job" style="font-size:11px;padding:2px 8px;border-radius:var(--radius-sm);">Undo</button></div>` : ''}</div>`).join('') : ''}
     </div>`;
   }
 
@@ -3270,7 +3300,7 @@ function renderDetailBody(jobId) {
         <span>Equipment (${equipment.length} item${equipment.length !== 1 ? 's' : ''})</span>
         <button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:4px 10px;" onclick="openAddItemPicker('${jobId}')">+ Add unit</button>
       </div>
-      ${equipment.length ? equipment.map(i=>`<div class="mat-row"><div class="mat-info"><div class="mat-name">${f(i,F.item_model)||'Unknown'}</div><div class="mat-qty">${['×'+(f(i,F.item_qty)??1), f(i,F.item_type)||'', f(i,F.item_status)||''].filter(Boolean).join(' · ')}</div></div><div style="display:flex;gap:4px;flex:none;"><button class="btn-sm btn-sm-ghost" onclick="openMoveUnits('${i.id}')" title="Move to stock or another customer" style="font-size:11px;padding:2px 8px;border-radius:var(--radius-sm);">Move</button><button class="mat-del" onclick="openRemoveEquipModal('${i.id}')" title="Remove from job" style="font-size:11px;width:auto;padding:0 8px;border-radius:var(--radius-sm);">Remove</button></div></div>`).join('') : `<div style="font-size:13px;color:var(--text-faint);padding:8px 0;">No equipment linked</div>`}
+      ${equipment.length ? equipment.map(i=>`<div class="mat-row"><div class="mat-info"><div class="mat-name">${f(i,F.item_model)||'Unknown'}</div><div class="mat-qty">${['×'+(f(i,F.item_qty)??1), f(i,F.item_type)||'', f(i,F.item_status)||''].filter(Boolean).join(' · ')}</div></div><div style="display:flex;gap:4px;flex:none;align-items:center;"><button class="btn-sm btn-sm-accent" onclick="openInstallModal('${i.id}')" title="Mark this unit installed" style="font-size:11px;padding:3px 9px;border-radius:var(--radius-sm);">✓ Installed</button><button class="btn-sm btn-sm-ghost" onclick="openMoveUnits('${i.id}')" title="Move to stock or another customer" style="font-size:11px;padding:2px 8px;border-radius:var(--radius-sm);">Move</button><button class="mat-del" onclick="openRemoveEquipModal('${i.id}')" title="Remove from job" style="font-size:11px;width:auto;padding:0 8px;border-radius:var(--radius-sm);">Remove</button></div></div>`).join('') : `<div style="font-size:13px;color:var(--text-faint);padding:8px 0;">No equipment linked</div>`}
       ${retiredEquipHtml}
     </div>
 
@@ -3360,6 +3390,147 @@ async function deleteMaterial(itemId) {
     renderDetailBody(currentJobId);
     renderLoadList();
   } catch(e) { alert('Could not remove material.'); }
+}
+
+// ── MARK A SINGLE UNIT INSTALLED (from Job Detail) ─────────────────────────────
+// Before this, the only route to Installed was completing the whole job — which doesn't
+// fit a rough-in / trim-out job where units go in across separate visits. Equipment only:
+// a consumable's stock already left the count when it was loaded, so there is nothing for
+// this action to do there (materials still reconcile at completion via "used N of M").
+let installItemId = null;
+
+function openInstallModal(itemId) {
+  const item = items.find(i => i.id === itemId);
+  if (!item) return;
+  const qty = Number(f(item, F.item_qty)) || 1;
+  // Single unit is the common case — one tap, no dialog to wade through on a jobsite.
+  if (qty <= 1) { applyInstall(itemId, 1); return; }
+  installItemId = itemId;
+  document.getElementById('mi-model').textContent = f(item, F.item_model) || 'this unit';
+  document.getElementById('mi-of').textContent = `of ${qty}`;
+  const qtyEl = document.getElementById('mi-qty');
+  qtyEl.value = qty; qtyEl.max = qty;
+  document.getElementById('mi-error').style.display = 'none';
+  document.getElementById('install-modal').classList.add('open');
+}
+
+function closeInstallModal() {
+  document.getElementById('install-modal').classList.remove('open');
+  installItemId = null;
+}
+
+function confirmInstall() {
+  const item = items.find(i => i.id === installItemId);
+  if (!item) return closeInstallModal();
+  const avail = Number(f(item, F.item_qty)) || 1;
+  const n = parseInt(document.getElementById('mi-qty').value, 10);
+  if (!Number.isFinite(n) || n < 1 || n > avail) {
+    const el = document.getElementById('mi-error');
+    el.textContent = `Enter a number between 1 and ${avail}.`; el.style.display = 'block';
+    return;
+  }
+  const id = installItemId;
+  closeInstallModal();
+  applyInstall(id, n);
+}
+
+// Flip `n` of the pile to Installed. Installing part of a pile splits the record so the
+// remainder stays live on the job — marking the whole line installed when only one of
+// three went in would quietly retire two units that are still sitting in the tent.
+async function applyInstall(itemId, n) {
+  const item = items.find(i => i.id === itemId);
+  if (!item) return;
+  const jobId = currentJobId;
+  const qty = Number(f(item, F.item_qty)) || 1;
+  try {
+    if (n >= qty) {
+      await patchRecord(ITEMS_TBL, itemId, { 'Status': 'Installed', 'Loaded?': false });
+      item.fields['Status'] = 'Installed';
+      item.fields['Loaded?'] = false;
+    } else {
+      await patchRecord(ITEMS_TBL, itemId, { 'Quantity': qty - n });
+      item.fields['Quantity'] = qty - n;
+      const owners = f(item, F.item_owner);
+      const ownerIds = Array.isArray(owners) ? owners.map(o => (typeof o === 'string' ? o : o.id)) : [];
+      const split = {
+        'Model number': f(item, F.item_model) || '',
+        'Quantity': n,
+        'Status': 'Installed',
+        'Loaded?': false,
+      };
+      const desc = f(item, F.item_description); if (desc) split['Description'] = desc;
+      const tag = f(item, F.item_type); if (tag) split['Type tag'] = tag;
+      const loc = f(item, F.item_location); if (loc) split['Physical location'] = loc;
+      const visit = f(item, F.item_visit); if (visit) split['Visit consumed at'] = visit;
+      if (ownerIds.length) split['Owner'] = ownerIds;
+      const created = await createRecord(ITEMS_TBL, split);
+      if (created && created.id) items.push(created);
+    }
+    if (jobId) renderDetailBody(jobId);
+    renderLoadList();
+    if (typeof renderInventory === 'function') renderInventory();
+    if (jobId) offerCompleteIfAllInstalled(jobId);
+  } catch(e) {
+    showError('Could not mark installed.');
+  }
+}
+
+// Undo — from the "Previously installed" roll-up on the job. Returns the unit to Allocated
+// and lets mergeIntoExistingPile fold it back into the line it was split from, so an
+// accidental tap doesn't leave two half-piles behind.
+async function undoInstall(itemId) {
+  const item = items.find(i => i.id === itemId);
+  if (!item) return;
+  const jobId = currentJobId;
+  try {
+    await patchRecord(ITEMS_TBL, itemId, { 'Status': 'Allocated', 'Loaded?': false });
+    item.fields['Status'] = 'Allocated';
+    item.fields['Loaded?'] = false;
+    try { await mergeIntoExistingPile(itemId); } catch(e) { console.warn('consolidate failed', e); }
+    if (jobId) renderDetailBody(jobId);
+    renderLoadList();
+    if (typeof renderInventory === 'function') renderInventory();
+  } catch(e) {
+    showError('Could not undo.');
+  }
+}
+
+let allDoneJobId = null;
+
+// Nudge, not an auto-complete: completing a job also reconciles materials, so it stays a
+// decision Anthony makes rather than a side effect of tapping the last unit.
+function offerCompleteIfAllInstalled(jobId) {
+  const job = jobs.find(j => j.id === jobId);
+  if (!job) return;
+  if ((f(job, F.job_status) || '').toLowerCase() === 'complete') return;
+  const jobItems = items.filter(item => {
+    const owners = f(item, F.item_owner);
+    return Array.isArray(owners) && owners.some(o => (typeof o === 'string' ? o : o.id) === jobId);
+  });
+  const equip = jobItems.filter(i => {
+    const sk = f(i, F.item_sku);
+    const isCons = (Array.isArray(sk) && sk.length > 0) || (f(i, 'Combo tag') || '').toLowerCase() === 'material';
+    return !isCons;
+  });
+  if (!equip.length) return;                       // nothing to judge by
+  if (equip.some(i => !isRetired(i))) return;      // still units outstanding
+  allDoneJobId = jobId;
+  const pending = jobItems.length - equip.length;
+  document.getElementById('ad-sub').textContent = pending
+    ? `Every unit on this job is installed. There ${pending === 1 ? 'is' : 'are'} still ${pending} material line${pending === 1 ? '' : 's'} to reconcile — completing the job walks you through that. Complete it now?`
+    : 'Every unit on this job is installed. Mark the job complete?';
+  document.getElementById('alldone-modal').classList.add('open');
+}
+
+function closeAllDoneModal() {
+  document.getElementById('alldone-modal').classList.remove('open');
+  allDoneJobId = null;
+}
+
+function allDoneComplete() {
+  const jid = allDoneJobId;
+  closeAllDoneModal();
+  if (jid) startComplete(jid);
 }
 
 let removeEquipId = null;
