@@ -2617,6 +2617,31 @@ async function toggleLoaded(itemId) {
   const itemUnit = f(item, 'Unit') || '';
   const lengthBased = isLengthBasedUnit(itemUnit);
 
+  // ── Resolve the stock bucket ONCE, before any write ────────────────────────────
+  // Load and unload must agree on which shelf the quantity moves to and from. Two
+  // things used to break that agreement:
+  //   1. Anything that rewrites Physical location between load and unload (an Airtable
+  //      automation used to stamp it "Rig") leaves the return trip with no origin.
+  //   2. The fallback picks "whichever bucket holds the most", and that answer changes
+  //      as stock moves — so the return could land on a different shelf than it left.
+  // When no bucket can be resolved at all, we now REFUSE instead of patching Loaded?
+  // and skipping the stock math, which silently destroyed the quantity.
+  const needsStockMath = isConsumable && sku && !lengthBased;
+  const itemLocNow = f(item, F.item_location) || '';
+  const STORAGE_BUCKETS = ['Barn','Unit Tent','Susie','Lumber Rack','Shop','Ducting Tent'];
+  const locIsRealBucket = STORAGE_BUCKETS.includes(itemLocNow);
+  const src = needsStockMath ? consumableSourceLocation(item, sku) : null;
+
+  if (needsStockMath && !src) {
+    const name = f(item, F.item_model) || 'this item';
+    showError(
+      newVal
+        ? `Can't load "${name}" — no stock to pull from. Its location reads "${itemLocNow || 'blank'}", which isn't a storage shelf, and no shelf has any on hand. Set its Physical location and try again.`
+        : `Can't unload "${name}" — nowhere to return the stock to. Its location reads "${itemLocNow || 'blank'}", which isn't a storage shelf. Set its Physical location to the shelf it came from, then uncheck it.`
+    );
+    return;
+  }
+
   // Show loading state on all row instances
   rows.forEach(row => {
     const c = row.querySelector('.item-check');
@@ -2629,23 +2654,28 @@ async function toggleLoaded(itemId) {
     // truck); unchecking returns the full quantity. Length-based rolls (feet) are
     // reconciled physically — no auto-math. Equipment is tracked by status only.
     if (newVal) {
-      if (isConsumable && sku && !lengthBased) {
-        const src = consumableSourceLocation(item, sku);
-        if (src) await applySkuAdjust(sku, src, -qty);
-      }
-      await patchRecord(ITEMS_TBL, itemId, { 'Loaded?': true, 'Status': 'Loaded' });
+      if (needsStockMath) await applySkuAdjust(sku, src, -qty);
+      const loadFields = { 'Loaded?': true, 'Status': 'Loaded' };
+      // Pin the origin. If the item's own location wasn't a real shelf, we resolved `src`
+      // by fallback — write it back so the unload returns the quantity to the same place
+      // instead of re-guessing against a stock picture that has since changed.
+      if (needsStockMath && !locIsRealBucket) loadFields['Physical location'] = src;
+      await patchRecord(ITEMS_TBL, itemId, loadFields);
       checkedLocally[itemId] = true;
       item.fields['Loaded?'] = true;
       item.fields['Status'] = 'Loaded';
+      if (loadFields['Physical location']) item.fields['Physical location'] = src;
     } else {
-      if (isConsumable && sku && !lengthBased) {
-        const src = consumableSourceLocation(item, sku);
-        if (src) await applySkuAdjust(sku, src, +qty);
-      }
-      await patchRecord(ITEMS_TBL, itemId, { 'Loaded?': false, 'Status': 'Allocated' });
+      if (needsStockMath) await applySkuAdjust(sku, src, +qty);
+      const unloadFields = { 'Loaded?': false, 'Status': 'Allocated' };
+      // Same repair on the way back: an item that came off the truck should not be left
+      // parked at a non-shelf location, where it renders on no tab and looks lost.
+      if (needsStockMath && !locIsRealBucket) unloadFields['Physical location'] = src;
+      await patchRecord(ITEMS_TBL, itemId, unloadFields);
       checkedLocally[itemId] = false;
       item.fields['Loaded?'] = false;
       item.fields['Status'] = 'Allocated';
+      if (unloadFields['Physical location']) item.fields['Physical location'] = src;
     }
     renderLoadList();
     if (typeof renderInventory === 'function') renderInventory();
@@ -5607,6 +5637,27 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
       equipHtml += `<div class="detail-section-title" style="margin-top:16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;"><span>${escapeHtml(nm)}</span><span style="color:var(--text-faint);font-weight:500;">${qtySum} unit${qtySum !== 1 ? 's' : ''}</span></div>`;
       list.forEach(it => { equipHtml += equipCardHtml(it, true); });
     });
+  }
+
+  // ── STRANDED UNITS: live equipment parked at a location that is not a storage shelf ──
+  // Every location tab filters on an exact Physical location match, so a unit reading
+  // "Rig", "on-site", "vendor" or blank renders on NO tab and looks like it evaporated.
+  // That invisibility is how a load/unload bug went unnoticed. Surface them on All.
+  if (onAllTab && !search) {
+    const shelves = LOCATIONS.map(l => l.label);
+    const stranded = items.filter(it =>
+      !isRetired(it) && isEquipment(it) && !shelves.includes(f(it, F.item_location) || '')
+    );
+    if (stranded.length) {
+      const q = stranded.reduce((a, it) => a + (Number(f(it, F.item_qty)) || 1), 0);
+      const where = [...new Set(stranded.map(it => f(it, F.item_location) || 'blank'))].sort();
+      equipHtml += `<div class="inv-summary" style="margin-top:4px;color:var(--warn);font-weight:600;">⚠ ${q} unit${q !== 1 ? 's' : ''} not on any shelf</div>`;
+      equipHtml += `<div style="font-size:12px;color:var(--text-faint);padding:2px 0 10px;line-height:1.5;">Physical location reads ${escapeHtml(where.join(', '))} — these appear on no location tab. Open each and set a real shelf.</div>`;
+      stranded
+        .slice()
+        .sort((a, b) => (f(a, F.item_model) || '').localeCompare(f(b, F.item_model) || ''))
+        .forEach(it => { equipHtml += equipCardHtml(it, true); });
+    }
   }
 
   // ── ARCHIVE TAB: retired units grouped by the job they went to, Installed before Archived ──
