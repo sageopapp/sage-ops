@@ -2541,7 +2541,7 @@ function renderLoadList() {
           <div class="item-check${isLoaded?' checked':''}" onclick="toggleLoaded('${iid}')" title="Mark as loaded">
             <svg class="checkmark" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="white" stroke-width="2.5"><polyline points="2,6 5,9 10,3"/></svg>
           </div>
-          <div class="item-info"><div class="item-model">${model}</div><div class="item-detail">${[type,status].filter(Boolean).join(' · ')}</div></div>
+          <div class="item-info"><div class="item-model">${model}</div><div class="item-detail">${[type, isSpecLine(item) ? 'spec — bring this much' : status].filter(Boolean).join(' · ')}</div></div>
           <span class="item-qty">×${qty}</span>
           ${loc?`<span class="${locClass}">${loc}</span>`:''}
         </div>`;
@@ -2628,6 +2628,19 @@ function isLengthBasedUnit(unit) {
   return u === 'feet' || u === 'ft' || u === 'foot' || u === 'linear feet' || u === 'linear ft';
 }
 
+// ── SPEC LINES ────────────────────────────────────────────────────────────────
+// A length-based material on a job (lineset, lumber by the foot) is a PICK-LIST SPEC,
+// not an inventory reservation. Its SKU is counted in ROLLS while the job line is in FEET,
+// so no arithmetic can connect the two — "Allocated" on one of these never reserved
+// anything, it just looked like it did. Spec lines therefore:
+//   · appear on the load list with their footage, which is their whole purpose
+//   · carry no inventory Status (the load tick writes only `Loaded?`)
+//   · are skipped at job completion rather than flipped to Installed
+// Roll counts move during the inventory walk, not through these lines.
+function isSpecLine(item) {
+  return isLengthBasedUnit(f(item, 'Unit') || '');
+}
+
 async function toggleLoaded(itemId) {
   const rows = document.querySelectorAll(`[data-item-id="${itemId}"]`);
   if (!rows.length) return;
@@ -2683,9 +2696,13 @@ async function toggleLoaded(itemId) {
     // quantity OUT of stock immediately (so it can't be double-promised while on the
     // truck); unchecking returns the full quantity. Length-based rolls (feet) are
     // reconciled physically — no auto-math. Equipment is tracked by status only.
+    // A spec line's tick means "it's on the truck", nothing more — never write an
+    // inventory Status onto it, or we're back to claiming a reservation that can't exist.
+    const specLine = isSpecLine(item);
+
     if (newVal) {
       if (needsStockMath) await applySkuAdjust(sku, src, -qty);
-      const loadFields = { 'Loaded?': true, 'Status': 'Loaded' };
+      const loadFields = specLine ? { 'Loaded?': true } : { 'Loaded?': true, 'Status': 'Loaded' };
       // Pin the origin. If the item's own location wasn't a real shelf, we resolved `src`
       // by fallback — write it back so the unload returns the quantity to the same place
       // instead of re-guessing against a stock picture that has since changed.
@@ -2693,18 +2710,18 @@ async function toggleLoaded(itemId) {
       await patchRecord(ITEMS_TBL, itemId, loadFields);
       checkedLocally[itemId] = true;
       item.fields['Loaded?'] = true;
-      item.fields['Status'] = 'Loaded';
+      if (!specLine) item.fields['Status'] = 'Loaded';
       if (loadFields['Physical location']) item.fields['Physical location'] = src;
     } else {
       if (needsStockMath) await applySkuAdjust(sku, src, +qty);
-      const unloadFields = { 'Loaded?': false, 'Status': 'Allocated' };
+      const unloadFields = specLine ? { 'Loaded?': false } : { 'Loaded?': false, 'Status': 'Allocated' };
       // Same repair on the way back: an item that came off the truck should not be left
       // parked at a non-shelf location, where it renders on no tab and looks lost.
       if (needsStockMath && !locIsRealBucket) unloadFields['Physical location'] = src;
       await patchRecord(ITEMS_TBL, itemId, unloadFields);
       checkedLocally[itemId] = false;
       item.fields['Loaded?'] = false;
-      item.fields['Status'] = 'Allocated';
+      if (!specLine) item.fields['Status'] = 'Allocated';
       if (unloadFields['Physical location']) item.fields['Physical location'] = src;
     }
     renderLoadList();
@@ -3006,8 +3023,12 @@ function renderDetailBody(jobId) {
       const qtyDisplay = unit
         ? `<span style="font-weight:600;color:var(--text);">${qty} ${escapeHtml(unit)}</span>`
         : `Qty: ${qty}`;
+      // Spec lines say so on their face, so nobody reads a footage line as reserved stock.
+      const specTag = isSpecLine(item)
+        ? ` <span style="font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-faint);border:1px solid var(--border);border-radius:99px;padding:1px 7px;margin-left:6px;white-space:nowrap;">spec</span>`
+        : '';
       matHtml += `<div class="mat-row">
-        <div class="mat-info"><div class="mat-name">${model}</div><div class="mat-qty">${qtyDisplay}</div></div>
+        <div class="mat-info"><div class="mat-name">${model}${specTag}</div><div class="mat-qty">${qtyDisplay}</div></div>
         <button class="mat-del" onclick="deleteMaterial('${iid}')" title="Remove">×</button>
       </div>`;
     });
@@ -3367,10 +3388,12 @@ async function saveMaterial(jobId) {
     const fields = {
       'Model number': skuName,
       'Quantity': qty,
-      'Status': 'Allocated',
       'Owner': [jobId],
       'Stock SKU': [skuId],
     };
+    // Footage is a spec, not a reservation — don't stamp Allocated on something that
+    // can't be reserved. Everything counted in whole units still allocates normally.
+    if (!isLengthBasedUnit(chosenUnit)) fields['Status'] = 'Allocated';
     const loc = skuPrimaryLocation(sku);
     if (loc) fields['Physical location'] = loc;
     if (chosenUnit) fields['Unit'] = chosenUnit;
@@ -3662,8 +3685,11 @@ function startComplete(jobId) {
   const wasLoaded = i => f(i,F.item_loaded)===true;
   // Only LOADED, counted (non-length) materials get reconciled — those are the ones
   // whose stock was reserved out at load time. Everything else just flips to Installed.
-  const reconcile = pending.filter(i => isCons(i) && wasLoaded(i) && !isLengthBasedUnit(f(i,'Unit')||''));
-  const others    = pending.filter(i => !reconcile.includes(i));
+  const reconcile = pending.filter(i => isCons(i) && wasLoaded(i) && !isSpecLine(i));
+  // Spec lines are listed for the record but not touched — completing a job asserts nothing
+  // about footage, because footage was never deducted from anything.
+  const specs     = pending.filter(i => isSpecLine(i));
+  const others    = pending.filter(i => !reconcile.includes(i) && !specs.includes(i));
 
   let html = '';
   if (!jobItems.length) {
@@ -3683,6 +3709,16 @@ function startComplete(jobId) {
         </div>`;
       });
       html += `<div style="font-size:12px;color:var(--text-faint);padding:8px 0 2px;">These were pulled from stock when loaded. Lower a line if less was used — the remainder goes back to stock.</div>`;
+    }
+    if (specs.length) {
+      html += `<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint);margin:14px 0 6px;">Spec lines — left as-is</div>`;
+      specs.forEach(item => {
+        const model = f(item,F.item_model) || 'Item';
+        const qty = Number(f(item,F.item_qty)) || 1;
+        const unit = f(item,'Unit') || '';
+        html += `<div style="padding:6px 0;font-size:14px;border-bottom:1px solid var(--border);"><span style="font-weight:500;">${escapeHtml(model)}</span><span style="color:var(--text-muted);font-size:13px;"> · ${qty}${unit?' '+escapeHtml(unit):''}</span></div>`;
+      });
+      html += `<div style="font-size:12px;color:var(--text-faint);padding:8px 0 2px;">Footage the crew was told to bring. Rolls are counted on the inventory walk, so completing the job doesn't change any stock.</div>`;
     }
     if (others.length) {
       html += `<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint);margin:14px 0 6px;">Also marked Installed</div>`;
@@ -3720,6 +3756,10 @@ async function confirmComplete() {
       const status = (f(item,F.item_status)||'').toLowerCase();
       // Skip items already installed or archived — no need to re-patch
       if (status === 'installed' || status === 'archived') continue;
+      // Spec lines are footage the techs were told to bring, not stock this job consumed
+      // from a countable pool. Marking them Installed would assert a stock movement that
+      // never happened — leave them as the record of what was specced.
+      if (isSpecLine(item)) continue;
 
       const skuLinks = f(item, F.item_sku);
       const isConsumable = Array.isArray(skuLinks) && skuLinks.length > 0;
