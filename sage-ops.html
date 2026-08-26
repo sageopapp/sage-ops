@@ -468,7 +468,7 @@
         <option value="7">Next 7 days</option>
         <option value="14">Next 2 weeks</option>
         <option value="9999">All upcoming</option>
-        <option value="overdue">Overdue</option>
+        <option value="needs-closing">Needs closing</option>
       </select>
     </div>
     <div id="loadlist-body"></div>
@@ -1018,6 +1018,28 @@
     <div class="modal-btns" style="margin-top:18px;">
       <button class="btn-cancel" onclick="closeInstallModal()">Cancel</button>
       <button class="btn-sm btn-sm-accent" style="padding:10px 20px;" onclick="confirmInstall()">Mark installed</button>
+    </div>
+  </div>
+</div>
+
+<!-- CLOSE OUT A VISIT whose date has passed -->
+<div class="modal-bg" id="close-visit-modal">
+  <div class="modal" style="max-width:460px;">
+    <h3>Close out <span id="cv-phase">this visit</span></h3>
+    <p id="cv-sub"></p>
+    <div id="cv-choices" style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
+      <button class="btn-sm btn-sm-accent" style="width:100%;padding:14px;text-align:left;" onclick="closeVisitAndTick()">
+        <span id="cv-tick-label">It happened — mark everything loaded</span><br>
+        <span style="font-weight:400;font-size:12px;opacity:0.85;">Ticks the items and takes their stock off the shelf, then closes the visit</span>
+      </button>
+      <button class="btn-sm" style="width:100%;padding:14px;text-align:left;background:var(--surface);border:1px solid var(--border-strong);" onclick="closeVisitOnly()">
+        Close without deducting<br>
+        <span style="font-weight:400;font-size:12px;opacity:0.85;">The material never left the shelf — counts stay as they are</span>
+      </button>
+    </div>
+    <div id="cv-error" style="display:none;color:var(--danger);font-size:13px;margin-top:14px;background:var(--danger-light);padding:8px 12px;border-radius:var(--radius-sm);"></div>
+    <div class="modal-btns" style="margin-top:16px;">
+      <button class="btn-cancel" onclick="closeCloseVisitModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -2458,7 +2480,7 @@ function renderLoadList() {
   // stays about today's work — an overdue backlog mixed into it would be noise every morning.
   const winEl = document.getElementById('load-window');
   const winVal = winEl ? winEl.value : '2';
-  const overdueMode = (winVal === 'overdue');
+  const overdueMode = (winVal === 'needs-closing');
   const days = overdueMode ? 0 : parseInt(winVal);
   const t = today0(); const cutoff = new Date(t); cutoff.setDate(cutoff.getDate()+days);
   // Expand each visit into (visit, displayDate) pairs for each day in span that falls in window
@@ -2469,18 +2491,39 @@ function renderLoadList() {
     if (!job) return;
     const status = (f(job,F.job_status)||'').toLowerCase();
     if (status==='complete') return;
+    // A visit marked Complete is done with — drop it, same as the calendar and agenda already
+    // do. Without this the load list ignored the flag entirely, so `toggleVisitComplete` had
+    // no effect here and an overdue visit with nothing to load could never be cleared.
+    if (f(v, F.visit_complete) === true) return;
     const span = visitSpanDates(v);
+    if (!span.length) return;
+
+    // A visit is overdue only when the WHOLE span has passed. Judging it day-by-day made a
+    // three-day visit that slipped show up as three identical rows, and falsely flagged a
+    // multi-day visit that started yesterday and is still running.
+    const dayTimes = span.map(s => { const d = parseDate(s.date); if (!d) return null; d.setHours(0,0,0,0); return d.getTime(); })
+                         .filter(x => x !== null);
+    if (!dayTimes.length) return;
+    const lastDay = Math.max(...dayTimes);
+    const visitIsOverdue = lastDay < t.getTime();
+    if (visitIsOverdue) overdueCount++;
+
+    if (overdueMode) {
+      // One row per overdue VISIT, dated to when it was meant to start — that's the honest
+      // measure of how long it's been sitting. The backlog item is "this visit didn't
+      // happen", which is one thing regardless of how many days it was booked for.
+      if (visitIsOverdue) {
+        entries.push({ visit: v, job: job, displayDate: span[0].date, totalDays: span.length, dayIdx: 1, overdue: true, spanned: span.length > 1 });
+      }
+      return;
+    }
+    // Forward windows still expand day-by-day: on a three-day install you want to know
+    // what's going out each morning.
     span.forEach((seg, idx) => {
       const d = parseDate(seg.date); if (!d) return;
       d.setHours(0,0,0,0);
-      // Past-dated visits on a still-Active job are reachable through the Overdue mode.
-      // Before this they were dropped from EVERY window including "All upcoming", so a job
-      // that slipped its date became unreachable — its items could never be ticked, and
-      // their stock never left the shelf.
-      const isPast = d < t;
-      if (isPast) overdueCount++;
-      if (overdueMode ? isPast : (d >= t && d < cutoff)) {
-        entries.push({ visit: v, job: job, displayDate: seg.date, totalDays: span.length, dayIdx: idx + 1, overdue: isPast });
+      if (d >= t && d < cutoff) {
+        entries.push({ visit: v, job: job, displayDate: seg.date, totalDays: span.length, dayIdx: idx + 1 });
       }
     });
   });
@@ -2491,15 +2534,15 @@ function renderLoadList() {
   // Advertise the backlog on the dropdown itself, so you don't have to go looking to find out
   // whether there's anything there.
   if (winEl) {
-    const opt = Array.from(winEl.options).find(o => o.value === 'overdue');
-    if (opt) opt.textContent = overdueCount ? `Overdue (${overdueCount})` : 'Overdue';
+    const opt = Array.from(winEl.options).find(o => o.value === 'needs-closing');
+    if (opt) opt.textContent = overdueCount ? `Needs closing (${overdueCount})` : 'Needs closing';
   }
 
   const body = document.getElementById('loadlist-body');
   if (!entries.length) {
     body.innerHTML = overdueMode
-      ? `<div class="empty"><div class="icon">✅</div>Nothing overdue — every active job is still ahead of its date</div>`
-      : `<div class="empty"><div class="icon">📭</div>No jobs scheduled in this window${overdueCount?` · <a href="#" onclick="document.getElementById('load-window').value='overdue';renderLoadList();return false;">${overdueCount} overdue</a>`:''}</div>`;
+      ? `<div class="empty"><div class="icon">✅</div>Nothing to close out — every active job is still ahead of its date</div>`
+      : `<div class="empty"><div class="icon">📭</div>No jobs scheduled in this window${overdueCount?` · <a href="#" onclick="document.getElementById('load-window').value='needs-closing';renderLoadList();return false;">${overdueCount} to close out</a>`:''}</div>`;
     return;
   }
 
@@ -2534,11 +2577,15 @@ function renderLoadList() {
     });
     const loadedCount=jobItems.filter(i=>checkedLocally[i.id]!==undefined?checkedLocally[i.id]:f(i,F.item_loaded)===true).length;
     const total=jobItems.length;
-    const dayLabel = entry.totalDays > 1 ? ` <span style="font-size:12px;color:var(--text-faint);font-weight:500;">(day ${entry.dayIdx} of ${entry.totalDays})</span>` : '';
+    // Overdue rows are the whole visit collapsed, so "day 1 of 3" would be a lie — say how
+    // long it was booked for instead.
+    const dayLabel = entry.spanned
+      ? ` <span style="font-size:12px;color:var(--text-faint);font-weight:500;">(${entry.totalDays}-day visit)</span>`
+      : (entry.totalDays > 1 ? ` <span style="font-size:12px;color:var(--text-faint);font-weight:500;">(day ${entry.dayIdx} of ${entry.totalDays})</span>` : '');
     html+=`<div class="job-block">
       <div class="job-block-header">
-        <div class="job-block-name">${jname}${jtype?' — '+jtype:''}${dayLabel}</div>
-        <div class="job-block-meta">${entry.overdue?`<span style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:white;background:var(--warn);border-radius:3px;padding:2px 7px;margin-right:6px;">overdue</span>`:''}<span>${fmtDate(entry.displayDate)}</span>${total>0?`<span class="progress-text">${loadedCount}/${total} loaded</span>`:''}</div>
+        <div class="job-block-name" onclick="openDetail('${jid}')" style="cursor:pointer;" title="Open this job">${jname}${jtype?' — '+jtype:''}${dayLabel}</div>
+        <div class="job-block-meta"><span${entry.overdue?' style="color:var(--warn);font-weight:600;"':''}>${fmtDate(entry.displayDate)}</span>${total>0?`<span class="progress-text">${loadedCount}/${total} loaded</span>`:''}${entry.overdue?`<button class="btn-sm btn-sm-ghost" onclick="event.stopPropagation();openCloseVisit('${entry.visit.id}')" title="Close this visit out" style="font-size:11px;padding:3px 9px;margin-left:8px;border-radius:var(--radius-sm);white-space:nowrap;">Close out →</button>`:''}</div>
       </div>`;
     if (detailNotes) {
       html += `<div class="detail-note-sticky" onclick="openNoteEdit('${jid}','detail','loadlist')" title="Tap to edit">
@@ -2669,14 +2716,13 @@ function isSpecLine(item) {
   return isLengthBasedUnit(f(item, 'Unit') || '');
 }
 
-async function toggleLoaded(itemId) {
-  const rows = document.querySelectorAll(`[data-item-id="${itemId}"]`);
-  if (!rows.length) return;
-  const firstCheck = rows[0].querySelector('.item-check');
-  const wasLoaded = firstCheck.classList.contains('checked');
-  const newVal = !wasLoaded;
+// The stock-and-status half of loading, with no DOM in it. `toggleLoaded` drives it from the
+// load-list checkbox; the close-out-a-visit flow drives it headlessly so a late tick goes
+// through exactly the same guards and math as an on-the-day one. Throws on failure so a
+// caller ticking several items can stop rather than half-finish.
+async function applyLoadState(itemId, newVal) {
   const item = items.find(i => i.id === itemId);
-  if (!item) return;
+  if (!item) throw new Error('Item not found');
 
   // Determine consumable vs equipment
   const skuLinks = f(item, F.item_sku);
@@ -2705,21 +2751,16 @@ async function toggleLoaded(itemId) {
 
   if (needsStockMath && !src) {
     const name = f(item, F.item_model) || 'this item';
-    showError(
+    const err = new Error(
       newVal
         ? `Can't load "${name}" — no stock to pull from. Its location reads "${itemLocNow || 'blank'}", which isn't a storage shelf, and no shelf has any on hand. Set its Physical location and try again.`
         : `Can't unload "${name}" — nowhere to return the stock to. Its location reads "${itemLocNow || 'blank'}", which isn't a storage shelf. Set its Physical location to the shelf it came from, then uncheck it.`
     );
-    return;
+    err.userMessage = err.message;
+    throw err;
   }
 
-  // Show loading state on all row instances
-  rows.forEach(row => {
-    const c = row.querySelector('.item-check');
-    c.classList.add('loading'); c.classList.remove('checked');
-  });
-
-  try {
+  {
     // Reserve-at-load: checking a counted SKU material onto the load list pulls its
     // quantity OUT of stock immediately (so it can't be double-promised while on the
     // truck); unchecking returns the full quantity. Length-based rolls (feet) are
@@ -2752,6 +2793,29 @@ async function toggleLoaded(itemId) {
       if (!specLine) item.fields['Status'] = 'Allocated';
       if (unloadFields['Physical location']) item.fields['Physical location'] = src;
     }
+  }
+}
+
+// Mark one item loaded without needing a rendered checkbox. No-op if it already is.
+async function markItemLoaded(itemId) {
+  const item = items.find(i => i.id === itemId);
+  if (!item || f(item, F.item_loaded) === true) return;
+  await applyLoadState(itemId, true);
+}
+
+async function toggleLoaded(itemId) {
+  const rows = document.querySelectorAll(`[data-item-id="${itemId}"]`);
+  if (!rows.length) return;
+  const firstCheck = rows[0].querySelector('.item-check');
+  const wasLoaded = firstCheck.classList.contains('checked');
+
+  rows.forEach(row => {
+    const c = row.querySelector('.item-check');
+    c.classList.add('loading'); c.classList.remove('checked');
+  });
+
+  try {
+    await applyLoadState(itemId, !wasLoaded);
     renderLoadList();
     if (typeof renderInventory === 'function') renderInventory();
   } catch(e) {
@@ -2760,7 +2824,9 @@ async function toggleLoaded(itemId) {
       c.classList.remove('loading');
       if (wasLoaded) c.classList.add('checked');
     });
-    showError('Could not update item.');
+    // Surface the specific refusal (bad location, nothing to return to) rather than a generic
+    // failure — that message is the only clue about what to fix.
+    showError(e && e.userMessage ? e.userMessage : 'Could not update item.');
   }
 }
 
@@ -4121,6 +4187,105 @@ async function updateVisitField(visitId,field,value){
     if(currentJobId) renderDetailBody(currentJobId); renderCalendar(); renderLoadList(); }
   catch(e){ alert('Could not save. Check your connection.'); }
 }
+// Clear one overdue visit off the load list. Marks the VISIT complete, not the job — a job
+// often has a rough-in and a trim-out, and finishing the first shouldn't close the second.
+// Warns if anything is still unticked, since clearing skips the stock deduction entirely.
+// ── CLOSING OUT A PAST-DATED VISIT ─────────────────────────────────────────────
+// A visit whose date has passed usually means the crew went and nobody ticked the load
+// list — not that the visit was missed. Those two situations need opposite stock
+// treatment, so the app asks which it was instead of guessing:
+//   · it happened  → tick the items, deduct their stock, close the visit
+//   · it didn't    → close the visit, leave every count alone
+// Guessing either way silently corrupts the counts, which is the failure mode this whole
+// area keeps producing.
+let closeVisitId = null;
+
+// Items on this visit's job that are still outstanding — not installed, not already ticked.
+// Respects the visit-phase filter so a rough-in close doesn't sweep up trim-out material.
+function visitOpenItems(v) {
+  const job = visitJob(v);
+  if (!job) return [];
+  const phase = (f(v, F.visit_phase) || '').toLowerCase();
+  return items.filter(item => {
+    const owners = f(item, F.item_owner);
+    if (!Array.isArray(owners) || !owners.some(o => (typeof o === 'string' ? o : o.id) === job.id)) return false;
+    const s = (f(item, F.item_status) || '').toLowerCase();
+    if (s === 'installed' || s === 'archived' || s === 'pending order') return false;
+    if (f(item, F.item_loaded) === true) return false;
+    const visitAt = (f(item, F.item_visit) || '').toLowerCase();
+    if (visitAt && phase) {
+      if (visitAt === 'rough-in' && !phase.includes('rough')) return false;
+      if (visitAt === 'trim-out' && !phase.includes('trim')) return false;
+    }
+    return true;
+  });
+}
+
+function openCloseVisit(visitId) {
+  const v = visits.find(x => x.id === visitId); if (!v) return;
+  closeVisitId = visitId;
+  const phase = f(v, F.visit_phase) || 'this visit';
+  const open = visitOpenItems(v);
+  document.getElementById('cv-phase').textContent = phase;
+  document.getElementById('cv-error').style.display = 'none';
+
+  const choices = document.getElementById('cv-choices');
+  if (!open.length) {
+    // Nothing outstanding — there's only one sensible outcome, so don't stage a false choice.
+    document.getElementById('cv-sub').textContent =
+      'Nothing left to load on this visit. Closing it takes it off the list; the job stays active.';
+    choices.style.display = 'none';
+    document.getElementById('cv-simple') && document.getElementById('cv-simple').remove();
+    const btn = document.createElement('div');
+    btn.id = 'cv-simple';
+    btn.className = 'modal-btns';
+    btn.style.marginTop = '4px';
+    btn.innerHTML = `<button class="btn-sm btn-sm-accent" style="padding:10px 20px;" onclick="closeVisitOnly()">Close out visit</button>`;
+    choices.parentNode.insertBefore(btn, choices.nextSibling);
+  } else {
+    const n = open.length;
+    document.getElementById('cv-sub').textContent =
+      `${n} item${n===1?'':'s'} on this visit ${n===1?'was':'were'} never ticked loaded. Did the visit happen?`;
+    document.getElementById('cv-tick-label').textContent =
+      `It happened — mark ${n === 1 ? 'the item' : `all ${n} items`} loaded`;
+    choices.style.display = 'flex';
+    const stale = document.getElementById('cv-simple'); if (stale) stale.remove();
+  }
+  document.getElementById('close-visit-modal').classList.add('open');
+}
+
+function closeCloseVisitModal() {
+  document.getElementById('close-visit-modal').classList.remove('open');
+  const stale = document.getElementById('cv-simple'); if (stale) stale.remove();
+  closeVisitId = null;
+}
+
+// "It happened" — run each outstanding item through the normal load path so the stock math,
+// the spec-line exemption and the refuse-on-unresolvable guard all apply exactly as they
+// would have if the tick had happened on the day.
+async function closeVisitAndTick() {
+  const v = visits.find(x => x.id === closeVisitId); if (!v) return;
+  const vid = closeVisitId;
+  const open = visitOpenItems(v);
+  const errEl = document.getElementById('cv-error');
+  try {
+    for (const item of open) {
+      await markItemLoaded(item.id);
+    }
+    closeCloseVisitModal();
+    await toggleVisitComplete(vid);
+  } catch(e) {
+    errEl.textContent = 'Could not tick every item — nothing was closed. Check the load list.';
+    errEl.style.display = 'block';
+  }
+}
+
+async function closeVisitOnly() {
+  const vid = closeVisitId;
+  closeCloseVisitModal();
+  if (vid) await toggleVisitComplete(vid);
+}
+
 async function toggleVisitComplete(visitId){
   const v=visits.find(x=>x.id===visitId); if(!v) return;
   const nowComplete=!(f(v,F.visit_complete)===true);
