@@ -239,6 +239,10 @@
   .btn-sm-accent:hover { background: var(--accent-text); }
   .btn-sm-action { background: var(--action); color: white; border: 1px solid var(--action); }
   .btn-sm-action:hover { background: var(--action-text); border-color: var(--action-text); }
+  /* Primary ACTION in a row of actions. Outlined, not filled — a filled pill sitting next to
+     a status line reads as the item's current state rather than something you can tap. */
+  .btn-sm-accent-outline { background: none; border: 1px solid var(--accent); color: var(--accent-text); font-weight: 600; }
+  .btn-sm-accent-outline:hover { background: var(--accent-light); }
   .btn-sm-ghost { background: none; border: 1px solid var(--border-strong); color: var(--text-muted); }
   .btn-sm-ghost:hover { border-color: var(--border-strong); color: var(--text); }
 
@@ -3416,7 +3420,7 @@ function renderDetailBody(jobId) {
         <span>Equipment (${equipment.length} item${equipment.length !== 1 ? 's' : ''})</span>
         <button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:4px 10px;" onclick="openAddItemPicker('${jobId}')">+ Add unit</button>
       </div>
-      ${equipment.length ? equipment.map(i=>`<div class="mat-row"><div class="mat-info"><div class="mat-name">${f(i,F.item_model)||'Unknown'}</div><div class="mat-qty">${['×'+(f(i,F.item_qty)??1), f(i,F.item_type)||'', f(i,F.item_status)||''].filter(Boolean).join(' · ')}</div></div><div style="display:flex;gap:4px;flex:none;align-items:center;"><button class="btn-sm btn-sm-accent" onclick="openInstallModal('${i.id}')" title="Mark this unit installed" style="font-size:11px;padding:3px 9px;border-radius:var(--radius-sm);">✓ Installed</button><button class="btn-sm btn-sm-ghost" onclick="openMoveUnits('${i.id}')" title="Move to stock or another customer" style="font-size:11px;padding:2px 8px;border-radius:var(--radius-sm);">Move</button><button class="mat-del" onclick="openRemoveEquipModal('${i.id}')" title="Remove from job" style="font-size:11px;width:auto;padding:0 8px;border-radius:var(--radius-sm);">Remove</button></div></div>`).join('') : `<div style="font-size:13px;color:var(--text-faint);padding:8px 0;">No equipment linked</div>`}
+      ${equipment.length ? equipment.map(i=>`<div class="mat-row"><div class="mat-info"><div class="mat-name">${f(i,F.item_model)||'Unknown'}</div><div class="mat-qty">${['×'+(f(i,F.item_qty)??1), f(i,F.item_type)||'', f(i,F.item_status)||''].filter(Boolean).join(' · ')}</div></div><div style="display:flex;gap:4px;flex:none;align-items:center;"><button class="btn-sm btn-sm-accent-outline" onclick="openInstallModal('${i.id}')" title="Mark this unit installed" style="font-size:11px;padding:3px 9px;border-radius:var(--radius-sm);white-space:nowrap;">Mark installed</button><button class="btn-sm btn-sm-ghost" onclick="openMoveUnits('${i.id}')" title="Move to stock or another customer" style="font-size:11px;padding:2px 8px;border-radius:var(--radius-sm);">Move</button><button class="mat-del" onclick="openRemoveEquipModal('${i.id}')" title="Remove from job" style="font-size:11px;width:auto;padding:0 8px;border-radius:var(--radius-sm);">Remove</button></div></div>`).join('') : `<div style="font-size:13px;color:var(--text-faint);padding:8px 0;">No equipment linked</div>`}
       ${retiredEquipHtml}
     </div>
 
