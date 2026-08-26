@@ -2465,12 +2465,22 @@ function renderLoadList() {
     span.forEach((seg, idx) => {
       const d = parseDate(seg.date); if (!d) return;
       d.setHours(0,0,0,0);
-      if (d >= t && d < cutoff) {
+      // Past-dated visits on a still-Active job stay on the list until the job is completed.
+      // Before this, `d >= t` dropped them from EVERY window including "All upcoming", so a
+      // job that slipped its date became unreachable — its items could never be ticked, and
+      // their stock never left the shelf. An overdue job is the one you most need to see.
+      if (d < t) {
+        entries.push({ visit: v, job: job, displayDate: seg.date, totalDays: span.length, dayIdx: idx + 1, overdue: true });
+      } else if (d < cutoff) {
         entries.push({ visit: v, job: job, displayDate: seg.date, totalDays: span.length, dayIdx: idx + 1 });
       }
     });
   });
-  entries.sort((a, b) => (parseDate(a.displayDate) || 0) - (parseDate(b.displayDate) || 0) || (f(a.job,F.job_name)||'').localeCompare(f(b.job,F.job_name)||''));
+  // Overdue first, oldest at the top — they're the ones at risk of being forgotten.
+  entries.sort((a, b) =>
+    (a.overdue ? 0 : 1) - (b.overdue ? 0 : 1)
+    || (parseDate(a.displayDate) || 0) - (parseDate(b.displayDate) || 0)
+    || (f(a.job,F.job_name)||'').localeCompare(f(b.job,F.job_name)||''));
 
   const body = document.getElementById('loadlist-body');
   if (!entries.length) { body.innerHTML=`<div class="empty"><div class="icon">📭</div>No jobs scheduled in this window</div>`; return; }
@@ -2510,7 +2520,7 @@ function renderLoadList() {
     html+=`<div class="job-block">
       <div class="job-block-header">
         <div class="job-block-name">${jname}${jtype?' — '+jtype:''}${dayLabel}</div>
-        <div class="job-block-meta"><span>${fmtDate(entry.displayDate)}</span>${total>0?`<span class="progress-text">${loadedCount}/${total} loaded</span>`:''}</div>
+        <div class="job-block-meta">${entry.overdue?`<span style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:white;background:var(--warn);border-radius:3px;padding:2px 7px;margin-right:6px;">overdue</span>`:''}<span>${fmtDate(entry.displayDate)}</span>${total>0?`<span class="progress-text">${loadedCount}/${total} loaded</span>`:''}</div>
       </div>`;
     if (detailNotes) {
       html += `<div class="detail-note-sticky" onclick="openNoteEdit('${jid}','detail','loadlist')" title="Tap to edit">
@@ -3711,7 +3721,11 @@ function startComplete(jobId) {
   // Spec lines are listed for the record but not touched — completing a job asserts nothing
   // about footage, because footage was never deducted from anything.
   const specs     = pending.filter(i => isSpecLine(i));
-  const others    = pending.filter(i => !reconcile.includes(i) && !specs.includes(i));
+  // Counted material that was never ticked loaded: its stock is still sitting on the shelf
+  // in the app, but the job is done, so it almost certainly went in. Silently doing nothing
+  // here is what leaves a shelf permanently overstated — ask instead, defaulting to deduct.
+  const unticked  = pending.filter(i => isCons(i) && !wasLoaded(i) && !isSpecLine(i));
+  const others    = pending.filter(i => !reconcile.includes(i) && !specs.includes(i) && !unticked.includes(i));
 
   let html = '';
   if (!jobItems.length) {
@@ -3731,6 +3745,21 @@ function startComplete(jobId) {
         </div>`;
       });
       html += `<div style="font-size:12px;color:var(--text-faint);padding:8px 0 2px;">These were pulled from stock when loaded. Lower a line if less was used — the remainder goes back to stock.</div>`;
+    }
+    if (unticked.length) {
+      html += `<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--warn);margin:14px 0 6px;">Never ticked loaded — deduct now?</div>`;
+      unticked.forEach(item => {
+        const model = f(item,F.item_model) || 'Item';
+        const qty = Number(f(item,F.item_qty)) || 1;
+        const unit = f(item,'Unit') || '';
+        html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+          <span style="font-weight:500;font-size:14px;min-width:0;flex:1;">${escapeHtml(model)}</span>
+          <span style="font-size:13px;color:var(--text-muted);white-space:nowrap;">deduct
+            <input type="number" id="unticked-qty-${item.id}" value="${qty}" min="0" step="1" style="width:56px;padding:4px 6px;margin:0 4px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;text-align:center;outline:none;" />
+            of ${qty}${unit?' '+escapeHtml(unit):''}</span>
+        </div>`;
+      });
+      html += `<div style="font-size:12px;color:var(--text-faint);padding:8px 0 2px;">These were on the job but never checked off the load list, so their stock is still on the shelf in the app. Set a line to 0 if it never actually got used.</div>`;
     }
     if (specs.length) {
       html += `<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint);margin:14px 0 6px;">Spec lines — left as-is</div>`;
@@ -3752,7 +3781,7 @@ function startComplete(jobId) {
         html += `<div style="padding:6px 0;font-size:14px;border-bottom:1px solid var(--border);"><span style="font-weight:500;">${escapeHtml(model)}</span><span style="color:var(--text-muted);font-size:13px;"> · ×${qty}${note}</span></div>`;
       });
     }
-    if (!reconcile.length && !others.length) {
+    if (!reconcile.length && !others.length && !unticked.length && !specs.length) {
       html += `<div style="font-size:13px;color:var(--text-faint);padding:6px 0;">All items already marked Installed — completing just updates the job status.</div>`;
     }
   }
@@ -3799,6 +3828,19 @@ async function confirmComplete() {
               const src = consumableSourceLocation(item, sku);
               if (src) await applySkuAdjust(sku, src, restore);
             }
+          }
+        }
+      } else if (isConsumable && !isLengthBasedUnit(f(item, 'Unit') || '')) {
+        // Never ticked loaded, so nothing was ever pulled from the shelf. Deduct what the
+        // completion modal says was used — otherwise the count stays overstated forever
+        // with no way to correct it from the app.
+        const input = document.getElementById(`unticked-qty-${item.id}`);
+        const used = input ? Math.max(0, Number(input.value) || 0) : 0;
+        if (used > 0) {
+          const sku = skus.find(s => s.id === (typeof skuLinks[0]==='string'?skuLinks[0]:skuLinks[0].id));
+          if (sku) {
+            const src = consumableSourceLocation(item, sku);
+            if (src) await applySkuAdjust(sku, src, -used);
           }
         }
       }
