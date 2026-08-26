@@ -460,7 +460,7 @@
 
   <div id="view-loadlist" class="view">
     <div class="load-controls">
-      <label>Show jobs within:</label>
+      <label>Show jobs:</label>
       <select id="load-window" onchange="renderLoadList()">
         <option value="1">Today only</option>
         <option value="2" selected>Next 2 days</option>
@@ -468,6 +468,7 @@
         <option value="7">Next 7 days</option>
         <option value="14">Next 2 weeks</option>
         <option value="9999">All upcoming</option>
+        <option value="overdue">Overdue</option>
       </select>
     </div>
     <div id="loadlist-body"></div>
@@ -2452,10 +2453,17 @@ function itemLoadGroup(item) {
 }
 
 function renderLoadList() {
-  const days = parseInt(document.getElementById('load-window').value);
+  // The window select doubles as a mode switch: every numeric value is a forward-looking
+  // window, "overdue" is a backward-looking one. They're kept separate so the daily list
+  // stays about today's work — an overdue backlog mixed into it would be noise every morning.
+  const winEl = document.getElementById('load-window');
+  const winVal = winEl ? winEl.value : '2';
+  const overdueMode = (winVal === 'overdue');
+  const days = overdueMode ? 0 : parseInt(winVal);
   const t = today0(); const cutoff = new Date(t); cutoff.setDate(cutoff.getDate()+days);
   // Expand each visit into (visit, displayDate) pairs for each day in span that falls in window
   const entries = [];
+  let overdueCount = 0;   // counted on every render so the dropdown can advertise the backlog
   visits.forEach(v => {
     const job = visitJob(v);
     if (!job) return;
@@ -2465,25 +2473,35 @@ function renderLoadList() {
     span.forEach((seg, idx) => {
       const d = parseDate(seg.date); if (!d) return;
       d.setHours(0,0,0,0);
-      // Past-dated visits on a still-Active job stay on the list until the job is completed.
-      // Before this, `d >= t` dropped them from EVERY window including "All upcoming", so a
-      // job that slipped its date became unreachable — its items could never be ticked, and
-      // their stock never left the shelf. An overdue job is the one you most need to see.
-      if (d < t) {
-        entries.push({ visit: v, job: job, displayDate: seg.date, totalDays: span.length, dayIdx: idx + 1, overdue: true });
-      } else if (d < cutoff) {
-        entries.push({ visit: v, job: job, displayDate: seg.date, totalDays: span.length, dayIdx: idx + 1 });
+      // Past-dated visits on a still-Active job are reachable through the Overdue mode.
+      // Before this they were dropped from EVERY window including "All upcoming", so a job
+      // that slipped its date became unreachable — its items could never be ticked, and
+      // their stock never left the shelf.
+      const isPast = d < t;
+      if (isPast) overdueCount++;
+      if (overdueMode ? isPast : (d >= t && d < cutoff)) {
+        entries.push({ visit: v, job: job, displayDate: seg.date, totalDays: span.length, dayIdx: idx + 1, overdue: isPast });
       }
     });
   });
-  // Overdue first, oldest at the top — they're the ones at risk of being forgotten.
-  entries.sort((a, b) =>
-    (a.overdue ? 0 : 1) - (b.overdue ? 0 : 1)
-    || (parseDate(a.displayDate) || 0) - (parseDate(b.displayDate) || 0)
+  // Oldest first in both modes — in Overdue that puts the longest-neglected job on top.
+  entries.sort((a, b) => (parseDate(a.displayDate) || 0) - (parseDate(b.displayDate) || 0)
     || (f(a.job,F.job_name)||'').localeCompare(f(b.job,F.job_name)||''));
 
+  // Advertise the backlog on the dropdown itself, so you don't have to go looking to find out
+  // whether there's anything there.
+  if (winEl) {
+    const opt = Array.from(winEl.options).find(o => o.value === 'overdue');
+    if (opt) opt.textContent = overdueCount ? `Overdue (${overdueCount})` : 'Overdue';
+  }
+
   const body = document.getElementById('loadlist-body');
-  if (!entries.length) { body.innerHTML=`<div class="empty"><div class="icon">📭</div>No jobs scheduled in this window</div>`; return; }
+  if (!entries.length) {
+    body.innerHTML = overdueMode
+      ? `<div class="empty"><div class="icon">✅</div>Nothing overdue — every active job is still ahead of its date</div>`
+      : `<div class="empty"><div class="icon">📭</div>No jobs scheduled in this window${overdueCount?` · <a href="#" onclick="document.getElementById('load-window').value='overdue';renderLoadList();return false;">${overdueCount} overdue</a>`:''}</div>`;
+    return;
+  }
 
   const itemsByJob = {};
   items.forEach(item => {
