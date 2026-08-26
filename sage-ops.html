@@ -3081,10 +3081,11 @@ function renderDetailBody(jobId) {
       </select>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
         <input type="number" id="mat-qty" placeholder="Quantity" min="1" step="1" style="flex:1;margin-bottom:0;" />
-        <select id="mat-qty-unit" style="width:auto;margin-bottom:0;padding:8px 8px;">
+        <select id="mat-qty-unit" onchange="updateMatSpecHint()" style="width:auto;margin-bottom:0;padding:8px 8px;">
           ${renderUnitOptions('', true)}
         </select>
       </div>
+      <div id="mat-spec-hint" style="display:none;font-size:12px;color:var(--text-faint);line-height:1.5;margin-bottom:10px;"></div>
       <div class="add-mat-btns">
         <button class="btn-sm btn-sm-accent" onclick="saveMaterial('${jobId}')">Add to job</button>
         <button class="btn-sm btn-sm-ghost" onclick="showAddMat=false;renderDetailBody('${jobId}')">Cancel</button>
@@ -3337,10 +3338,15 @@ function renderDetailBody(jobId) {
 function updateMatQtyUnit() {
   const sel = document.getElementById('mat-sku');
   const opt = sel.options[sel.selectedIndex];
-  const unit = opt ? (opt.getAttribute('data-unit') || '') : '';
+  const skuUnit = opt ? (opt.getAttribute('data-unit') || '') : '';
+  // A SKU STOCKED in rolls is CONSUMED by the foot — lineset, tray cable, condensate hose,
+  // strapping. You never put "1 roll" on a job; you put 50 feet on it. Defaulting the line
+  // to the SKU's own unit made every lineset line a roll line, which then allocated against
+  // the roll count. Default to feet so the natural path produces a spec line.
+  const unit = (skuUnit.trim().toLowerCase() === 'roll') ? 'feet' : skuUnit;
   const unitEl = document.getElementById('mat-qty-unit');
   if (unitEl) {
-    // Default to SKU's unit. If unit isn't a known option, add it dynamically.
+    // Default to the resolved unit. If it isn't a known option, add it dynamically.
     if (unit) {
       const exists = Array.from(unitEl.options).some(o => o.value === unit);
       if (!exists) {
@@ -3356,6 +3362,22 @@ function updateMatQtyUnit() {
   // Update qty input placeholder
   const qtyEl = document.getElementById('mat-qty');
   if (qtyEl) qtyEl.placeholder = unit ? `Quantity (${unit})` : 'Quantity';
+  updateMatSpecHint();
+}
+
+// Live hint under the add-material form: say plainly which of the two things this line will
+// be, before it's saved. Footage lines behave differently enough to be worth announcing.
+function updateMatSpecHint() {
+  const hintEl = document.getElementById('mat-spec-hint');
+  if (!hintEl) return;
+  const unitEl = document.getElementById('mat-qty-unit');
+  const chosen = unitEl ? unitEl.value : '';
+  if (isLengthBasedUnit(chosen)) {
+    hintEl.innerHTML = `<b>Spec line</b> — shows on the load list so the crew knows how much to bring. Doesn't reserve or deduct stock; rolls are counted on the walk.`;
+    hintEl.style.display = 'block';
+  } else {
+    hintEl.style.display = 'none';
+  }
 }
 
 async function saveMaterial(jobId) {
