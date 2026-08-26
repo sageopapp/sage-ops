@@ -873,6 +873,33 @@
           <select id="ci-unit" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);"></select>
         </div>
       </div>
+      <div style="display:flex;gap:10px;">
+        <div style="flex:1;">
+          <!-- Where it physically sits. Without this the load list can't tell the crew where to
+               go get it — which for a staged box of parts is most of the point of listing it. -->
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Where is it?</label>
+          <select id="ci-location" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+            <option value="Barn" selected>Barn</option>
+            <option value="Unit Tent">Unit Tent</option>
+            <option value="Shop">Shop</option>
+            <option value="Susie">Susie</option>
+            <option value="Lumber Rack">Lumber Rack</option>
+            <option value="Ducting Tent">Ducting Tent</option>
+            <option value="">— Not set —</option>
+          </select>
+        </div>
+        <div style="flex:1;">
+          <!-- Untagged items show on EVERY visit's load list. Tagging keeps a trim-out box off
+               the rough-in list. The tag is a hard filter though — a trim-out item is hidden
+               from fire-up and service visits too — so "Every visit" stays the default. -->
+          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Needed at</label>
+          <select id="ci-visit" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+            <option value="" selected>Every visit</option>
+            <option value="rough-in">Rough-in only</option>
+            <option value="trim-out">Trim-out only</option>
+          </select>
+        </div>
+      </div>
     </div>
     <div id="ci-error" style="display:none;color:var(--danger);font-size:13px;margin-top:14px;background:var(--danger-light);padding:8px 12px;border-radius:var(--radius-sm);"></div>
     <div class="modal-btns" style="margin-top:20px;">
@@ -4801,6 +4828,8 @@ function openCustomItemModal(jobId) {
   document.getElementById('ci-qty').value = '';
   document.getElementById('ci-unit').innerHTML = renderUnitOptions('each', false);
   document.getElementById('ci-unit').value = 'each';
+  document.getElementById('ci-location').value = 'Barn';
+  document.getElementById('ci-visit').value = '';
   document.getElementById('ci-error').style.display = 'none';
   document.getElementById('custom-item-modal').classList.add('open');
   setTimeout(()=>document.getElementById('ci-name').focus(), 50);
@@ -4833,6 +4862,10 @@ async function saveCustomItem() {
       'Combo tag': 'material',
     };
     if (unit) fields['Unit'] = unit;
+    const loc = document.getElementById('ci-location');
+    if (loc && loc.value) fields['Physical location'] = loc.value;
+    const vis = document.getElementById('ci-visit');
+    if (vis && vis.value) fields['Visit consumed at'] = vis.value;
     const newItem = await createRecord(ITEMS_TBL, fields);
     items.push(newItem);
     const jid = customItemJobId;
