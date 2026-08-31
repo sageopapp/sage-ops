@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Blood Pressure Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#EDEFF1;
+    --card:#FFFFFF;
+    --ink:#16202B;
+    --ink-soft:#5C6773;
+    --ink-faint:#8B949E;
+    --rule:#CFD4D9;
+    --good:#1F6F5C;
+    --high:#A8412B;
+    --low:#3F6396;
+    --band:#1F6F5C;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Archivo',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    font-size:16px;
+    line-height:1.45;
+    font-variant-numeric:tabular-nums;
+    padding:18px 16px 40px;
+    max-width:520px;
+    margin:0 auto;
+  }
+  h1{
+    font-size:19px;
+    font-weight:600;
+    letter-spacing:-0.01em;
+    margin:0 0 2px;
+  }
+  .sub{color:var(--ink-soft);font-size:13.5px;margin:0 0 18px}
+  .card{
+    background:var(--card);
+    border:1px solid var(--rule);
+    border-radius:var(--radius);
+    padding:16px;
+    margin-bottom:14px;
+  }
+  .card h2{
+    font-size:14px;
+    font-weight:600;
+    margin:0 0 12px;
+    color:var(--ink);
+  }
+
+  /* ---- entry ---- */
+  .entry{display:flex;align-items:flex-end;justify-content:center;gap:10px;margin:4px 0 6px}
+  .field{display:flex;flex-direction:column;align-items:center}
+  .field input{
+    width:104px;
+    height:86px;
+    text-align:center;
+    font-family:inherit;
+    font-size:46px;
+    font-weight:600;
+    font-variant-numeric:tabular-nums;
+    color:var(--ink);
+    background:#F6F7F8;
+    border:1.5px solid var(--rule);
+    border-radius:8px;
+    padding:0;
+  }
+  .field input:focus{outline:2px solid var(--ink);outline-offset:1px;background:#fff}
+  .field input::placeholder{color:#C3C9CF;font-weight:500}
+  .field span{font-size:12px;color:var(--ink-soft);margin-top:6px}
+  .slash{font-size:34px;color:var(--ink-faint);padding-bottom:34px;font-weight:400}
+
+  .pulse-row{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px}
+  .pulse-row input{
+    width:76px;height:44px;text-align:center;
+    font-family:inherit;font-size:22px;font-weight:500;
+    background:#F6F7F8;border:1.5px solid var(--rule);border-radius:8px;color:var(--ink);
+  }
+  .pulse-row input:focus{outline:2px solid var(--ink);outline-offset:1px;background:#fff}
+  .pulse-row label{font-size:13px;color:var(--ink-soft)}
+
+  /* ---- gauge ---- */
+  .gauge{margin:20px 0 4px}
+  .grow{margin-bottom:14px}
+  .glabel{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-faint);margin-bottom:5px}
+  .track{
+    position:relative;height:22px;background:#F1F3F4;
+    border:1px solid var(--rule);border-radius:4px;overflow:hidden;
+  }
+  .zone{position:absolute;top:0;bottom:0;background:rgba(31,111,92,.14);border-left:1px solid rgba(31,111,92,.45);border-right:1px solid rgba(31,111,92,.45)}
+  .marker{
+    position:absolute;top:-1px;bottom:-1px;width:3px;background:var(--ink);
+    transform:translateX(-1.5px);transition:left .12s ease-out,background .12s;
+    opacity:0;
+  }
+  .marker.on{opacity:1}
+  .ticks{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-faint);margin-top:4px}
+
+  .verdict{
+    font-size:13.5px;margin-top:14px;padding:10px 12px;border-radius:6px;
+    background:#F4F6F7;color:var(--ink-soft);border-left:3px solid var(--rule);
+    min-height:20px;
+  }
+  .verdict.good{background:rgba(31,111,92,.09);border-left-color:var(--good);color:var(--good)}
+  .verdict.high{background:rgba(168,65,43,.09);border-left-color:var(--high);color:var(--high)}
+  .verdict.low{background:rgba(63,99,150,.09);border-left-color:var(--low);color:var(--low)}
+  .verdict.urgent{background:rgba(168,65,43,.16);border-left-color:var(--high);color:var(--high);font-weight:600}
+
+  /* ---- buttons ---- */
+  button{font-family:inherit;cursor:pointer}
+  .save{
+    width:100%;margin-top:14px;height:52px;
+    background:var(--ink);color:#fff;border:none;border-radius:8px;
+    font-size:16px;font-weight:600;letter-spacing:.01em;
+  }
+  .save:disabled{background:#B7BEC5;color:#F1F3F4}
+  .save:active:not(:disabled){background:#0D1720}
+  .ghost{
+    flex:1;height:42px;background:transparent;color:var(--ink);
+    border:1.5px solid var(--rule);border-radius:8px;font-size:14px;font-weight:500;
+  }
+  .ghost:active{background:#F1F3F4}
+  .btnrow{display:flex;gap:10px}
+
+  .note-toggle{
+    background:none;border:none;color:var(--ink-soft);font-size:13px;
+    text-decoration:underline;text-underline-offset:3px;padding:8px 0 0;display:block;margin:0 auto;
+  }
+  #note{
+    width:100%;margin-top:10px;padding:10px;font-family:inherit;font-size:14px;
+    border:1.5px solid var(--rule);border-radius:8px;background:#F6F7F8;color:var(--ink);
+  }
+  #note:focus{outline:2px solid var(--ink);outline-offset:1px;background:#fff}
+  .hidden{display:none !important}
+
+  /* ---- averages ---- */
+  .avgs{display:flex;gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+  .avg{flex:1;background:#fff;padding:12px 8px;text-align:center}
+  .avg b{display:block;font-size:22px;font-weight:600;letter-spacing:-.02em}
+  .avg i{display:block;font-style:normal;font-size:11.5px;color:var(--ink-faint);margin-top:3px}
+  .avg small{display:block;font-size:11.5px;color:var(--ink-soft);margin-top:2px}
+
+  /* ---- chart ---- */
+  svg{display:block;width:100%;height:auto}
+
+  /* ---- log ---- */
+  .row{
+    display:flex;align-items:baseline;gap:10px;
+    padding:11px 0;border-bottom:1px solid #E6E9EB;font-size:15px;
+  }
+  .row:last-child{border-bottom:none}
+  .row .d{width:62px;color:var(--ink-soft);font-size:13px;flex:none}
+  .row .v{font-weight:600;width:78px;flex:none}
+  .row .p{color:var(--ink-soft);font-size:13.5px;width:44px;flex:none}
+  .row .n{color:var(--ink-faint);font-size:12.5px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .x{
+    background:none;border:none;color:#C3C9CF;font-size:18px;line-height:1;
+    padding:0 2px 0 6px;flex:none;
+  }
+  .dot{width:7px;height:7px;border-radius:50%;flex:none;align-self:center}
+  .empty{color:var(--ink-soft);font-size:14px;padding:6px 0 2px}
+  .more{
+    background:none;border:none;color:var(--ink-soft);font-size:13.5px;padding:12px 0 0;
+    text-decoration:underline;text-underline-offset:3px;
+  }
+  .foot{font-size:12px;color:var(--ink-faint);line-height:1.6;margin-top:22px;text-align:center}
+  .warn{font-size:12.5px;color:var(--high);text-align:center;margin-bottom:12px}
+  @media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+</head>
+<body>
+
+<h1>Blood pressure</h1>
+<p class="sub" id="today">—</p>
+
+<div id="storewarn" class="warn hidden">Storage is unavailable — readings will be lost when this closes.</div>
+
+<div class="card">
+  <div class="entry">
+    <div class="field">
+      <input id="sys" type="text" inputmode="numeric" maxlength="3" placeholder="—" aria-label="Systolic">
+      <span>systolic</span>
+    </div>
+    <div class="slash">/</div>
+    <div class="field">
+      <input id="dia" type="text" inputmode="numeric" maxlength="3" placeholder="—" aria-label="Diastolic">
+      <span>diastolic</span>
+    </div>
+  </div>
+
+  <div class="pulse-row">
+    <input id="hr" type="text" inputmode="numeric" maxlength="3" placeholder="—" aria-label="Pulse">
+    <label for="hr">pulse</label>
+  </div>
+
+  <div class="gauge">
+    <div class="grow">
+      <div class="glabel"><span>systolic</span><span>target 110–130</span></div>
+      <div class="track"><div class="zone" style="left:25%;width:25%"></div><div class="marker" id="msys"></div></div>
+      <div class="ticks"><span>90</span><span>110</span><span>130</span><span>170</span></div>
+    </div>
+    <div class="grow">
+      <div class="glabel"><span>diastolic</span><span>target 60–70</span></div>
+      <div class="track"><div class="zone" style="left:20%;width:20%"></div><div class="marker" id="mdia"></div></div>
+      <div class="ticks"><span>50</span><span>60</span><span>70</span><span>100</span></div>
+    </div>
+  </div>
+
+  <div class="verdict" id="verdict">Sit 5 minutes, feet flat, arm at heart level — then measure.</div>
+
+  <button class="note-toggle" id="notebtn">Add a note</button>
+  <input id="note" class="hidden" type="text" placeholder="after the ride, felt lightheaded…" maxlength="80">
+
+  <button class="save" id="save" disabled>Save reading</button>
+</div>
+
+<div class="card">
+  <h2>Averages</h2>
+  <div class="avgs">
+    <div class="avg"><b id="a7">—</b><small id="a7p">—</small><i>7 days</i></div>
+    <div class="avg"><b id="a14">—</b><small id="a14p">—</small><i>14 days</i></div>
+    <div class="avg"><b id="a30">—</b><small id="a30p">—</small><i>30 days</i></div>
+  </div>
+</div>
+
+<div class="card" id="chartcard">
+  <h2>Last 30 readings</h2>
+  <div id="chart"></div>
+</div>
+
+<div class="card">
+  <h2>Log</h2>
+  <div id="log"><div class="empty">Nothing logged yet. Tomorrow's number after the shower is entry one.</div></div>
+  <button class="more hidden" id="more">Show all</button>
+</div>
+
+<div class="card">
+  <h2>For the December visit</h2>
+  <div class="btnrow">
+    <button class="ghost" id="copy">Copy log</button>
+    <button class="ghost" id="csv">Download CSV</button>
+  </div>
+</div>
+
+<p class="foot">
+  Target 110–130 / 60–70 · logged for cardiology follow-up<br>
+  Same arm, same time of day, before morning meds where possible.
+</p>
+
+<script>
+(function(){
+  "use strict";
+
+  var KEY = "bp-readings-v1";
+  var data = [];
+  var expanded = false;
+  var hasStore = !!(window.storage && window.storage.get);
+
+  var $ = function(id){ return document.getElementById(id); };
+  var sysEl=$("sys"), diaEl=$("dia"), hrEl=$("hr"), noteEl=$("note"),
+      saveEl=$("save"), verdictEl=$("verdict"),
+      mSys=$("msys"), mDia=$("mdia");
+
+  /* ---------- storage ---------- */
+  function load(){
+    if(!hasStore){ $("storewarn").classList.remove("hidden"); render(); return; }
+    window.storage.get(KEY).then(function(r){
+      try { data = r && r.value ? JSON.parse(r.value) : []; } catch(e){ data = []; }
+      if(!Array.isArray(data)) data = [];
+      render();
+    }).catch(function(){ data = []; render(); });
+  }
+  function persist(){
+    if(!hasStore) return Promise.resolve();
+    return window.storage.set(KEY, JSON.stringify(data)).catch(function(e){
+      console.error("Save failed", e);
+      $("storewarn").textContent = "That reading didn't save. Try again.";
+      $("storewarn").classList.remove("hidden");
+    });
+  }
+
+  /* ---------- dates ---------- */
+  var MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var DAY = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  function pad(n){ return n<10 ? "0"+n : ""+n; }
+  function stamp(d){
+    return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+  }
+  function clockOf(d){
+    var h=d.getHours(), m=pad(d.getMinutes()), ap=h<12?"am":"pm";
+    var h12 = h%12; if(h12===0) h12=12;
+    return h12+":"+m+" "+ap;
+  }
+  function shortDate(iso){
+    var p = iso.split("-");
+    return parseInt(p[2],10)+" "+MON[parseInt(p[1],10)-1];
+  }
+  (function(){
+    var n = new Date();
+    $("today").textContent = DAY[n.getDay()]+" "+n.getDate()+" "+MON[n.getMonth()]+" · "+clockOf(n);
+  })();
+
+  /* ---------- live gauge ---------- */
+  function place(el, val, min, max){
+    if(val===null){ el.classList.remove("on"); return; }
+    var pct = (val - min) / (max - min) * 100;
+    if(pct < 0) pct = 0; if(pct > 100) pct = 100;
+    el.style.left = pct + "%";
+    el.classList.add("on");
+  }
+  function num(el){
+    var v = parseInt(el.value, 10);
+    return isNaN(v) ? null : v;
+  }
+  function classify(s, d){
+    if(s===null || d===null) return "";
+    if(s >= 180 || d >= 120) return "urgent";
+    if(s < 90 || d < 50) return "low";
+    if(s > 130 || d > 70) return "high";
+    if(s < 110 || d < 60) return "low";
+    return "good";
+  }
+  function update(){
+    var s = num(sysEl), d = num(diaEl);
+    place(mSys, s, 90, 170);
+    place(mDia, d, 50, 100);
+
+    var cls = classify(s, d);
+    verdictEl.className = "verdict" + (cls ? " "+cls : "");
+    if(s===null || d===null){
+      verdictEl.textContent = "Sit 5 minutes, feet flat, arm at heart level — then measure.";
+    } else if(cls === "urgent"){
+      verdictEl.textContent = "That's high enough to call the cardiology team today, not wait for December.";
+    } else if(cls === "good"){
+      verdictEl.textContent = "Inside target.";
+    } else if(cls === "high"){
+      verdictEl.textContent = "Above target. One reading isn't a trend — log it and watch the average.";
+    } else {
+      verdictEl.textContent = "Below target. Fine if you feel fine; note it if you're lightheaded standing up.";
+    }
+    saveEl.disabled = !(s !== null && d !== null && s > 40 && s < 300 && d > 20 && d < 200);
+  }
+  [sysEl, diaEl].forEach(function(el){
+    el.addEventListener("input", function(){
+      el.value = el.value.replace(/\D/g,"");
+      if(el===sysEl && el.value.length===3) diaEl.focus();
+      update();
+    });
+  });
+  hrEl.addEventListener("input", function(){ hrEl.value = hrEl.value.replace(/\D/g,""); });
+
+  $("notebtn").addEventListener("click", function(){
+    noteEl.classList.toggle("hidden");
+    if(!noteEl.classList.contains("hidden")) noteEl.focus();
+  });
+
+  /* ---------- save ---------- */
+  saveEl.addEventListener("click", function(){
+    var s = num(sysEl), d = num(diaEl), h = num(hrEl);
+    if(s===null || d===null) return;
+    var now = new Date();
+    data.unshift({
+      date: stamp(now),
+      time: clockOf(now),
+      ts: now.getTime(),
+      sys: s, dia: d, hr: h,
+      note: (noteEl.value||"").trim()
+    });
+    sysEl.value=""; diaEl.value=""; hrEl.value=""; noteEl.value="";
+    noteEl.classList.add("hidden");
+    update();
+    persist();
+    render();
+    saveEl.textContent = "Saved";
+    setTimeout(function(){ saveEl.textContent = "Save reading"; }, 1400);
+  });
+
+  function remove(i){
+    data.splice(i,1);
+    persist();
+    render();
+  }
+
+  /* ---------- averages ---------- */
+  function avgWindow(days){
+    var cut = Date.now() - days*86400000;
+    var set = data.filter(function(r){ return r.ts >= cut; });
+    if(!set.length) return null;
+    var s=0,d=0,h=0,hc=0;
+    set.forEach(function(r){
+      s+=r.sys; d+=r.dia;
+      if(r.hr){ h+=r.hr; hc++; }
+    });
+    return {
+      sys: Math.round(s/set.length),
+      dia: Math.round(d/set.length),
+      hr: hc ? Math.round(h/hc) : null,
+      n: set.length
+    };
+  }
+  function paintAvgs(){
+    [[7,"a7","a7p"],[14,"a14","a14p"],[30,"a30","a30p"]].forEach(function(cfg){
+      var a = avgWindow(cfg[0]);
+      var big = $(cfg[1]), sm = $(cfg[2]);
+      if(!a){ big.textContent = "—"; big.style.color = "var(--ink-faint)"; sm.textContent = "no readings"; return; }
+      big.textContent = a.sys + "/" + a.dia;
+      var cls = classify(a.sys, a.dia);
+      big.style.color = cls==="good" ? "var(--good)" : cls==="low" ? "var(--low)" : "var(--high)";
+      sm.textContent = a.n + (a.n===1 ? " reading" : " readings") + (a.hr ? " · " + a.hr + " bpm" : "");
+    });
+  }
+
+  /* ---------- chart ---------- */
+  function paintChart(){
+    var pts = data.slice(0,30).slice().reverse();
+    var card = $("chartcard");
+    if(pts.length < 2){ card.classList.add("hidden"); return; }
+    card.classList.remove("hidden");
+
+    var W=320, H=150, PL=30, PR=6, PT=8, PB=16;
+    var lo=50, hi=170;
+    var iw = W-PL-PR, ih = H-PT-PB;
+    var x = function(i){ return PL + (pts.length===1 ? iw/2 : i/(pts.length-1)*iw); };
+    var y = function(v){
+      var c = v<lo?lo:(v>hi?hi:v);
+      return PT + (hi-c)/(hi-lo)*ih;
+    };
+    function path(key){
+      return pts.map(function(p,i){ return (i?"L":"M")+x(i).toFixed(1)+" "+y(p[key]).toFixed(1); }).join(" ");
+    }
+    var svg = '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Blood pressure trend">';
+    // target bands
+    svg += '<rect x="'+PL+'" y="'+y(130).toFixed(1)+'" width="'+iw+'" height="'+(y(110)-y(130)).toFixed(1)+'" fill="rgba(31,111,92,.13)"/>';
+    svg += '<rect x="'+PL+'" y="'+y(70).toFixed(1)+'" width="'+iw+'" height="'+(y(60)-y(70)).toFixed(1)+'" fill="rgba(31,111,92,.13)"/>';
+    // axis labels
+    [170,130,110,70,60].forEach(function(v){
+      svg += '<line x1="'+PL+'" x2="'+(W-PR)+'" y1="'+y(v).toFixed(1)+'" y2="'+y(v).toFixed(1)+'" stroke="#E2E6E9" stroke-width="1"/>';
+      svg += '<text x="'+(PL-5)+'" y="'+(y(v)+3.5).toFixed(1)+'" text-anchor="end" font-size="9" fill="#8B949E" font-family="Archivo,sans-serif">'+v+'</text>';
+    });
+    svg += '<path d="'+path("sys")+'" fill="none" stroke="#16202B" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>';
+    svg += '<path d="'+path("dia")+'" fill="none" stroke="#5C6773" stroke-width="1.8" stroke-dasharray="3 2.5" stroke-linejoin="round" stroke-linecap="round"/>';
+    pts.forEach(function(p,i){
+      svg += '<circle cx="'+x(i).toFixed(1)+'" cy="'+y(p.sys).toFixed(1)+'" r="2" fill="#16202B"/>';
+    });
+    svg += '<text x="'+PL+'" y="'+(H-3)+'" font-size="9" fill="#8B949E" font-family="Archivo,sans-serif">'+shortDate(pts[0].date)+'</text>';
+    svg += '<text x="'+(W-PR)+'" y="'+(H-3)+'" text-anchor="end" font-size="9" fill="#8B949E" font-family="Archivo,sans-serif">'+shortDate(pts[pts.length-1].date)+'</text>';
+    svg += '</svg>';
+    $("chart").innerHTML = svg;
+  }
+
+  /* ---------- log ---------- */
+  function esc(t){
+    return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+  function paintLog(){
+    var box = $("log"), moreBtn = $("more");
+    if(!data.length){
+      box.innerHTML = '<div class="empty">Nothing logged yet. Tomorrow\'s number after the shower is entry one.</div>';
+      moreBtn.classList.add("hidden");
+      return;
+    }
+    var show = expanded ? data : data.slice(0,10);
+    box.innerHTML = show.map(function(r, i){
+      var cls = classify(r.sys, r.dia);
+      var col = cls==="good" ? "var(--good)" : cls==="low" ? "var(--low)" : "var(--high)";
+      return '<div class="row">'+
+        '<span class="dot" style="background:'+col+'"></span>'+
+        '<span class="d">'+shortDate(r.date)+'</span>'+
+        '<span class="v">'+r.sys+'/'+r.dia+'</span>'+
+        '<span class="p">'+(r.hr ? r.hr : "")+'</span>'+
+        '<span class="n">'+esc(r.note||"")+'</span>'+
+        '<button class="x" data-i="'+i+'" aria-label="Delete reading">&times;</button>'+
+      '</div>';
+    }).join("");
+    Array.prototype.forEach.call(box.querySelectorAll(".x"), function(b){
+      b.addEventListener("click", function(){ remove(parseInt(b.dataset.i,10)); });
+    });
+    if(data.length > 10){
+      moreBtn.classList.remove("hidden");
+      moreBtn.textContent = expanded ? "Show fewer" : "Show all "+data.length;
+    } else {
+      moreBtn.classList.add("hidden");
+    }
+  }
+  $("more").addEventListener("click", function(){ expanded = !expanded; paintLog(); });
+
+  /* ---------- export ---------- */
+  function toCSV(){
+    var rows = ["Date,Time,Systolic,Diastolic,Pulse,Note"];
+    data.slice().reverse().forEach(function(r){
+      var n = (r.note||"").replace(/"/g,'""');
+      rows.push([r.date, r.time, r.sys, r.dia, (r.hr||""), '"'+n+'"'].join(","));
+    });
+    return rows.join("\n");
+  }
+  function toText(){
+    if(!data.length) return "No readings logged.";
+    var a14 = avgWindow(14), a30 = avgWindow(30);
+    var out = "Anthony Olivito — home blood pressure log\n";
+    out += "Target 110-130 / 60-70\n";
+    if(a14) out += "14-day average: "+a14.sys+"/"+a14.dia+" ("+a14.n+" readings)\n";
+    if(a30) out += "30-day average: "+a30.sys+"/"+a30.dia+" ("+a30.n+" readings)\n";
+    out += "\n";
+    data.slice().reverse().forEach(function(r){
+      out += r.date+"  "+r.time+"  "+r.sys+"/"+r.dia+(r.hr?"  HR "+r.hr:"")+(r.note?"  — "+r.note:"")+"\n";
+    });
+    return out;
+  }
+  function flash(btn, msg){
+    var was = btn.textContent;
+    btn.textContent = msg;
+    setTimeout(function(){ btn.textContent = was; }, 1600);
+  }
+  $("copy").addEventListener("click", function(){
+    var btn = this, txt = toText();
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt).then(function(){ flash(btn,"Copied"); })
+        .catch(function(){ fallbackCopy(txt, btn); });
+    } else { fallbackCopy(txt, btn); }
+  });
+  function fallbackCopy(txt, btn){
+    var ta = document.createElement("textarea");
+    ta.value = txt;
+    ta.style.position="fixed"; ta.style.opacity="0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); flash(btn,"Copied"); }
+    catch(e){ flash(btn,"Copy failed"); }
+    document.body.removeChild(ta);
+  }
+  $("csv").addEventListener("click", function(){
+    var btn = this;
+    if(!data.length){ flash(btn,"Nothing to export"); return; }
+    try{
+      var blob = new Blob([toCSV()], {type:"text/csv;charset=utf-8"});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "bp-log-"+stamp(new Date())+".csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+      flash(btn,"Downloaded");
+    } catch(e){
+      flash(btn,"Use Copy log instead");
+    }
+  });
+
+  /* ---------- render ---------- */
+  function render(){ paintAvgs(); paintChart(); paintLog(); }
+
+  update();
+  load();
+})();
+</script>
+</body>
+</html>
