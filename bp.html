@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="BP">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#EDEFF1">
 <title>Blood Pressure Log</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -31,7 +35,7 @@
     font-size:16px;
     line-height:1.45;
     font-variant-numeric:tabular-nums;
-    padding:18px 16px 40px;
+    padding:calc(18px + env(safe-area-inset-top)) 16px calc(40px + env(safe-area-inset-bottom));
     max-width:520px;
     margin:0 auto;
   }
@@ -262,7 +266,13 @@
   var KEY = "bp-readings-v1";
   var data = [];
   var expanded = false;
-  var hasStore = !!(window.storage && window.storage.get);
+  var hasStore = (function(){
+    try {
+      window.localStorage.setItem("__t","1");
+      window.localStorage.removeItem("__t");
+      return true;
+    } catch(e){ return false; }
+  })();
 
   var $ = function(id){ return document.getElementById(id); };
   var sysEl=$("sys"), diaEl=$("dia"), hrEl=$("hr"), noteEl=$("note"),
@@ -271,20 +281,27 @@
 
   /* ---------- storage ---------- */
   function load(){
-    if(!hasStore){ $("storewarn").classList.remove("hidden"); render(); return; }
-    window.storage.get(KEY).then(function(r){
-      try { data = r && r.value ? JSON.parse(r.value) : []; } catch(e){ data = []; }
-      if(!Array.isArray(data)) data = [];
+    if(!hasStore){
+      $("storewarn").textContent = "Private browsing blocks saving. Open this in a normal tab.";
+      $("storewarn").classList.remove("hidden");
       render();
-    }).catch(function(){ data = []; render(); });
+      return;
+    }
+    try {
+      var raw = window.localStorage.getItem(KEY);
+      data = raw ? JSON.parse(raw) : [];
+    } catch(e){ data = []; }
+    if(!Array.isArray(data)) data = [];
+    render();
   }
   function persist(){
-    if(!hasStore) return Promise.resolve();
-    return window.storage.set(KEY, JSON.stringify(data)).catch(function(e){
-      console.error("Save failed", e);
-      $("storewarn").textContent = "That reading didn't save. Try again.";
+    if(!hasStore) return;
+    try {
+      window.localStorage.setItem(KEY, JSON.stringify(data));
+    } catch(e){
+      $("storewarn").textContent = "That reading didn't save. Export your log and reload.";
       $("storewarn").classList.remove("hidden");
-    });
+    }
   }
 
   /* ---------- dates ---------- */
