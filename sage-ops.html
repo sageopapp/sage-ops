@@ -4782,7 +4782,7 @@ async function saveAddUnit() {
         items.push(created);
       }
       closeAddUnitModal();
-      if (tentVerifyState) beginTentVerify();
+      if (tentVerifyState) tentRefreshWalk();
       renderJobs();
       renderInventory();
       if (currentJobId) renderDetailBody(currentJobId);
@@ -4805,8 +4805,8 @@ async function saveAddUnit() {
     items.push(newItem);
 
     closeAddUnitModal();
-    // Refresh: rebuild tent state and re-render if we're in Tent walk
-    if (tentVerifyState) beginTentVerify();
+    // Refresh the Tent walk in place — keeps counts entered and groups already saved.
+    if (tentVerifyState) tentRefreshWalk();
     renderJobs();
     renderInventory();
   } catch(e) {
@@ -7366,10 +7366,10 @@ function tentGroupsNow() {
 
 function beginTentVerify() {
   const { groups, loadedOut } = tentGroupsNow();
-  const found = {};
-  groups.forEach(g => g.items.forEach(it => { found[it.id] = Number(f(it, F.item_qty)) || 1; }));
+  const found = {}, snap = {};
+  groups.forEach(g => g.items.forEach(it => { found[it.id] = snap[it.id] = Number(f(it, F.item_qty)) || 1; }));
   tentVerifyState = {
-    groups, loadedOutCount: loadedOut.length, found,
+    groups, loadedOutCount: loadedOut.length, found, snap, assignId: null,
     currentKey: null, completed: {},
     results: { verified: 0, flagged: [], movedIn: [] },
     search: '',
@@ -7383,7 +7383,8 @@ function renderTentJobPicker() {
   st.currentKey = null;
   document.getElementById('walk-title').textContent = 'Walk the Unit Tent';
   const allDone = st.groups.length > 0 && st.groups.every(g => st.completed[g.key]);
-  let html = `<div class="detail-section">`;
+  let html = `<button class="btn-sm btn-sm-accent" style="width:100%;padding:12px;margin-bottom:12px;" onclick="tentAddUnit()">+ Add new equipment</button>
+    <div class="detail-section">`;
   if (!st.groups.length) {
     html += `<div style="text-align:center;padding:20px 8px;"><div style="font-size:36px;margin-bottom:8px;">📦</div>
       <div style="font-size:15px;font-weight:600;">The app has nothing in the Unit Tent</div>
@@ -7417,7 +7418,7 @@ function renderTentJobPicker() {
     <div class="detail-section-title">Something here that's not on the list?</div>
     <input type="text" id="tent-find" placeholder="Search units on other shelves — model, type, customer…" value="${escapeHtml(st.search)}" oninput="tentVerifyState.search=this.value;renderTentFindResults()" autocomplete="off" style="width:100%;padding:8px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;box-sizing:border-box;margin-bottom:8px;" />
     <div id="tent-find-results"></div>
-    <button class="btn-sm btn-sm-ghost" style="width:100%;padding:10px;margin-top:6px;border:1px dashed var(--border-strong);" onclick="openAddUnitModal()">+ Not in the system at all — add a new unit</button>
+    <div style="font-size:12px;color:var(--text-faint);padding:2px 2px 0;">Not in the system anywhere? Use <b>+ Add new equipment</b> at the top.</div>
   </div>`;
 
   html += `<div style="display:flex;gap:8px;margin-top:8px;">
@@ -7469,6 +7470,129 @@ async function tentMoveHere(itemId) {
   } catch (e) { showError('Could not move that unit to the Unit Tent.'); }
 }
 
+// Rebuild the walk's lists from current data without losing progress: counts already entered
+// carry over (adjusted if a record's quantity changed underneath, e.g. a split or merge),
+// saved groups stay saved, and whatever screen you were on is re-shown.
+function tentRefreshWalk() {
+  const st = tentVerifyState; if (!st) return;
+  const { groups, loadedOut } = tentGroupsNow();
+  const found = {}, snap = {};
+  groups.forEach(g => g.items.forEach(it => {
+    const q = Number(f(it, F.item_qty)) || 1;
+    if (st.found[it.id] !== undefined) {
+      const delta = q - (st.snap[it.id] ?? q);
+      found[it.id] = Math.max(0, Math.min(q, st.found[it.id] + delta));
+    } else {
+      found[it.id] = q; // new or newly-listed record: it's here, you just put it here
+    }
+    snap[it.id] = q;
+  }));
+  // A group that only exists because of something just added/assigned during the walk has
+  // nothing left to verify — treat it as walked.
+  groups.forEach(g => {
+    if (!st.groups.find(o => o.key === g.key) && g.items.every(it => st.found[it.id] === undefined)) st.completed[g.key] = true;
+  });
+  st.groups = groups; st.loadedOutCount = loadedOut.length; st.found = found; st.snap = snap;
+  if (st.currentKey && !groups.find(g => g.key === st.currentKey)) st.currentKey = null;
+  if (st.assignId) renderTentAssign();
+  else if (st.currentKey) renderTentJobVerify();
+  else renderTentJobPicker();
+}
+
+// "+ Add new equipment" inside the walk. From a job's group the job is pre-selected.
+function tentAddUnit(jobId) {
+  addUnitPresetJob = jobId || null;
+  openAddUnitModal();
+}
+
+// ── Assign a Stock unit in the tent to a job (fixing the record to match the pile) ──
+function tentOpenAssign(itemId) {
+  if (!tentVerifyState) return;
+  tentVerifyState.assignId = itemId;
+  tentVerifyState.assignQty = 1;
+  renderTentAssign();
+}
+function tentCloseAssign() {
+  if (!tentVerifyState) return;
+  tentVerifyState.assignId = null;
+  renderTentJobVerify();
+}
+function renderTentAssign() {
+  const st = tentVerifyState;
+  const it = items.find(i => i.id === st.assignId);
+  if (!it) { st.assignId = null; renderTentJobVerify(); return; }
+  const qty = Number(f(it, F.item_qty)) || 1;
+  st.assignQty = Math.max(1, Math.min(qty, st.assignQty || 1));
+  const active = jobs.filter(j => {
+    if ((f(j, F.job_status) || '').toLowerCase() === 'complete') return false;
+    return (f(j, F.job_name) || '').trim().toLowerCase() !== 'stock';
+  }).sort((a, b) => (f(a, F.job_name) || '').localeCompare(f(b, F.job_name) || ''));
+  const prev = st.assignJob || '';
+  document.getElementById('walk-title').textContent = 'Assign to a job';
+  document.getElementById('walk-body').innerHTML = `<div class="detail-section">
+      <div style="font-size:15px;font-weight:600;">${escapeHtml(f(it, F.item_model) || 'Unknown')}</div>
+      <div style="font-size:12px;color:var(--text-muted);margin:2px 0 14px;">${escapeHtml([f(it, F.item_type) || '', f(it, F.item_description) || '', `Stock · ${qty} in the tent`].filter(Boolean).join(' · '))}</div>
+      <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;">Job</label>
+      <select id="tent-assign-job" onchange="tentVerifyState.assignJob=this.value" style="width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;margin-bottom:14px;">
+        <option value="">— Pick a job —</option>
+        ${active.map(j => `<option value="${j.id}"${j.id === prev ? ' selected' : ''}>${escapeHtml(f(j, F.job_name) || 'Unnamed')}</option>`).join('')}
+      </select>
+      ${qty > 1 ? `<label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;">How many go to this job?</label>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+        <button class="inv-step" onclick="tentVerifyState.assignQty=Math.max(1,tentVerifyState.assignQty-1);renderTentAssign()">−</button>
+        <span style="min-width:28px;text-align:center;font-weight:600;font-size:18px;">${st.assignQty}</span>
+        <button class="inv-step" onclick="tentVerifyState.assignQty=Math.min(${qty},tentVerifyState.assignQty+1);renderTentAssign()">+</button>
+        <span style="font-size:12px;color:var(--text-muted);">of ${qty} — the rest stay Stock</span>
+      </div>` : ''}
+      <div id="tent-assign-error" style="display:none;color:var(--danger);font-size:13px;margin-bottom:10px;"></div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn-sm btn-sm-ghost" style="flex:1;padding:12px;" onclick="tentCloseAssign()">Cancel</button>
+      <button class="btn-sm btn-sm-accent" style="flex:2;padding:12px;" id="tent-assign-btn" onclick="tentSaveAssign()">Assign</button>
+    </div>`;
+}
+async function tentSaveAssign() {
+  const st = tentVerifyState; if (!st) return;
+  const it = items.find(i => i.id === st.assignId);
+  const jobId = (document.getElementById('tent-assign-job') || {}).value || '';
+  const err = document.getElementById('tent-assign-error');
+  if (!jobId) { err.textContent = 'Pick a job first.'; err.style.display = 'block'; return; }
+  if (!it) return;
+  const job = jobs.find(j => j.id === jobId);
+  const qty = Number(f(it, F.item_qty)) || 1;
+  const n = Math.max(1, Math.min(qty, st.assignQty || 1));
+  const btn = document.getElementById('tent-assign-btn'); if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    let movedId = it.id;
+    if (n >= qty) {
+      await patchRecord(ITEMS_TBL, it.id, { 'Owner': [jobId], 'Status': 'Allocated' });
+      it.fields['Owner'] = [{ id: jobId, name: job ? (f(job, F.job_name) || '') : '' }];
+      it.fields['Status'] = 'Allocated';
+    } else {
+      await patchRecord(ITEMS_TBL, it.id, { 'Quantity': qty - n });
+      it.fields['Quantity'] = qty - n;
+      const nf = { 'Model number': f(it, F.item_model) || '', 'Quantity': n, 'Status': 'Allocated', 'Physical location': TENT_LABEL, 'Owner': [jobId] };
+      const desc = f(it, F.item_description); if (desc) nf['Description'] = desc;
+      const tag = f(it, F.item_type); if (tag) nf['Type tag'] = tag;
+      const created = await createRecord(ITEMS_TBL, nf);
+      if (created && created.id) {
+        created.fields = created.fields || {};
+        created.fields['Owner'] = [{ id: jobId, name: job ? (f(job, F.job_name) || '') : '' }];
+        items.push(created); movedId = created.id;
+      }
+    }
+    // If the job already has the same model in the tent, fold this into that line.
+    try { await mergeIntoExistingPile(movedId); } catch (e) { console.warn('consolidate failed', e); }
+    st.assignId = null; st.assignJob = '';
+    renderInventory(); renderJobs();
+    if (currentJobId) renderDetailBody(currentJobId);
+    tentRefreshWalk();
+  } catch (e) {
+    if (err) { err.textContent = 'Could not assign — check your connection and try again.'; err.style.display = 'block'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Assign'; }
+  }
+}
+
 function beginTentJobVerify(key) {
   if (!tentVerifyState) return;
   tentVerifyState.currentKey = key;
@@ -7481,8 +7605,10 @@ function renderTentJobVerify() {
   const g = st.groups.find(x => x.key === st.currentKey);
   if (!g) { renderTentJobPicker(); return; }
   document.getElementById('walk-title').textContent = g.label;
-  let html = `<div class="detail-section">
-    <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Everything starts as found. Tap a single unit that isn't here; lower the count on a pile that's short.</p>`;
+  const addLabel = g.kind === 'job' ? `+ Add new equipment to ${escapeHtml(g.label)}` : '+ Add new equipment';
+  let html = `<button class="btn-sm btn-sm-accent" style="width:100%;padding:12px;margin-bottom:12px;" onclick="tentAddUnit(${g.kind === 'job' ? `'${g.jobId}'` : ''})">${addLabel}</button>
+    <div class="detail-section">
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Everything starts as found. Tap a single unit that isn't here; lower the count on a pile that's short.${g.kind === 'stock' ? ' Use <b>Assign</b> on anything that belongs to a job.' : ''}</p>`;
   g.items.forEach(it => {
     const iid = it.id;
     const qty = Number(f(it, F.item_qty)) || 1;
@@ -7494,6 +7620,7 @@ function renderTentJobVerify() {
         <div class="tent-item-info"><div class="tent-item-model">${escapeHtml(f(it, F.item_model) || 'Unknown')}</div>
         <div class="tent-item-meta">${meta}${meta ? ' · ' : ''}app says ${qty}${short ? ` · <b>${qty - n} missing</b>` : ''}</div></div>
         <div style="display:flex;align-items:center;gap:6px;flex:none;">
+          ${g.kind === 'stock' ? `<button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:4px 8px;margin-right:4px;" onclick="tentOpenAssign('${iid}')">Assign</button>` : ''}
           <button class="inv-step" style="width:34px;height:34px;" onclick="tentSetCount('${iid}',-1)">−</button>
           <span style="min-width:22px;text-align:center;font-weight:600;font-size:16px;">${n}</span>
           <button class="inv-step" style="width:34px;height:34px;" onclick="tentSetCount('${iid}',1)">+</button>
@@ -7503,7 +7630,8 @@ function renderTentJobVerify() {
       html += `<div class="tent-item-row${ok ? '' : ' unchecked'}" onclick="tentSetCount('${iid}',${ok ? -1 : 1})">
         <div class="tent-item-check${ok ? ' checked' : ''}">${ok ? `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="white" stroke-width="2.5"><polyline points="3,7 6,10 11,4"/></svg>` : ''}</div>
         <div class="tent-item-info"><div class="tent-item-model">${escapeHtml(f(it, F.item_model) || 'Unknown')}</div>
-        <div class="tent-item-meta">${meta}${ok ? '' : `${meta ? ' · ' : ''}<b>not here</b>`}</div></div></div>`;
+        <div class="tent-item-meta">${meta}${ok ? '' : `${meta ? ' · ' : ''}<b>not here</b>`}</div></div>
+        ${g.kind === 'stock' && ok ? `<button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:4px 8px;flex:none;" onclick="event.stopPropagation();tentOpenAssign('${iid}')">Assign</button>` : ''}</div>`;
     }
   });
   html += `</div>
