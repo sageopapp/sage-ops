@@ -1283,6 +1283,7 @@
   <div class="modal">
     <h3 id="inv-edit-title">Edit count</h3>
     <p id="inv-edit-subtitle"></p>
+    <div id="inv-edit-note" style="display:none;font-size:13px;line-height:1.5;color:var(--warn);background:var(--warn-light);border-radius:var(--radius-sm);padding:8px 10px;margin-bottom:14px;"></div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;width:100%;box-sizing:border-box;overflow:hidden;">
       <button class="inv-step" onclick="invStep(-1)">−</button>
       <input type="text" inputmode="decimal" pattern="[0-9]*" id="inv-edit-val" style="flex:1 1 0;min-width:0;width:auto;" />
@@ -2829,7 +2830,18 @@ async function applyLoadState(itemId, newVal) {
     // now committed to this job. A line sourced from the Rig's own spare stock moves nothing;
     // ticking it just commits that stock. Unloading reverses exactly what loading did.
     if (newVal) {
-      if (needsStockMath && src !== 'Rig') await applySkuMove(sku, src, 'Rig', qty);
+      if (needsStockMath && src !== 'Rig') {
+        // Safeguard: loading more than the shelf shows proves the shelf count was wrong.
+        // The Rig still gets the full quantity (that's what physically went on the truck);
+        // queue a recount of the shelf so the real number gets entered on the spot.
+        const srcField = locationToSkuField(src);
+        const shown = skuNum(sku, srcField);
+        if (qty > shown) {
+          recountQueue.push({ skuId: sku.id, field: srcField, label: src, shown, qty,
+            name: f(sku, F.sku_name) || 'this item' });
+        }
+        await applySkuMove(sku, src, 'Rig', qty);
+      }
       const loadFields = specLine ? { 'Loaded?': true } : { 'Loaded?': true, 'Status': 'Loaded' };
       // Pin the origin. If the item's own location wasn't a real shelf, we resolved `src`
       // by fallback — write it back so the unload returns the quantity to the same place
@@ -2860,6 +2872,22 @@ async function markItemLoaded(itemId) {
   const item = items.find(i => i.id === itemId);
   if (!item || f(item, F.item_loaded) === true) return;
   await applyLoadState(itemId, true);
+}
+
+// ── SHORT-SHELF RECOUNT ──
+// Filled by applyLoadState when a load pulls more than its shelf showed. Drained one prompt
+// at a time after the load (or a close-out) finishes: each opens the count box for that shelf.
+let recountQueue = [];
+let recountActive = false;
+function runRecountQueue() {
+  if (recountActive || !recountQueue.length) return;
+  const r = recountQueue.shift();
+  recountActive = true;
+  openInvEdit(r.skuId, r.field, r.label);
+  const note = document.getElementById('inv-edit-note');
+  note.textContent = `${r.label} showed ${r.shown} ${r.name} but ${r.qty} went on the rig, so the ${r.label} count was off. Count what's left in the ${r.label} now and enter it here.`;
+  note.style.display = 'block';
+  document.getElementById('inv-edit-val').value = '';
 }
 
 // Switch a not-yet-loaded consumable line between drawing on the Rig's spare stock and
@@ -2901,6 +2929,7 @@ async function toggleLoaded(itemId) {
     await applyLoadState(itemId, !wasLoaded);
     renderLoadList();
     if (typeof renderInventory === 'function') renderInventory();
+    runRecountQueue();
   } catch(e) {
     rows.forEach(row => {
       const c = row.querySelector('.item-check');
@@ -4418,6 +4447,7 @@ async function closeVisitAndTick() {
     }
     closeCloseVisitModal();
     await toggleVisitComplete(vid);
+    runRecountQueue();
   } catch(e) {
     errEl.textContent = 'Could not tick every item — nothing was closed. Check the load list.';
     errEl.style.display = 'block';
@@ -6989,6 +7019,10 @@ function openInvEdit(skuId, locField, locLabel) {
 function closeInvEdit() {
   document.getElementById('inv-edit-modal').classList.remove('open');
   invEditState = null;
+  const note = document.getElementById('inv-edit-note');
+  if (note) { note.style.display = 'none'; note.textContent = ''; }
+  // A recount prompt just closed (saved or skipped) — show the next one, if any.
+  if (recountActive) { recountActive = false; setTimeout(runRecountQueue, 150); }
 }
 
 function invStep(delta) {
