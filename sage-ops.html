@@ -743,6 +743,8 @@
           <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12px;color:var(--text-muted);min-width:60px;">Susie</span><input type="number" id="sku-cnt-susie" placeholder="0" min="0" step="1" style="flex:1;padding:6px 8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:13px;outline:none;" /></div>
           <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12px;color:var(--text-muted);min-width:60px;">Shop</span><input type="number" id="sku-cnt-shop" placeholder="0" min="0" step="1" style="flex:1;padding:6px 8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:13px;outline:none;" /></div>
           <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12px;color:var(--text-muted);min-width:60px;">Ducting</span><input type="number" id="sku-cnt-ducting" placeholder="0" min="0" step="1" style="flex:1;padding:6px 8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:13px;outline:none;" /></div>
+          <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12px;color:var(--text-muted);min-width:60px;">Rig</span><input type="number" id="sku-cnt-rig" placeholder="0" min="0" step="1" style="flex:1;padding:6px 8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:13px;outline:none;" /></div>
+          <div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12px;color:var(--text-muted);min-width:60px;">Rig min</span><input type="number" id="sku-cnt-rigmin" placeholder="0" min="0" step="1" style="flex:1;padding:6px 8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:13px;outline:none;" /></div>
         </div>
       </div>
     </div>
@@ -1248,6 +1250,16 @@
           <div>
             <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:3px;">Ducting Tent</label>
             <input type="number" id="sku-edit-ducting" step="1" min="0" style="width:100%;padding:7px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:3px;">Rig</label>
+            <input type="number" id="sku-edit-rig" step="1" min="0" style="width:100%;padding:7px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+            <div id="sku-edit-rig-hint" style="font-size:11px;color:var(--text-faint);margin-top:3px;"></div>
+          </div>
+          <div>
+            <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:3px;">Rig minimum</label>
+            <input type="number" id="sku-edit-rigmin" step="1" min="0" style="width:100%;padding:7px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
+            <div style="font-size:11px;color:var(--text-faint);margin-top:3px;">Spare below this → restock</div>
           </div>
         </div>
       </div>
@@ -4802,6 +4814,8 @@ function openAddSkuModal(prefilledLoc) {
   document.getElementById('sku-cnt-susie').value = '';
   document.getElementById('sku-cnt-shop').value = '';
   document.getElementById('sku-cnt-ducting').value = '';
+  document.getElementById('sku-cnt-rig').value = '';
+  document.getElementById('sku-cnt-rigmin').value = '';
   document.getElementById('sku-error').style.display = 'none';
   addSkuPrefilledLoc = prefilledLoc || null;
   if (prefilledLoc) {
@@ -4887,6 +4901,8 @@ async function saveNewSku() {
   const cSusie = parseFloat(document.getElementById('sku-cnt-susie').value);
   const cShop = parseFloat(document.getElementById('sku-cnt-shop').value);
   const cDucting = parseFloat(document.getElementById('sku-cnt-ducting').value);
+  const cRig = parseFloat(document.getElementById('sku-cnt-rig').value);
+  const cRigMin = parseFloat(document.getElementById('sku-cnt-rigmin').value);
   const itemNumber = document.getElementById('sku-itemnumber').value.trim();
 
   if (!name) { skuShowError('Please enter a SKU name.'); return; }
@@ -4907,6 +4923,8 @@ async function saveNewSku() {
   if (!isNaN(cSusie)) fields['On-hand (Susie)'] = cSusie;
   if (!isNaN(cShop)) fields['On-hand (Shop)'] = cShop;
   if (!isNaN(cDucting)) fields['On-hand (Ducting Tent)'] = cDucting;
+  if (!isNaN(cRig)) fields['On-hand (Rig)'] = cRig;
+  if (!isNaN(cRigMin)) fields['Rig minimum'] = cRigMin;
 
   try {
     const newSku = await createRecord(SKUS_TBL, fields);
@@ -6797,6 +6815,12 @@ function openSkuEdit(skuId) {
   document.getElementById('sku-edit-lumber').value = f(sku, F.sku_lumber) ?? '';
   document.getElementById('sku-edit-shop').value = f(sku, F.sku_shop) ?? '';
   document.getElementById('sku-edit-ducting').value = f(sku, F.sku_ducting) ?? '';
+  document.getElementById('sku-edit-rig').value = f(sku, F.sku_rig) ?? '';
+  document.getElementById('sku-edit-rigmin').value = f(sku, F.sku_rig_min) ?? '';
+  const _com = skuRigCommitted(sku);
+  document.getElementById('sku-edit-rig-hint').textContent = _com
+    ? `Physical count on the truck — includes ${_com} loaded for jobs`
+    : 'Physical count on the truck';
   document.getElementById('sku-edit-error').style.display = 'none';
   document.getElementById('sku-edit-modal').classList.add('open');
   setTimeout(()=>document.getElementById('sku-edit-name').focus(), 50);
@@ -6850,7 +6874,9 @@ async function saveSkuEdit() {
   const lumber = numField('sku-edit-lumber');
   const shop = numField('sku-edit-shop');
   const ducting = numField('sku-edit-ducting');
-  if ([barn,tent,susie,lumber,shop,ducting].some(v=>v===undefined)) {
+  const rig = numField('sku-edit-rig');
+  const rigMin = numField('sku-edit-rigmin');
+  if ([barn,tent,susie,lumber,shop,ducting,rig,rigMin].some(v=>v===undefined)) {
     skuEditShowError('Counts must be 0 or greater (or blank).'); return;
   }
   let threshold = null;
@@ -6872,6 +6898,8 @@ async function saveSkuEdit() {
     'On-hand (Lumber Rack)': lumber,
     'On-hand (Shop)': shop,
     'On-hand (Ducting Tent)': ducting,
+    'On-hand (Rig)': rig,
+    'Rig minimum': rigMin,
   };
   // Also update the linked Vendor record (or clear it if vendor was cleared)
   // so the email automation routes correctly going forward.
@@ -6895,6 +6923,8 @@ async function saveSkuEdit() {
       sku.fields['On-hand (Lumber Rack)'] = lumber;
       sku.fields['On-hand (Shop)'] = shop;
       sku.fields['On-hand (Ducting Tent)'] = ducting;
+      sku.fields['On-hand (Rig)'] = rig;
+      sku.fields['Rig minimum'] = rigMin;
     }
     closeSkuEdit();
     renderInventory();
