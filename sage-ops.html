@@ -513,6 +513,7 @@
         <button class="loc-tab" data-loc="On-hand (Lumber Rack)" onclick="setInvLocation('On-hand (Lumber Rack)')">Lumber</button>
         <button class="loc-tab" data-loc="On-hand (Susie)" onclick="setInvLocation('On-hand (Susie)')">Susie</button>
         <button class="loc-tab" data-loc="On-hand (Shop)" onclick="setInvLocation('On-hand (Shop)')">Shop</button>
+        <button class="loc-tab" data-loc="On-hand (Rig)" onclick="setInvLocation('On-hand (Rig)')">Rig</button>
         <button class="loc-tab" data-loc="archive" onclick="setInvLocation('archive')">Archive</button>
       </div>
       <div class="type-chips" id="type-chips" style="display:none;"></div>
@@ -1455,7 +1456,7 @@ const F = {
   sku_name: 'Item', sku_barn: 'On-hand (Barn)', sku_tent: 'On-hand (Unit Tent)',
   sku_susie: 'On-hand (Susie)', sku_lumber: 'On-hand (Lumber Rack)', sku_rig: 'On-hand (Rig)',
   sku_shop: 'On-hand (Shop)', sku_ducting: 'On-hand (Ducting Tent)', sku_threshold: 'Reorder threshold',
-  sku_total: 'Total on-hand', sku_available: 'On-hand', sku_order_flag: 'Order needed?', sku_vendor: 'Vendor', sku_itemnumber: 'Item number',
+  sku_rig_min: 'Rig minimum', sku_total: 'Total on-hand', sku_available: 'On-hand', sku_order_flag: 'Order needed?', sku_vendor: 'Vendor', sku_itemnumber: 'Item number',
   sku_unit: 'Unit', sku_type: 'Type tag',
   order_item: 'Item', order_itemnumber: 'Item number', order_vendor: 'Vendor',
   order_qty: 'Quantity', order_unit: 'Unit', order_status: 'Status',
@@ -1490,6 +1491,11 @@ const LOCATIONS = [
   { field: 'On-hand (Shop)', label: 'Shop' },
   { field: 'On-hand (Ducting Tent)', label: 'Ducting Tent' },
 ];
+// The Rig is a real place for consumables (standing truck stock + material loaded for jobs),
+// but NOT a shelf for units — a unit on the truck is Status = Loaded, wherever it came from.
+// So SKU counts, transfers and walks use SKU_LOCATIONS; unit logic keeps LOCATIONS.
+const RIG = { field: 'On-hand (Rig)', label: 'Rig' };
+const SKU_LOCATIONS = [...LOCATIONS, RIG];
 
 function getKey() { return localStorage.getItem('sage_pat') || ''; }
 function saveKey(k) { localStorage.setItem('sage_pat', k); }
@@ -2643,13 +2649,17 @@ function renderLoadList() {
         // anything to a Rig, so this just reflects where the stock lives.
         const loc = f(item,F.item_location)||'';
         const locClass='item-loc';
+        const lsk = f(item, F.item_sku);
+        const canSwitchSrc = !isLoaded && Array.isArray(lsk) && lsk.length && !isSpecLine(item);
         html+=`<div class="item-row${isLoaded?' done':''}" data-item-id="${iid}">
           <div class="item-check${isLoaded?' checked':''}" onclick="toggleLoaded('${iid}')" title="Mark as loaded">
             <svg class="checkmark" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="white" stroke-width="2.5"><polyline points="2,6 5,9 10,3"/></svg>
           </div>
           <div class="item-info"><div class="item-model">${model}</div><div class="item-detail">${[type, isSpecLine(item) ? 'spec — bring this much' : status].filter(Boolean).join(' · ')}</div></div>
           <span class="item-qty">×${qty}</span>
-          ${loc?`<span class="${locClass}">${loc}</span>`:''}
+          ${loc ? (canSwitchSrc
+            ? `<span class="${locClass}" onclick="event.stopPropagation();toggleMatSource('${iid}')" title="Where this comes from — tap to switch between the rig and its shelf" style="cursor:pointer;text-decoration:underline dotted;">from ${escapeHtml(loc)}</span>`
+            : `<span class="${locClass}">${loc}</span>`) : ''}
         </div>`;
       });
     }
@@ -2677,8 +2687,10 @@ function locationToSkuField(label) {
 // own Physical location (if set and valid); fall back to skuPrimaryLocation.
 function consumableSourceLocation(item, sku) {
   const itemLoc = f(item, F.item_location) || '';
-  const validLocs = ['Barn','Unit Tent','Susie','Lumber Rack','Shop','Ducting Tent'];
+  const validLocs = ['Barn','Unit Tent','Susie','Lumber Rack','Shop','Ducting Tent','Rig'];
   if (validLocs.includes(itemLoc)) return itemLoc;
+  // No source recorded: use the truck's spare stock if it covers the line, else a shelf.
+  if (skuRigSpare(sku) >= (Number(f(item, F.item_qty)) || 1)) return 'Rig';
   // Fallback: the SKU's primary location (the bucket with the most on-hand)
   const buckets = [
     ['Barn', f(sku, F.sku_barn)],
@@ -2776,7 +2788,7 @@ async function applyLoadState(itemId, newVal) {
   // and skipping the stock math, which silently destroyed the quantity.
   const needsStockMath = isConsumable && sku && !lengthBased;
   const itemLocNow = f(item, F.item_location) || '';
-  const STORAGE_BUCKETS = ['Barn','Unit Tent','Susie','Lumber Rack','Shop','Ducting Tent'];
+  const STORAGE_BUCKETS = ['Barn','Unit Tent','Susie','Lumber Rack','Shop','Ducting Tent','Rig'];
   const locIsRealBucket = STORAGE_BUCKETS.includes(itemLocNow);
   const src = needsStockMath ? consumableSourceLocation(item, sku) : null;
 
@@ -2800,8 +2812,11 @@ async function applyLoadState(itemId, newVal) {
     // inventory Status onto it, or we're back to claiming a reservation that can't exist.
     const specLine = isSpecLine(item);
 
+    // Rig model: loading moves the quantity from its shelf onto the Rig — still inventory,
+    // now committed to this job. A line sourced from the Rig's own spare stock moves nothing;
+    // ticking it just commits that stock. Unloading reverses exactly what loading did.
     if (newVal) {
-      if (needsStockMath) await applySkuAdjust(sku, src, -qty);
+      if (needsStockMath && src !== 'Rig') await applySkuMove(sku, src, 'Rig', qty);
       const loadFields = specLine ? { 'Loaded?': true } : { 'Loaded?': true, 'Status': 'Loaded' };
       // Pin the origin. If the item's own location wasn't a real shelf, we resolved `src`
       // by fallback — write it back so the unload returns the quantity to the same place
@@ -2813,7 +2828,7 @@ async function applyLoadState(itemId, newVal) {
       if (!specLine) item.fields['Status'] = 'Loaded';
       if (loadFields['Physical location']) item.fields['Physical location'] = src;
     } else {
-      if (needsStockMath) await applySkuAdjust(sku, src, +qty);
+      if (needsStockMath && src !== 'Rig') await applySkuMove(sku, 'Rig', src, Math.min(qty, skuOnRig(sku)));
       const unloadFields = specLine ? { 'Loaded?': false } : { 'Loaded?': false, 'Status': 'Allocated' };
       // Same repair on the way back: an item that came off the truck should not be left
       // parked at a non-shelf location, where it renders on no tab and looks lost.
@@ -2832,6 +2847,30 @@ async function markItemLoaded(itemId) {
   const item = items.find(i => i.id === itemId);
   if (!item || f(item, F.item_loaded) === true) return;
   await applyLoadState(itemId, true);
+}
+
+// Switch a not-yet-loaded consumable line between drawing on the Rig's spare stock and
+// being pulled from its shelf at load time.
+async function toggleMatSource(itemId) {
+  const item = items.find(i => i.id === itemId);
+  if (!item || f(item, F.item_loaded) === true) return;
+  const links = f(item, F.item_sku);
+  const sku = Array.isArray(links) && links.length ? skus.find(s => s.id === (typeof links[0] === 'string' ? links[0] : links[0].id)) : null;
+  if (!sku) return;
+  const cur = f(item, F.item_location) || '';
+  let next;
+  if (cur === 'Rig') {
+    let best = null, bestQty = -1;
+    LOCATIONS.forEach(l => { const n = skuNum(sku, l.field); if (n > bestQty) { bestQty = n; best = l.label; } });
+    next = best || 'Barn';
+  } else {
+    next = 'Rig';
+  }
+  try {
+    await patchRecord(ITEMS_TBL, itemId, { 'Physical location': next });
+    item.fields['Physical location'] = next;
+    renderLoadList();
+  } catch(e) { showError('Could not change the source.'); }
 }
 
 async function toggleLoaded(itemId) {
@@ -3552,7 +3591,9 @@ async function saveMaterial(jobId) {
     // Footage is a spec, not a reservation — don't stamp Allocated on something that
     // can't be reserved. Everything counted in whole units still allocates normally.
     if (!isLengthBasedUnit(chosenUnit)) fields['Status'] = 'Allocated';
-    const loc = skuPrimaryLocation(sku);
+    // Counted material the truck already carries enough spare of is sourced from the Rig
+    // (no shelf move at load). Otherwise it comes from the shelf holding the most.
+    const loc = (!isLengthBasedUnit(chosenUnit) && skuRigSpare(sku) >= qty) ? 'Rig' : skuPrimaryLocation(sku);
     if (loc) fields['Physical location'] = loc;
     if (chosenUnit) fields['Unit'] = chosenUnit;
     const newItem = await createRecord(ITEMS_TBL, fields);
@@ -3864,14 +3905,25 @@ function startComplete(jobId) {
         const model = f(item,F.item_model) || 'Item';
         const loaded = Number(f(item,F.item_qty)) || 1;
         const unit = f(item,'Unit') || '';
-        html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+        const rsku = skus.find(s => { const l = f(item, F.item_sku); return Array.isArray(l) && l.length && s.id === (typeof l[0] === 'string' ? l[0] : l[0].id); });
+        const rsrc = rsku ? consumableSourceLocation(item, rsku) : null;
+        const leftSel = (rsrc && rsrc !== 'Rig')
+          ? `<div style="font-size:12px;color:var(--text-muted);padding:2px 0 0;">leftovers
+              <select id="left-dest-${item.id}" style="padding:2px 4px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:12px;">
+                <option value="Rig" selected>stay on rig</option>
+                <option value="${escapeHtml(rsrc)}">back to ${escapeHtml(rsrc)}</option>
+              </select></div>`
+          : '';
+        html += `<div style="padding:8px 0;border-bottom:1px solid var(--border);">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
           <span style="font-weight:500;font-size:14px;min-width:0;flex:1;">${escapeHtml(model)}</span>
           <span style="font-size:13px;color:var(--text-muted);white-space:nowrap;">used
             <input type="number" id="use-qty-${item.id}" value="${loaded}" min="0" step="1" style="width:56px;padding:4px 6px;margin:0 4px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;text-align:center;outline:none;" />
             of ${loaded}${unit?' '+escapeHtml(unit):''} loaded</span>
+          </div>${leftSel}
         </div>`;
       });
-      html += `<div style="font-size:12px;color:var(--text-faint);padding:8px 0 2px;">These were pulled from stock when loaded. Lower a line if less was used — the remainder goes back to stock.</div>`;
+      html += `<div style="font-size:12px;color:var(--text-faint);padding:8px 0 2px;">These went onto the rig when loaded. What was used comes off the rig. Lower a line if less was used — leftovers stay on the rig unless you send them back to their shelf.</div>`;
     }
     if (unticked.length) {
       html += `<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--warn);margin:14px 0 6px;">Never ticked loaded — deduct now?</div>`;
@@ -3978,13 +4030,19 @@ async function confirmComplete() {
         if (input && !isLengthBasedUnit(unit)) {
           const loaded = Number(f(item, F.item_qty)) || 0;
           const used = Math.max(0, Number(input.value) || 0);
-          const restore = loaded - used; // >0 returns unused; <0 pulls extra
-          if (restore !== 0) {
-            const sku = skus.find(s => s.id === (typeof skuLinks[0]==='string'?skuLinks[0]:skuLinks[0].id));
-            if (sku) {
-              const src = consumableSourceLocation(item, sku);
-              if (src) await applySkuAdjust(sku, src, restore);
-            }
+          const sku = skus.find(s => s.id === (typeof skuLinks[0]==='string'?skuLinks[0]:skuLinks[0].id));
+          if (sku) {
+            const src = consumableSourceLocation(item, sku) || 'Rig';
+            // Used material leaves inventory from the Rig, where loading put it.
+            const fromRig = Math.min(used, loaded);
+            if (fromRig > 0) await applySkuAdjust(sku, 'Rig', -fromRig);
+            // Used more than was loaded: the extra came from the line's source.
+            if (used > loaded) await applySkuAdjust(sku, src, -(used - loaded));
+            // Leftovers: stay on the rig as spare, or go back to the shelf they came from.
+            const left = loaded - used;
+            const destSel = document.getElementById(`left-dest-${item.id}`);
+            const dest = destSel ? destSel.value : 'Rig';
+            if (left > 0 && dest !== 'Rig') await applySkuMove(sku, 'Rig', dest, Math.min(left, skuOnRig(sku)));
           }
         }
       } else if (isConsumable && !isLengthBasedUnit(f(item, 'Unit') || '')) {
@@ -5247,12 +5305,38 @@ function setOrderStatusFilter(status) {
 // storage locations (Barn, Unit Tent, Susie, Lumber Rack, Shop, Ducting Tent),
 // excluding the Rig, which is tracked separately.
 function skuNum(sku, key) { const x = Number(f(sku, key)); return Number.isFinite(x) ? x : 0; }
-function skuAvailable(sku) {
+// Rig model: loading a consumable MOVES it shelf → Rig; it stays in inventory until it's
+// used. Rig stock splits two ways:
+//   committed = material loaded for an open job (promised — not available to anyone else)
+//   spare     = everything else on the truck (standing stock, leftovers) — available
+// Available = the six shelves + rig spare. Airtable's "Available on-hand" formula uses the
+// same definition (via the "Committed on rig" rollup) so the auto-flag and the app agree.
+function skuShelfStock(sku) {
   if (!sku) return 0;
   return skuNum(sku, F.sku_barn) + skuNum(sku, F.sku_tent) + skuNum(sku, F.sku_susie) +
          skuNum(sku, F.sku_lumber) + skuNum(sku, F.sku_shop) + skuNum(sku, F.sku_ducting);
 }
 function skuOnRig(sku) { return skuNum(sku, F.sku_rig); }
+function skuRigCommitted(sku) {
+  if (!sku) return 0;
+  return items.reduce((a, it) => {
+    const links = f(it, F.item_sku);
+    if (!Array.isArray(links) || !links.some(l => (typeof l === 'string' ? l : l.id) === sku.id)) return a;
+    if (f(it, F.item_loaded) !== true || isSpecLine(it)) return a;
+    if ((f(it, F.item_status) || '').toLowerCase() !== 'loaded') return a;
+    return a + (Number(f(it, F.item_qty)) || 0);
+  }, 0);
+}
+function skuRigSpare(sku) { return Math.max(0, skuOnRig(sku) - skuRigCommitted(sku)); }
+// Standing truck stock below its Rig minimum → belongs on the rig-reset list.
+function skuBelowRigMin(sku) {
+  const m = Number(f(sku, F.sku_rig_min));
+  return Number.isFinite(m) && m > 0 && skuRigSpare(sku) < m;
+}
+function skuAvailable(sku) {
+  if (!sku) return 0;
+  return skuShelfStock(sku) + skuRigSpare(sku);
+}
 function skuIsLow(sku) {
   const thr = Number(f(sku, F.sku_threshold));
   if (Number.isFinite(thr) && thr > 0) return skuAvailable(sku) <= thr;
@@ -5990,7 +6074,9 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     const vendor = (f(s, F.sku_vendor) || '').toLowerCase();
     return name.includes(search) || itemNum.includes(search) || type.includes(search) || vendor.includes(search);
   });
-  if (lowOnly) filtered = filtered.filter(s => skuIsLow(s));
+  const onRigTabEarly = (currentInvLocation === RIG.field);
+  // On the Rig tab, "Low stock only" means below the Rig minimum (the Monday rig-reset list).
+  if (lowOnly) filtered = filtered.filter(s => onRigTabEarly ? skuBelowRigMin(s) : skuIsLow(s));
   // The Archive tab is units-only — consumable SKUs are a running balance, not something
   // that gets retired, so no SKU cards there.
   const onArchiveTab = (currentInvLocation === 'archive');
@@ -5999,6 +6085,7 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
   if (currentInvLocation !== 'all' && !onArchiveTab) {
     filtered = filtered.filter(s => {
       const v = f(s, currentInvLocation);
+      if (onRigTabEarly && (skuRigCommitted(s) > 0 || skuBelowRigMin(s))) return true;
       return v !== null && v !== undefined && Number(v) > 0;
     });
   }
@@ -6018,7 +6105,8 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
   // Barn kept showing every unit and its chips and looked unfiltered.
   const showEquipment = !lowOnly && !onArchiveTab &&
     ((!onAllTab && currentInvLocation !== 'On-hand (Unit Tent)') || (onAllTab && !!search));
-  const tabLocLabel = (onAllTab || onArchiveTab) ? '' : ((LOCATIONS.find(l => l.field === currentInvLocation) || {}).label || '');
+  const onRigTab = (currentInvLocation === RIG.field);
+  const tabLocLabel = (onAllTab || onArchiveTab) ? '' : ((SKU_LOCATIONS.find(l => l.field === currentInvLocation) || {}).label || '');
   const isEquipment = item => {
     if (isJobBox(item)) return false; // boxes get their own section below
     const skuLinks = f(item, F.item_sku);
@@ -6030,7 +6118,10 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     inScopeItems = items.filter(item => {
       // Installed / Archived units are physically gone — never in live inventory scope.
       if (isRetired(item)) return false;
-      if (!onAllTab) {
+      if (onRigTab) {
+        // Units on the truck are the ones with Status = Loaded, whatever shelf they left.
+        if ((f(item, F.item_status) || '').toLowerCase() !== 'loaded') return false;
+      } else if (!onAllTab) {
         const loc = f(item, F.item_location);
         if (loc !== tabLocLabel) return false;
       }
@@ -6162,7 +6253,7 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
         headerLabel = `Equipment matching "${search}"`;
         summaryText = summaryBits.length ? summaryBits.join(' · ') : 'No matches';
       } else {
-        headerLabel = `Equipment at ${escapeHtml(tabLocLabel)}`;
+        headerLabel = onRigTab ? 'Units loaded on the Rig' : `Equipment at ${escapeHtml(tabLocLabel)}`;
         summaryText = summaryBits.length ? summaryBits.join(' · ') : `No equipment at ${tabLocLabel}`;
       }
       equipHtml += `<div class="inv-summary" style="margin-top:4px;">${headerLabel} · ${escapeHtml(summaryText)}</div>`;
@@ -6204,7 +6295,8 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
   // collapsed to one line until tapped. Hidden under Low stock only (boxes have no threshold).
   if (!lowOnly && !onArchiveTab) {
     let bx = items.filter(it => isJobBox(it) && !isRetired(it));
-    if (!onAllTab) bx = bx.filter(it => (f(it, F.item_location) || '') === tabLocLabel);
+    if (onRigTab) bx = bx.filter(it => (f(it, F.item_status) || '').toLowerCase() === 'loaded');
+    else if (!onAllTab) bx = bx.filter(it => (f(it, F.item_location) || '') === tabLocLabel);
     if (search) bx = bx.filter(it => equipMatchesSearch(it, search));
     if (bx.length) {
       const expanded = !onAllTab || !!search || showAllTabBoxes;
@@ -6214,7 +6306,7 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
         bx.forEach(it => { const l = f(it, F.item_location) || 'no shelf'; byLoc[l] = (byLoc[l] || 0) + 1; });
         head += ' · ' + Object.keys(byLoc).sort().map(l => `${l} ${byLoc[l]}`).join(' · ');
       } else {
-        head += ` at ${tabLocLabel}`;
+        head += onRigTab ? ' loaded on the Rig' : ` at ${tabLocLabel}`;
       }
       const toggle = (onAllTab && !search)
         ? ` onclick="showAllTabBoxes=!showAllTabBoxes;renderInventory()" style="cursor:pointer;margin-top:4px;"`
@@ -6322,7 +6414,7 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     const isLow = skuIsLow(sku);
 
     let locsHtml = '';
-    LOCATIONS.forEach(loc => {
+    SKU_LOCATIONS.forEach(loc => {
       // When on a specific location tab, only render that location's chip
       if (currentInvLocation !== 'all' && loc.field !== currentInvLocation) return;
       const v = f(sku, loc.field);
@@ -6362,7 +6454,16 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
               return `<div class="inv-total">${available}<span class="inv-total-label">available</span></div>`;
             }
             const tabVal = f(sku, currentInvLocation) ?? 0;
-            const tabLabel = (LOCATIONS.find(l => l.field === currentInvLocation) || {}).label || '';
+            const tabLabel = (SKU_LOCATIONS.find(l => l.field === currentInvLocation) || {}).label || '';
+            if (currentInvLocation === RIG.field) {
+              const com = skuRigCommitted(sku), spare = skuRigSpare(sku);
+              const rmin = f(sku, F.sku_rig_min);
+              const bits = [];
+              if (com) bits.push(`${com} for jobs`);
+              bits.push(`${spare} spare`);
+              if (rmin != null && rmin !== '') bits.push(`min ${rmin}`);
+              return `<div class="inv-total">${tabVal}<span class="inv-total-label">on rig · ${escapeHtml(bits.join(' · '))}${skuBelowRigMin(sku) ? ' · <b style="color:var(--warn);">restock</b>' : ''}</span></div>`;
+            }
             return `<div class="inv-total">${tabVal}<span class="inv-total-label">${escapeHtml(tabLabel.toLowerCase())}</span></div>`;
           })()}
           <button class="sku-edit-btn" onclick="openXfer('${sid}')" title="Transfer between locations" style="margin-left:4px;">⇄</button>
@@ -6890,7 +6991,7 @@ function openXfer(skuId) {
   const skuName = f(sku, F.sku_name) || 'SKU';
 
   // Build From options: only locations where current value > 0
-  const fromOptions = LOCATIONS
+  const fromOptions = SKU_LOCATIONS
     .map(loc => ({ ...loc, val: f(sku, loc.field) ?? 0 }))
     .filter(loc => loc.val > 0);
 
@@ -6927,7 +7028,7 @@ function rebuildXferToOptions() {
   const fromField = document.getElementById('xfer-from').value;
   const toSel = document.getElementById('xfer-to');
   // To options: all locations EXCEPT the current From
-  const toOptions = LOCATIONS.filter(loc => loc.field !== fromField);
+  const toOptions = SKU_LOCATIONS.filter(loc => loc.field !== fromField);
   toSel.innerHTML = toOptions
     .map(loc => `<option value="${escapeHtml(loc.field)}">${escapeHtml(loc.label)}</option>`)
     .join('');
@@ -6970,8 +7071,13 @@ async function saveXfer() {
   if (isNaN(qty) || qty <= 0) { xferShowError('Quantity must be greater than zero.'); return; }
 
   const fromCurrent = f(sku, fromField) ?? 0;
+  // Rig stock loaded for a job isn't free to move — only the spare can be transferred.
+  if (fromField === RIG.field && qty > skuRigSpare(sku)) {
+    xferShowError(`Only ${skuRigSpare(sku)} spare on the Rig — the rest is loaded for jobs. Unload it from the load list first.`);
+    return;
+  }
   if (qty > fromCurrent) {
-    const fromLabel = (LOCATIONS.find(l => l.field === fromField) || {}).label || 'source';
+    const fromLabel = (SKU_LOCATIONS.find(l => l.field === fromField) || {}).label || 'source';
     xferShowError(`Only ${fromCurrent} available at ${fromLabel}.`);
     return;
   }
@@ -7052,7 +7158,7 @@ async function saveEquipXfer() {
 // ── COUNT WALK ──
 function startWalk() {
   // Ask which location to walk
-  const opts = LOCATIONS.map((l,i)=>{
+  const opts = SKU_LOCATIONS.map((l,i)=>{
     const isTent = l.field === 'On-hand (Unit Tent)';
     return `<button class="walk-loc-btn" onclick="beginWalk(${i})">${l.label}${isTent?'<div style="font-size:11px;color:var(--text-faint);font-weight:400;margin-top:2px;">verify items</div>':''}</button>`;
   }).join('');
@@ -7068,7 +7174,7 @@ function startWalk() {
 }
 
 function beginWalk(locIdx) {
-  const loc = LOCATIONS[locIdx];
+  const loc = SKU_LOCATIONS[locIdx];
   // Special case: Unit Tent verifies job-allocated Items, not SKU counts
   if (loc.field === 'On-hand (Unit Tent)') {
     beginTentVerify();
@@ -7091,11 +7197,13 @@ function renderWalkList() {
 
   const isLumber = locField === 'On-hand (Lumber Rack)';
   const lumberNote = isLumber ? `<div class="walk-lumber-note">📏 Count full 16' sticks only. Cut pieces and offcuts don't count here.</div>` : '';
+  const isRig = locField === RIG.field;
+  const rigNote = isRig ? `<div class="walk-lumber-note">🚚 Count everything on the truck, including material already loaded for jobs. The app splits it into "for jobs" and "spare" itself.</div>` : '';
 
   if (!relevant.length) {
     document.getElementById('walk-body').innerHTML = `
       <div class="detail-section">
-        ${lumberNote}
+        ${lumberNote}${rigNote}
         <div class="empty"><div class="icon">📦</div>No SKUs tracked at ${locLabel}</div>
         <button class="btn-sm btn-sm-action" style="width:100%;margin-top:12px;padding:10px;" onclick="backToWalkPicker()">← Back to locations</button>
       </div>`;
@@ -7107,7 +7215,7 @@ function renderWalkList() {
       <div style="font-size:12px;color:var(--text-muted);">${relevant.length} SKU${relevant.length===1?'':'s'}</div>
       <button class="btn-sm btn-sm-action" style="font-size:12px;padding:5px 10px;" onclick="backToWalkPicker()">← Locations</button>
     </div>
-    ${lumberNote}`;
+    ${lumberNote}${rigNote}`;
 
   relevant.forEach(sku => {
     const sid = sku.id;
