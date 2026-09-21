@@ -5952,7 +5952,12 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
   // Flat per-location equipment shows on the physical-location tabs, and on "All" when
   // there's a search term (so you can find a unit by model without knowing where it lives).
   // NOT on the Unit Tent tab (which uses the by-customer grouped view) or Archive (its own section).
-  const showEquipment = !onArchiveTab &&
+  // Low stock only is a threshold filter, and only consumable SKUs carry a threshold.
+  // Units have no reorder point, so they can never be "low" — with the box checked they
+  // must drop out of every tab (flat list, Unit Tent grouping, stranded strip) along with
+  // their type chips. Previously they ignored the checkbox, so a shelf tab like Shop or
+  // Barn kept showing every unit and its chips and looked unfiltered.
+  const showEquipment = !lowOnly && !onArchiveTab &&
     ((!onAllTab && currentInvLocation !== 'On-hand (Unit Tent)') || (onAllTab && !!search));
   const tabLocLabel = (onAllTab || onArchiveTab) ? '' : ((LOCATIONS.find(l => l.field === currentInvLocation) || {}).label || '');
   const isEquipment = item => {
@@ -6106,7 +6111,7 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
   }
 
   // ── BY-CUSTOMER GROUPED EQUIPMENT — the Unit Tent tab: every unit under its job header, Stock last ──
-  if (currentInvLocation === 'On-hand (Unit Tent)') {
+  if (currentInvLocation === 'On-hand (Unit Tent)' && !lowOnly) {
     const tentLabel = (LOCATIONS.find(l => l.field === 'On-hand (Unit Tent)') || {}).label || 'Unit Tent';
     let ge = items.filter(it => {
       // This is a location tab, so it must respect Physical location — it previously
@@ -6138,7 +6143,7 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
   // Every location tab filters on an exact Physical location match, so a unit reading
   // "Rig", "on-site", "vendor" or blank renders on NO tab and looks like it evaporated.
   // That invisibility is how a load/unload bug went unnoticed. Surface them on All.
-  if (onAllTab && !search) {
+  if (onAllTab && !search && !lowOnly) {
     const shelves = LOCATIONS.map(l => l.label);
     const stranded = items.filter(it =>
       !isRetired(it) && isEquipment(it) && !shelves.includes(f(it, F.item_location) || '')
@@ -6192,7 +6197,10 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
 
   // Empty-state handling: if equipment exists, show it even if no SKUs match
   if (!filtered.length && !equipHtml) {
-    body.innerHTML = `<div class="empty"><div class="icon">📦</div>No SKUs match</div>`;
+    const emptyMsg = (lowOnly && !onArchiveTab)
+      ? (onAllTab ? 'Nothing is low' : `Nothing low at ${escapeHtml(tabLocLabel)}`)
+      : 'No SKUs match';
+    body.innerHTML = `<div class="empty"><div class="icon">📦</div>${emptyMsg}</div>`;
     return;
   }
 
