@@ -860,9 +860,13 @@
 <!-- CUSTOM ITEM MODAL (one-off item for a job, not in catalog) -->
 <div class="modal-bg" id="custom-item-modal">
   <div class="modal" style="max-width:440px;">
-    <h3>Add custom item</h3>
-    <p>Use this for one-off items not in the stock catalog. Item will be tied to this job only.</p>
+    <h3>Add job material</h3>
+    <p>For one-off parts not in the stock catalog. Tied to one job and never counted as stock.</p>
     <div style="display:flex;flex-direction:column;gap:14px;">
+      <div id="ci-job-wrap" style="display:none;">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Job *</label>
+        <select id="ci-job" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);"></select>
+      </div>
       <div>
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Item name *</label>
         <input type="text" id="ci-name" placeholder="e.g. Custom transition piece" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
@@ -929,6 +933,10 @@
       <button class="picker-choice" onclick="pickAddConsumable()" style="text-align:left;padding:14px 16px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius);cursor:pointer;transition:all 0.15s;">
         <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:3px;">Consumable SKU</div>
         <div style="font-size:12px;color:var(--text-muted);">Lineset, filters, screws, mounting feet — tracked as counts per location with reorder threshold.</div>
+      </button>
+      <button class="picker-choice" onclick="pickAddJobMaterial()" style="text-align:left;padding:14px 16px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius);cursor:pointer;transition:all 0.15s;">
+        <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:3px;">Job material (one-off)</div>
+        <div style="font-size:12px;color:var(--text-muted);">Parts bought for one job — special-order ducting, odd fittings. Tied to that job, never counted as stock.</div>
       </button>
     </div>
   </div>
@@ -3199,8 +3207,10 @@ function renderDetailBody(jobId) {
     if (Array.isArray(skuLinks) && skuLinks.length > 0) return true;
     return (f(i, 'Combo tag') || '').toLowerCase() === 'material';
   };
-  const consumables = jobItems.filter(isMaterial);
-  const jobBoxes = jobItems.filter(i => !isMaterial(i) && isJobBox(i) && !isRetired(i));
+  // Boxes created through "+ Custom" carry the material combo tag too — the box tag wins, so
+  // they show in the Box of parts section, not as a material line.
+  const consumables = jobItems.filter(i => isMaterial(i) && !isJobBox(i));
+  const jobBoxes = jobItems.filter(i => isJobBox(i) && !isRetired(i));
   const allEquipment = jobItems.filter(i => !isMaterial(i) && !isJobBox(i));
   // The app steers each customer to ONE reusable job record (see saveNewJob), so without this
   // split every unit ever installed for that customer piles up here forever. Live equipment
@@ -3227,9 +3237,9 @@ function renderDetailBody(jobId) {
     consumables.forEach(item => {
       const iid=item.id, model=f(item,F.item_model)||'', qty=f(item,F.item_qty)??1, unit=f(item,'Unit')||'';
       // Show "60 feet · Lineset 1/2 roll" when a unit is set; otherwise "Qty: 1" as before.
-      const qtyDisplay = unit
+      const qtyDisplay = (unit
         ? `<span style="font-weight:600;color:var(--text);">${qty} ${escapeHtml(unit)}</span>`
-        : `Qty: ${qty}`;
+        : `Qty: ${qty}`) + (isJobMaterial(item) && f(item, F.item_location) ? ` · ${escapeHtml(f(item, F.item_location))}` : '');
       // Spec lines say so on their face, so nobody reads a footage line as reserved stock.
       const specTag = isSpecLine(item)
         ? ` <span style="font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-faint);border:1px solid var(--border);border-radius:99px;padding:1px 7px;margin-left:6px;white-space:nowrap;">spec</span>`
@@ -3935,7 +3945,8 @@ function startComplete(jobId) {
   // here is what leaves a shelf permanently overstated — ask instead, defaulting to deduct.
   const unticked  = pending.filter(i => isCons(i) && !wasLoaded(i) && !isSpecLine(i));
   const boxes     = pending.filter(i => isJobBox(i));
-  const others    = pending.filter(i => !reconcile.includes(i) && !specs.includes(i) && !unticked.includes(i) && !boxes.includes(i));
+  const jobMats   = pending.filter(i => isJobMaterial(i) && !isSpecLine(i));
+  const others    = pending.filter(i => !reconcile.includes(i) && !specs.includes(i) && !unticked.includes(i) && !boxes.includes(i) && !jobMats.includes(i));
 
   let html = '';
   if (!jobItems.length) {
@@ -3992,6 +4003,22 @@ function startComplete(jobId) {
       });
       html += `<div style="font-size:12px;color:var(--text-faint);padding:8px 0 2px;">Footage the crew was told to bring. Rolls are counted on the inventory walk, so completing the job doesn't change any stock.</div>`;
     }
+    if (jobMats.length) {
+      html += `<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint);margin:14px 0 6px;">Job materials — how many were used?</div>`;
+      jobMats.forEach(item => {
+        const model = f(item,F.item_model) || 'Item';
+        const qty = Number(f(item,F.item_qty)) || 1;
+        const unit = f(item,'Unit') || '';
+        const loc = f(item,F.item_location) || '';
+        html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+          <span style="font-weight:500;font-size:14px;min-width:0;flex:1;">${escapeHtml(model)}${loc ? `<span style="color:var(--text-muted);font-size:12px;font-weight:400;"> · ${escapeHtml(loc)}</span>` : ''}</span>
+          <span style="font-size:13px;color:var(--text-muted);white-space:nowrap;">used
+            <input type="number" id="jm-used-${item.id}" value="${qty}" min="0" max="${qty}" step="1" style="width:56px;padding:4px 6px;margin:0 4px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;text-align:center;outline:none;" />
+            of ${qty}${unit && unit !== 'each' ? ' ' + escapeHtml(unit) : ''}</span>
+        </div>`;
+      });
+      html += `<div style="font-size:12px;color:var(--text-faint);padding:8px 0 2px;">Whatever wasn't used stays on its shelf as unassigned leftovers.</div>`;
+    }
     if (boxes.length) {
       html += `<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint);margin:14px 0 6px;">Box of parts — what happened to it?</div>`;
       boxes.forEach(item => {
@@ -4017,7 +4044,7 @@ function startComplete(jobId) {
         html += `<div style="padding:6px 0;font-size:14px;border-bottom:1px solid var(--border);"><span style="font-weight:500;">${escapeHtml(model)}</span><span style="color:var(--text-muted);font-size:13px;"> · ×${qty}${note}</span></div>`;
       });
     }
-    if (!reconcile.length && !others.length && !unticked.length && !specs.length && !boxes.length) {
+    if (!reconcile.length && !others.length && !unticked.length && !specs.length && !boxes.length && !jobMats.length) {
       html += `<div style="font-size:13px;color:var(--text-faint);padding:6px 0;">All items already marked Installed — completing just updates the job status.</div>`;
     }
   }
@@ -4047,6 +4074,34 @@ async function confirmComplete() {
       // from a countable pool. Marking them Installed would assert a stock movement that
       // never happened — leave them as the record of what was specced.
       if (isSpecLine(item)) continue;
+
+      // Job materials: the used quantity is Installed on this job; anything unused is split off
+      // and stays on its shelf as unassigned leftovers (no owner, Stock) instead of vanishing.
+      if (isJobMaterial(item)) {
+        const qty = Number(f(item, F.item_qty)) || 1;
+        const inp = document.getElementById(`jm-used-${item.id}`);
+        const used = inp ? Math.max(0, Math.min(qty, Math.round(Number(inp.value) || 0))) : qty;
+        const jname = (() => { const j = jobs.find(x => x.id === completeJobId); return j ? (f(j, F.job_name) || '') : ''; })();
+        const d = new Date(); const stamp = `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(-2)}`;
+        const leftNote = `Leftover from ${jname || 'job'} ${stamp}.`;
+        if (used >= qty) {
+          await patchRecord(ITEMS_TBL, item.id, { 'Status': 'Installed', 'Loaded?': false });
+          item.fields['Status'] = 'Installed'; item.fields['Loaded?'] = false;
+        } else if (used <= 0) {
+          const fields = { 'Owner': [], 'Status': 'Stock', 'Loaded?': false, 'Comments': appendNote(f(item, F.item_comments) || '', leftNote) };
+          await patchRecord(ITEMS_TBL, item.id, fields);
+          item.fields['Owner'] = undefined; item.fields['Status'] = 'Stock'; item.fields['Loaded?'] = false; item.fields['Comments'] = fields['Comments'];
+        } else {
+          await patchRecord(ITEMS_TBL, item.id, { 'Quantity': used, 'Status': 'Installed', 'Loaded?': false });
+          item.fields['Quantity'] = used; item.fields['Status'] = 'Installed'; item.fields['Loaded?'] = false;
+          const lf = { 'Model number': f(item, F.item_model) || 'Item', 'Quantity': qty - used, 'Status': 'Stock', 'Combo tag': 'material', 'Comments': leftNote };
+          const u = f(item, 'Unit'); if (u) lf['Unit'] = u;
+          const l = f(item, F.item_location); if (l) lf['Physical location'] = l;
+          const created = await createRecord(ITEMS_TBL, lf);
+          if (created && created.id) items.push(created);
+        }
+        continue;
+      }
 
       // Boxes of parts never become Installed. Either the box was emptied (delete it) or
       // what's left stays on its shelf as unassigned leftovers.
@@ -4530,6 +4585,12 @@ function pickAddEquipment() {
   closeAddItemPicker();
   openAddUnitModal();
 }
+function pickAddJobMaterial() {
+  const jid = addUnitPresetJob || null;
+  closeAddItemPicker();
+  const shelf = (LOCATIONS.find(l => l.field === currentInvLocation) || {}).label || '';
+  openCustomItemModal(jid, shelf);
+}
 function pickAddConsumable() {
   closeAddItemPicker();
   openAddSkuModal();
@@ -4972,13 +5033,24 @@ async function saveNewSku() {
 // ── CUSTOM ITEM (one-off item for a job, not added to catalog) ──
 let customItemJobId = null;
 
-function openCustomItemModal(jobId) {
-  customItemJobId = jobId;
+function openCustomItemModal(jobId, defaultLoc) {
+  customItemJobId = jobId || null;
+  // Opened from a job: it's that job. Opened from Inventory or the tent walk: pick one.
+  const wrap = document.getElementById('ci-job-wrap');
+  const jsel = document.getElementById('ci-job');
+  if (customItemJobId) {
+    wrap.style.display = 'none';
+  } else {
+    const active = jobs.filter(j => (f(j, F.job_status) || '').toLowerCase() !== 'complete' && (f(j, F.job_name) || '').trim().toLowerCase() !== 'stock')
+      .sort((a, b) => (f(a, F.job_name) || '').localeCompare(f(b, F.job_name) || ''));
+    jsel.innerHTML = '<option value="">— Pick a job —</option>' + active.map(j => `<option value="${j.id}">${escapeHtml(f(j, F.job_name) || 'Unnamed')}</option>`).join('');
+    wrap.style.display = 'block';
+  }
   document.getElementById('ci-name').value = '';
   document.getElementById('ci-qty').value = '';
   document.getElementById('ci-unit').innerHTML = renderUnitOptions('each', false);
   document.getElementById('ci-unit').value = 'each';
-  document.getElementById('ci-location').value = 'Barn';
+  document.getElementById('ci-location').value = (defaultLoc && LOCATIONS.some(l => l.label === defaultLoc)) ? defaultLoc : 'Barn';
   document.getElementById('ci-visit').value = '';
   document.getElementById('ci-error').style.display = 'none';
   document.getElementById('custom-item-modal').classList.add('open');
@@ -5002,13 +5074,14 @@ async function saveCustomItem() {
   const unit = document.getElementById('ci-unit').value;
   if (!name) { ciShowError('Please enter an item name.'); return; }
   if (!qty || qty <= 0) { ciShowError('Please enter a valid quantity.'); return; }
-  if (!customItemJobId) { ciShowError('No job to attach to.'); return; }
+  const jobForItem = customItemJobId || (document.getElementById('ci-job') || {}).value || '';
+  if (!jobForItem) { ciShowError('Pick the job this is for.'); return; }
   try {
     const fields = {
       'Model number': name,
       'Quantity': qty,
       'Status': 'Allocated',
-      'Owner': [customItemJobId],
+      'Owner': [jobForItem],
       'Combo tag': 'material',
     };
     if (unit) fields['Unit'] = unit;
@@ -5017,10 +5090,17 @@ async function saveCustomItem() {
     const vis = document.getElementById('ci-visit');
     if (vis && vis.value) fields['Visit consumed at'] = vis.value;
     const newItem = await createRecord(ITEMS_TBL, fields);
+    if (newItem) {
+      newItem.fields = newItem.fields || {};
+      const oj = jobs.find(j => j.id === jobForItem);
+      newItem.fields['Owner'] = [{ id: jobForItem, name: oj ? (f(oj, F.job_name) || '') : '' }];
+    }
     items.push(newItem);
-    const jid = customItemJobId;
     closeCustomItemModal();
-    renderDetailBody(jid);
+    if (currentJobId === jobForItem) renderDetailBody(jobForItem);
+    renderInventory();
+    renderLoadList();
+    if (tentVerifyState) tentRefreshWalk();
   } catch(e) {
     ciShowError('Could not save item. Check your connection.');
   }
@@ -6022,6 +6102,19 @@ function isJobBox(item) {
   return (f(item, F.item_type) || '').trim().toLowerCase() === JOB_BOX_TAG;
 }
 let showAllTabBoxes = false; // All SKUs tab: boxes roll-up collapsed by default
+
+// ── JOB MATERIALS ──────────────────────────────────────────────────────────────
+// One-off parts bought for a specific job (a special-order reducer, odd ducting) — created with
+// "+ Custom" / "Job material". No Stock SKU, so they never count toward stock or get promised
+// to another job. Like boxes, they are not units: own section on shelf tabs, and at completion
+// you say how many were used; the rest stay on the shelf as unassigned leftovers.
+function isJobMaterial(item) {
+  if (!item || isJobBox(item)) return false;
+  const sk = f(item, F.item_sku);
+  if (Array.isArray(sk) && sk.length) return false;
+  return (f(item, 'Combo tag') || '').toLowerCase() === 'material';
+}
+let showAllTabMats = false;
 function isRetired(item) {
   return RETIRED_STATUSES.includes((f(item, F.item_status) || '').toLowerCase());
 }
@@ -6062,7 +6155,7 @@ function equipCardHtml(item, showLoc) {
   const ownerIsFakeStock = (ownerName || '').trim().toLowerCase() === 'stock';
   const effectiveStatus = ownerIsFakeStock ? 'stock' : statusLower;
   let statusBadge = '';
-  if (isJobBox(item) && !ownerName && !isRetired(item)) {
+  if ((isJobBox(item) || isJobMaterial(item)) && !ownerName && !isRetired(item)) {
     statusBadge = `<span style="font-size:11px;padding:3px 9px;border-radius:99px;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);">Leftovers</span>`;
   } else if (effectiveStatus === 'stock') {
     statusBadge = `<span style="font-size:11px;padding:3px 9px;border-radius:99px;background:var(--accent-light);color:var(--accent-text);font-weight:600;">Stock</span>`;
@@ -6157,7 +6250,7 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
   const onRigTab = (currentInvLocation === RIG.field);
   const tabLocLabel = (onAllTab || onArchiveTab) ? '' : ((SKU_LOCATIONS.find(l => l.field === currentInvLocation) || {}).label || '');
   const isEquipment = item => {
-    if (isJobBox(item)) return false; // boxes get their own section below
+    if (isJobBox(item) || isJobMaterial(item)) return false; // own sections below
     const skuLinks = f(item, F.item_sku);
     // Equipment has no SKU link; consumables have one.
     return !Array.isArray(skuLinks) || skuLinks.length === 0;
@@ -6339,47 +6432,50 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     });
   }
 
-  // ── BOXES OF PARTS: grouped by job, unassigned leftovers last ──
-  // Location tabs show the boxes on that shelf. All SKUs shows every box with its shelf,
-  // collapsed to one line until tapped. Hidden under Low stock only (boxes have no threshold).
-  if (!lowOnly && !onArchiveTab) {
-    let bx = items.filter(it => isJobBox(it) && !isRetired(it));
+  // ── BOXES OF PARTS and JOB MATERIALS: grouped by job, unassigned leftovers last ──
+  // Location tabs show what's on that shelf. All SKUs shows everything with its shelf,
+  // collapsed to one line until tapped. Hidden under Low stock only (no thresholds).
+  const CONTAINER_SECTIONS = [
+    { pred: isJobBox,      icon: '📦', one: 'box of parts',      many: 'boxes of parts',      flag: 'showAllTabBoxes' },
+    { pred: isJobMaterial, icon: '🧰', one: 'job material line', many: 'job material lines', flag: 'showAllTabMats' },
+  ];
+  if (!lowOnly && !onArchiveTab) CONTAINER_SECTIONS.forEach(sec => {
+    let bx = items.filter(it => sec.pred(it) && !isRetired(it));
     if (onRigTab) bx = bx.filter(it => (f(it, F.item_status) || '').toLowerCase() === 'loaded');
     else if (!onAllTab) bx = bx.filter(it => (f(it, F.item_location) || '') === tabLocLabel);
     if (search) bx = bx.filter(it => equipMatchesSearch(it, search));
-    if (bx.length) {
-      const expanded = !onAllTab || !!search || showAllTabBoxes;
-      let head = `📦 ${bx.length} box${bx.length !== 1 ? 'es' : ''} of parts`;
-      if (onAllTab) {
-        const byLoc = {};
-        bx.forEach(it => { const l = f(it, F.item_location) || 'no shelf'; byLoc[l] = (byLoc[l] || 0) + 1; });
-        head += ' · ' + Object.keys(byLoc).sort().map(l => `${l} ${byLoc[l]}`).join(' · ');
-      } else {
-        head += onRigTab ? ' loaded on the Rig' : ` at ${tabLocLabel}`;
-      }
-      const toggle = (onAllTab && !search)
-        ? ` onclick="showAllTabBoxes=!showAllTabBoxes;renderInventory()" style="cursor:pointer;margin-top:4px;"`
-        : ` style="margin-top:4px;"`;
-      equipHtml += `<div class="inv-summary"${toggle}>${(onAllTab && !search) ? (expanded ? '▾ ' : '▸ ') : ''}${escapeHtml(head)}</div>`;
-      if (expanded) {
-        const bgroups = {};
-        bx.forEach(it => {
-          let nm = (itemOwnerName(it) || '').trim();
-          if (!nm || nm.toLowerCase() === 'stock') nm = 'Unassigned leftovers';
-          (bgroups[nm] = bgroups[nm] || []).push(it);
-        });
-        const bnames = Object.keys(bgroups).filter(n => n !== 'Unassigned leftovers').sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-        if (bgroups['Unassigned leftovers']) bnames.push('Unassigned leftovers');
-        bnames.forEach(nm => {
-          equipHtml += `<div class="detail-section-title" style="margin-top:12px;margin-bottom:6px;">${escapeHtml(nm)}</div>`;
-          bgroups[nm]
-            .slice()
-            .sort((a, b) => (f(a, F.item_model) || '').localeCompare(f(b, F.item_model) || ''))
-            .forEach(it => { equipHtml += equipCardHtml(it, onAllTab); });
-        });
-      }
+    if (!bx.length) return;
+    const flagOn = sec.flag === 'showAllTabBoxes' ? showAllTabBoxes : showAllTabMats;
+    const expanded = !onAllTab || !!search || flagOn;
+    let head = `${sec.icon} ${bx.length} ${bx.length !== 1 ? sec.many : sec.one}`;
+    if (onAllTab) {
+      const byLoc = {};
+      bx.forEach(it => { const l = f(it, F.item_location) || 'no shelf'; byLoc[l] = (byLoc[l] || 0) + 1; });
+      head += ' · ' + Object.keys(byLoc).sort().map(l => `${l} ${byLoc[l]}`).join(' · ');
+    } else {
+      head += onRigTab ? ' loaded on the Rig' : ` at ${tabLocLabel}`;
     }
-  }
+    const toggle = (onAllTab && !search)
+      ? ` onclick="${sec.flag}=!${sec.flag};renderInventory()" style="cursor:pointer;margin-top:4px;"`
+      : ` style="margin-top:4px;"`;
+    equipHtml += `<div class="inv-summary"${toggle}>${(onAllTab && !search) ? (expanded ? '▾ ' : '▸ ') : ''}${escapeHtml(head)}</div>`;
+    if (!expanded) return;
+    const bgroups = {};
+    bx.forEach(it => {
+      let nm = (itemOwnerName(it) || '').trim();
+      if (!nm || nm.toLowerCase() === 'stock') nm = 'Unassigned leftovers';
+      (bgroups[nm] = bgroups[nm] || []).push(it);
+    });
+    const bnames = Object.keys(bgroups).filter(n => n !== 'Unassigned leftovers').sort((x, y) => x.toLowerCase().localeCompare(y.toLowerCase()));
+    if (bgroups['Unassigned leftovers']) bnames.push('Unassigned leftovers');
+    bnames.forEach(nm => {
+      equipHtml += `<div class="detail-section-title" style="margin-top:12px;margin-bottom:6px;">${escapeHtml(nm)}</div>`;
+      bgroups[nm]
+        .slice()
+        .sort((x, y) => (f(x, F.item_model) || '').localeCompare(f(y, F.item_model) || ''))
+        .forEach(it => { equipHtml += equipCardHtml(it, onAllTab); });
+    });
+  });
 
   // ── STRANDED UNITS: live equipment parked at a location that is not a storage shelf ──
   // Every location tab filters on an exact Physical location match, so a unit reading
@@ -7383,7 +7479,10 @@ function renderTentJobPicker() {
   st.currentKey = null;
   document.getElementById('walk-title').textContent = 'Walk the Unit Tent';
   const allDone = st.groups.length > 0 && st.groups.every(g => st.completed[g.key]);
-  let html = `<button class="btn-sm btn-sm-accent" style="width:100%;padding:12px;margin-bottom:12px;" onclick="tentAddUnit()">+ Add new equipment</button>
+  let html = `<div style="display:flex;gap:8px;margin-bottom:12px;">
+      <button class="btn-sm btn-sm-accent" style="flex:1;padding:12px;" onclick="tentAddUnit()">+ Add new equipment</button>
+      <button class="btn-sm btn-sm-ghost" style="flex:1;padding:12px;border:1px solid var(--border-strong);" onclick="openCustomItemModal(null,'${TENT_LABEL}')">+ Add job material</button>
+    </div>
     <div class="detail-section">`;
   if (!st.groups.length) {
     html += `<div style="text-align:center;padding:20px 8px;"><div style="font-size:36px;margin-bottom:8px;">📦</div>
@@ -7606,7 +7705,8 @@ function renderTentJobVerify() {
   if (!g) { renderTentJobPicker(); return; }
   document.getElementById('walk-title').textContent = g.label;
   const addLabel = g.kind === 'job' ? `+ Add new equipment to ${escapeHtml(g.label)}` : '+ Add new equipment';
-  let html = `<button class="btn-sm btn-sm-accent" style="width:100%;padding:12px;margin-bottom:12px;" onclick="tentAddUnit(${g.kind === 'job' ? `'${g.jobId}'` : ''})">${addLabel}</button>
+  let html = `<button class="btn-sm btn-sm-accent" style="width:100%;padding:12px;margin-bottom:8px;" onclick="tentAddUnit(${g.kind === 'job' ? `'${g.jobId}'` : ''})">${addLabel}</button>
+    <button class="btn-sm btn-sm-ghost" style="width:100%;padding:10px;margin-bottom:12px;border:1px solid var(--border-strong);" onclick="openCustomItemModal(${g.kind === 'job' ? `'${g.jobId}'` : 'null'},'${TENT_LABEL}')">${g.kind === 'job' ? `+ Add job material to ${escapeHtml(g.label)}` : '+ Add job material'}</button>
     <div class="detail-section">
     <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Everything starts as found. Tap a single unit that isn't here; lower the count on a pile that's short.${g.kind === 'stock' ? ' Use <b>Assign</b> on anything that belongs to a job.' : ''}</p>`;
   g.items.forEach(it => {
