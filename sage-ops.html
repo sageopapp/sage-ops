@@ -7438,13 +7438,13 @@ function startWalk() {
   // Ask which location to walk
   const opts = SKU_LOCATIONS.map((l,i)=>{
     const isTent = l.field === 'On-hand (Unit Tent)';
-    return `<button class="walk-loc-btn" onclick="beginWalk(${i})">${l.label}${isTent?'<div style="font-size:11px;color:var(--text-faint);font-weight:400;margin-top:2px;">verify items</div>':''}</button>`;
+    return `<button class="walk-loc-btn" onclick="beginWalk(${i})">${l.label}${isTent?'<div style="font-size:11px;color:var(--text-faint);font-weight:400;margin-top:2px;">unit check first</div>':''}</button>`;
   }).join('');
   document.getElementById('walk-title').textContent = 'Count walk';
   document.getElementById('walk-body').innerHTML = `
     <div class="detail-section">
       <div class="detail-section-title">Which location?</div>
-      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Walk through every SKU at the chosen location and update counts. Unit Tent verifies job-allocated items instead.</p>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Each shelf walk counts its stock SKUs and checks the units, boxes and job items recorded there. Unit Tent starts with the unit check; the Rig is stock counts only.</p>
       <div class="walk-loc-grid">${opts}</div>
     </div>`;
   document.getElementById('walk-panel').classList.add('open');
@@ -7455,7 +7455,7 @@ function beginWalk(locIdx) {
   const loc = SKU_LOCATIONS[locIdx];
   // Special case: Unit Tent verifies job-allocated Items, not SKU counts
   if (loc.field === 'On-hand (Unit Tent)') {
-    beginTentVerify();
+    beginTentVerify('Unit Tent');
     return;
   }
   walkState = { locField: loc.field, locLabel: loc.label, locIdx };
@@ -7481,6 +7481,7 @@ function renderWalkList() {
   if (!relevant.length) {
     document.getElementById('walk-body').innerHTML = `
       <div class="detail-section">
+        ${walkUnitCardHtml(locLabel)}
         ${lumberNote}${rigNote}
         <div class="empty"><div class="icon">📦</div>No SKUs tracked at ${locLabel}</div>
         <button class="btn-sm btn-sm-action" style="width:100%;margin-top:12px;padding:10px;" onclick="backToWalkPicker()">← Back to locations</button>
@@ -7493,6 +7494,7 @@ function renderWalkList() {
       <div style="font-size:12px;color:var(--text-muted);">${relevant.length} SKU${relevant.length===1?'':'s'}</div>
       <button class="btn-sm btn-sm-action" style="font-size:12px;padding:5px 10px;" onclick="backToWalkPicker()">← Locations</button>
     </div>
+    ${walkUnitCardHtml(locLabel)}
     ${lumberNote}${rigNote}`;
 
   relevant.forEach(sku => {
@@ -7519,6 +7521,28 @@ function renderWalkList() {
   document.getElementById('walk-body').innerHTML = html;
 }
 
+// Shelf walk = stock counts + a unit check. Switch between the two without losing unit progress.
+function walkSkusFromUnits() {
+  const loc = SKU_LOCATIONS.find(l => l.label === WL()); if (!loc) return;
+  walkState = { locField: loc.field, locLabel: loc.label, locIdx: SKU_LOCATIONS.indexOf(loc) };
+  renderWalkList();
+}
+function walkUnitsFromSkus(label) {
+  if (tentVerifyState && tentVerifyState.loc === label) { walkState = null; renderTentJobPicker(); return; }
+  beginTentVerify(label);
+}
+function shelfUnitCount(label) {
+  const g = tentGroupsNow(label).groups;
+  return g.reduce((a, x) => a + x.items.reduce((q, it) => q + (Number(f(it, F.item_qty)) || 1), 0), 0);
+}
+function walkUnitCardHtml(locLabel) {
+  if (locLabel === RIG.label) return '';
+  const resuming = tentVerifyState && tentVerifyState.loc === locLabel;
+  const n = shelfUnitCount(locLabel);
+  if (!n && !resuming) return `<div style="font-size:12px;color:var(--text-faint);margin-bottom:10px;">No units, boxes or job lines recorded at ${escapeHtml(locLabel)}. <a href="#" onclick="walkUnitsFromSkus('${locLabel.replace(/'/g, "\\'")}');return false;">Check anyway</a></div>`;
+  return `<button class="btn-sm btn-sm-accent" style="width:100%;padding:12px;margin-bottom:12px;" onclick="walkUnitsFromSkus('${locLabel.replace(/'/g, "\\'")}')">${resuming ? '← Back to the unit check' : `Check units &amp; job items at ${escapeHtml(locLabel)} (${n}) →`}</button>`;
+}
+
 function openInvEditFromWalk(skuId, locField, locLabel) {
   // Opens the existing inv edit modal — when saved, returns to walk list
   openInvEdit(skuId, locField, locLabel);
@@ -7540,12 +7564,15 @@ function backToWalkPicker() {
 //   · the end of the walk lets you pull in units the app has on another shelf.
 // Loaded units are on the truck, not in the tent, so they're left out (and counted in a note).
 const TENT_LABEL = 'Unit Tent';
+// The unit check works on any shelf (Unit Tent, Barn, Shop…). WL() is the shelf being walked.
+function WL() { return (tentVerifyState && tentVerifyState.loc) || TENT_LABEL; }
 
-function tentLiveUnits() {
+function tentLiveUnits(loc) {
+  loc = loc || WL();
   return items.filter(it => {
     if (isRetired(it)) return false;
     const sk = f(it, F.item_sku); if (Array.isArray(sk) && sk.length) return false; // consumable lines
-    return (f(it, F.item_location) || '') === TENT_LABEL;
+    return (f(it, F.item_location) || '') === loc;
   });
 }
 
@@ -7562,8 +7589,9 @@ function itemOwnerId(it) {
   return (Array.isArray(owns) && owns.length) ? (typeof owns[0] === 'string' ? owns[0] : owns[0].id) : '';
 }
 
-function tentGroupsNow() {
-  const live = tentLiveUnits();
+function tentGroupsNow(loc) {
+  loc = loc || WL();
+  const live = tentLiveUnits(loc);
   const loadedOut = live.filter(it => (f(it, F.item_status) || '').toLowerCase() === 'loaded');
   const inTent = live.filter(it => (f(it, F.item_status) || '').toLowerCase() !== 'loaded');
   const byJob = {}, stock = [], boxes = [];
@@ -7576,13 +7604,13 @@ function tentGroupsNow() {
     (byJob[ownerId] = byJob[ownerId] || []).push(it);
   });
   // Job stock lines set to the Unit Tent are verified alongside that job's units.
-  items.filter(it => isOpenSkuLine(it) && (f(it, F.item_location) || '') === TENT_LABEL).forEach(it => {
+  items.filter(it => isOpenSkuLine(it) && (f(it, F.item_location) || '') === loc).forEach(it => {
     const jid = itemOwnerId(it); (byJob[jid] = byJob[jid] || []).push(it);
   });
   const groups = Object.keys(byJob).map(jid => {
     const job = jobs.find(j => j.id === jid);
     // The same job's stock lines recorded on another shelf — offered as "It's here" in its group.
-    const elsewhere = items.filter(it => isOpenSkuLine(it) && itemOwnerId(it) === jid && (f(it, F.item_location) || '') !== TENT_LABEL)
+    const elsewhere = items.filter(it => isOpenSkuLine(it) && itemOwnerId(it) === jid && (f(it, F.item_location) || '') !== loc)
       .sort((a, b) => (f(a, F.item_model) || '').localeCompare(f(b, F.item_model) || ''));
     return { key: jid, label: job ? (f(job, F.job_name) || 'Unknown') : (itemOwnerName(byJob[jid][0]) || 'Unknown'), kind: 'job', jobId: jid, items: byJob[jid], elsewhere };
   }).sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()));
@@ -7597,12 +7625,14 @@ function tentGroupsNow() {
   return { groups, loadedOut };
 }
 
-function beginTentVerify() {
-  const { groups, loadedOut } = tentGroupsNow();
+function beginTentVerify(loc) {
+  loc = loc || WL();
+  walkState = null;
+  const { groups, loadedOut } = tentGroupsNow(loc);
   const found = {}, snap = {};
   groups.forEach(g => g.items.forEach(it => { found[it.id] = snap[it.id] = Number(f(it, F.item_qty)) || 1; }));
   tentVerifyState = {
-    groups, loadedOutCount: loadedOut.length, found, snap, assignId: null,
+    loc, groups, loadedOutCount: loadedOut.length, found, snap, assignId: null,
     currentKey: null, completed: {},
     results: { verified: 0, flagged: [], movedIn: [] },
     search: '',
@@ -7614,19 +7644,19 @@ function renderTentJobPicker() {
   if (!tentVerifyState) return;
   const st = tentVerifyState;
   st.currentKey = null;
-  document.getElementById('walk-title').textContent = 'Walk the Unit Tent';
+  document.getElementById('walk-title').textContent = 'Walk the ' + WL();
   const allDone = st.groups.length > 0 && st.groups.every(g => st.completed[g.key]);
   let html = `<div style="display:flex;gap:8px;margin-bottom:12px;">
       <button class="btn-sm btn-sm-accent" style="flex:1;padding:12px;" onclick="tentAddUnit()">+ Add new equipment</button>
-      <button class="btn-sm btn-sm-ghost" style="flex:1;padding:12px;border:1px solid var(--border-strong);" onclick="openCustomItemModal(null,'${TENT_LABEL}')">+ Add job material</button>
+      <button class="btn-sm btn-sm-ghost" style="flex:1;padding:12px;border:1px solid var(--border-strong);" onclick="openCustomItemModal(null,'${WL()}')">+ Add job material</button>
     </div>
     <div class="detail-section">`;
   if (!st.groups.length) {
     html += `<div style="text-align:center;padding:20px 8px;"><div style="font-size:36px;margin-bottom:8px;">📦</div>
-      <div style="font-size:15px;font-weight:600;">The app has nothing in the Unit Tent</div>
+      <div style="font-size:15px;font-weight:600;">The app has nothing at ${escapeHtml(WL())}</div>
       <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">If there are units here, find them below.</div></div>`;
   } else {
-    html += `<div class="detail-section-title">What the app says is in the tent</div>
+    html += `<div class="detail-section-title">What the app says is at ${escapeHtml(WL())}</div>
       <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Tap a group to verify it. Everything starts as found — mark what isn't there.</p>`;
     st.groups.forEach(g => {
       const n = g.items.reduce((a, it) => a + (Number(f(it, F.item_qty)) || 1), 0);
@@ -7657,6 +7687,9 @@ function renderTentJobPicker() {
     <div style="font-size:12px;color:var(--text-faint);padding:2px 2px 0;">Not in the system anywhere? Use <b>+ Add new equipment</b> at the top.</div>
   </div>`;
 
+  const locDef = SKU_LOCATIONS.find(l => l.label === WL());
+  const skuN = locDef ? skus.filter(sk => { const v = f(sk, locDef.field); return v !== null && v !== undefined; }).length : 0;
+  if (locDef) html += `<button class="btn-sm btn-sm-ghost" style="width:100%;padding:12px;margin-top:4px;border:1px solid var(--border-strong);" onclick="walkSkusFromUnits()">Count stock at ${escapeHtml(WL())}${skuN ? ` (${skuN} SKU${skuN === 1 ? '' : 's'})` : ''} →</button>`;
   html += `<div style="display:flex;gap:8px;margin-top:8px;">
       <button class="btn-sm btn-sm-action" style="flex:1;padding:12px;" onclick="backToWalkPicker()">← Locations</button>
       <button class="btn-sm btn-sm-accent" style="flex:2;padding:12px;" onclick="finishTentVerify()">${allDone || !st.groups.length ? 'Finish & see summary →' : 'Finish now →'}</button>
@@ -7673,7 +7706,7 @@ function renderTentFindResults() {
   const hits = items.filter(it => {
     if (isRetired(it)) return false;
     const sk = f(it, F.item_sku); if (Array.isArray(sk) && sk.length) return false;
-    if ((f(it, F.item_location) || '') === TENT_LABEL) return false;
+    if ((f(it, F.item_location) || '') === WL()) return false;
     return equipMatchesSearch(it, q);
   }).slice(0, 25);
   if (!hits.length) { el.innerHTML = `<div style="font-size:13px;color:var(--text-faint);padding:4px 2px 8px;">No units on other shelves match.</div>`; return; }
@@ -7693,7 +7726,7 @@ async function tentMoveHere(itemId) {
   const it = items.find(i => i.id === itemId);
   if (!it || !tentVerifyState) return;
   const from = f(it, F.item_location) || 'no shelf';
-  const fields = { 'Physical location': TENT_LABEL };
+  const fields = { 'Physical location': WL() };
   // A unit found in the tent is not on the truck any more.
   if ((f(it, F.item_status) || '').toLowerCase() === 'loaded') { fields['Status'] = 'Allocated'; fields['Loaded?'] = false; }
   try {
@@ -7703,7 +7736,7 @@ async function tentMoveHere(itemId) {
     tentVerifyState.search = '';
     renderTentJobPicker();
     renderInventory();
-  } catch (e) { showError('Could not move that unit to the Unit Tent.'); }
+  } catch (e) { showError('Could not move that unit to ' + WL() + '.'); }
 }
 
 // Rebuild the walk's lists from current data without losing progress: counts already entered
@@ -7730,6 +7763,7 @@ function tentRefreshWalk() {
   });
   st.groups = groups; st.loadedOutCount = loadedOut.length; st.found = found; st.snap = snap;
   if (st.currentKey && !groups.find(g => g.key === st.currentKey)) st.currentKey = null;
+  if (walkState) return; // stock-count screen is showing — don't yank it; the unit check is up to date for later
   if (st.assignId) renderTentAssign();
   else if (st.currentKey) renderTentJobVerify();
   else renderTentJobPicker();
@@ -7739,6 +7773,8 @@ function tentRefreshWalk() {
 function tentAddUnit(jobId) {
   addUnitPresetJob = jobId || null;
   openAddUnitModal();
+  const locSel = document.getElementById('au-location');
+  if (locSel && [...locSel.options].some(o => o.value === WL())) locSel.value = WL();
 }
 
 // ── Assign a Stock unit in the tent to a job (fixing the record to match the pile) ──
@@ -7767,7 +7803,7 @@ function renderTentAssign() {
   document.getElementById('walk-title').textContent = 'Assign to a job';
   document.getElementById('walk-body').innerHTML = `<div class="detail-section">
       <div style="font-size:15px;font-weight:600;">${escapeHtml(f(it, F.item_model) || 'Unknown')}</div>
-      <div style="font-size:12px;color:var(--text-muted);margin:2px 0 14px;">${escapeHtml([f(it, F.item_type) || '', f(it, F.item_description) || '', `Stock · ${qty} in the tent`].filter(Boolean).join(' · '))}</div>
+      <div style="font-size:12px;color:var(--text-muted);margin:2px 0 14px;">${escapeHtml([f(it, F.item_type) || '', f(it, F.item_description) || '', `Stock · ${qty} at ${WL()}`].filter(Boolean).join(' · '))}</div>
       <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;">Job</label>
       <select id="tent-assign-job" onchange="tentVerifyState.assignJob=this.value" style="width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;margin-bottom:14px;">
         <option value="">— Pick a job —</option>
@@ -7807,7 +7843,7 @@ async function tentSaveAssign() {
     } else {
       await patchRecord(ITEMS_TBL, it.id, { 'Quantity': qty - n });
       it.fields['Quantity'] = qty - n;
-      const nf = { 'Model number': f(it, F.item_model) || '', 'Quantity': n, 'Status': 'Allocated', 'Physical location': TENT_LABEL, 'Owner': [jobId] };
+      const nf = { 'Model number': f(it, F.item_model) || '', 'Quantity': n, 'Status': 'Allocated', 'Physical location': WL(), 'Owner': [jobId] };
       const desc = f(it, F.item_description); if (desc) nf['Description'] = desc;
       const tag = f(it, F.item_type); if (tag) nf['Type tag'] = tag;
       const created = await createRecord(ITEMS_TBL, nf);
@@ -7838,18 +7874,18 @@ async function tentLineHere(itemId) {
   const from = f(it, F.item_location) || '';
   const qty = Number(f(it, F.item_qty)) || 1;
   try {
-    if (sku && SKU_LOCATIONS.some(l => l.label === from) && from !== TENT_LABEL) {
+    if (sku && SKU_LOCATIONS.some(l => l.label === from) && from !== WL()) {
       const fromField = locationToSkuField(from);
       const shown = skuNum(sku, fromField);
       if (qty > shown) {
         const nm = f(sku, F.sku_name) || 'this item';
         recountQueue.push({ skuId: sku.id, field: fromField, label: from, shown, qty, name: nm,
-          msg: `${from} showed ${shown} ${nm} but ${qty} are here in the Unit Tent, so the ${from} count was off. Count what's left in the ${from} and enter it here.` });
+          msg: `${from} showed ${shown} ${nm} but ${qty} are here at ${WL()}, so the ${from} count was off. Count what's left in the ${from} and enter it here.` });
       }
-      await applySkuMove(sku, from, TENT_LABEL, qty);
+      await applySkuMove(sku, from, WL(), qty);
     }
-    await patchRecord(ITEMS_TBL, itemId, { 'Physical location': TENT_LABEL });
-    it.fields['Physical location'] = TENT_LABEL;
+    await patchRecord(ITEMS_TBL, itemId, { 'Physical location': WL() });
+    it.fields['Physical location'] = WL();
     // Remember where it came from: if fewer turn out to be here, the rest go back there.
     (tentVerifyState.lineFrom = tentVerifyState.lineFrom || {})[itemId] = from;
     tentVerifyState.results.movedIn.push({ model: f(it, F.item_model) || 'Unknown', from: from || 'no shelf' });
@@ -7857,7 +7893,7 @@ async function tentLineHere(itemId) {
     if (currentJobId) renderDetailBody(currentJobId);
     tentRefreshWalk();
     runRecountQueue();
-  } catch (e) { showError('Could not move that line to the Unit Tent.'); }
+  } catch (e) { showError('Could not move that line to ' + WL() + '.'); }
 }
 
 function beginTentJobVerify(key) {
@@ -7874,7 +7910,7 @@ function renderTentJobVerify() {
   document.getElementById('walk-title').textContent = g.label;
   const addLabel = g.kind === 'job' ? `+ Add new equipment to ${escapeHtml(g.label)}` : '+ Add new equipment';
   let html = `<button class="btn-sm btn-sm-accent" style="width:100%;padding:12px;margin-bottom:8px;" onclick="tentAddUnit(${g.kind === 'job' ? `'${g.jobId}'` : ''})">${addLabel}</button>
-    <button class="btn-sm btn-sm-ghost" style="width:100%;padding:10px;margin-bottom:12px;border:1px solid var(--border-strong);" onclick="openCustomItemModal(${g.kind === 'job' ? `'${g.jobId}'` : 'null'},'${TENT_LABEL}')">${g.kind === 'job' ? `+ Add job material to ${escapeHtml(g.label)}` : '+ Add job material'}</button>
+    <button class="btn-sm btn-sm-ghost" style="width:100%;padding:10px;margin-bottom:12px;border:1px solid var(--border-strong);" onclick="openCustomItemModal(${g.kind === 'job' ? `'${g.jobId}'` : 'null'},'${WL()}')">${g.kind === 'job' ? `+ Add job material to ${escapeHtml(g.label)}` : '+ Add job material'}</button>
     <div class="detail-section">
     <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Everything starts as found. Tap a single unit that isn't here; lower the count on a pile that's short.${g.kind === 'stock' ? ' Use <b>Assign</b> on anything that belongs to a job.' : ''}</p>`;
   g.items.forEach(it => {
@@ -7906,7 +7942,7 @@ function renderTentJobVerify() {
   if (g.elsewhere && g.elsewhere.length) {
     html += `<div class="detail-section">
       <div class="detail-section-title">Also on this job — recorded on another shelf</div>
-      <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">If it's here in the tent, tap <b>It's here</b>. The line moves to the Unit Tent and its count moves with it.</p>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">If it's here at ${escapeHtml(WL())}, tap <b>It's here</b>. The line moves to ${escapeHtml(WL())} and its count moves with it.</p>
       ${g.elsewhere.map(it => {
         const q = Number(f(it, F.item_qty)) || 1;
         return `<div class="tent-item-row" style="cursor:default;">
@@ -7937,7 +7973,7 @@ function tentSetCount(itemId, delta) {
 
 function tentWalkNote() {
   const d = new Date();
-  return `Not found at Unit Tent walk ${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(-2)}.`;
+  return `Not found at ${WL()} walk ${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(-2)}.`;
 }
 function appendNote(existing, note) { return existing ? `${existing}\n${note}` : note; }
 
@@ -7966,7 +8002,7 @@ async function saveTentJob() {
           // Pulled in during this walk from another shelf, and fewer are here than the line says:
           // the rest never left that shelf. Send the count back and keep them on the job, sourced
           // from there — not missing, just not staged.
-          if (sku) await applySkuMove(sku, TENT_LABEL, cameFrom, Math.min(missing, skuNum(sku, locationToSkuField(TENT_LABEL))));
+          if (sku) await applySkuMove(sku, WL(), cameFrom, Math.min(missing, skuNum(sku, locationToSkuField(WL()))));
           if (n <= 0) {
             await patchRecord(ITEMS_TBL, it.id, { 'Physical location': cameFrom });
             it.fields['Physical location'] = cameFrom;
@@ -7984,7 +8020,7 @@ async function saveTentJob() {
           st.found[it.id] = n;
           continue;
         }
-        if (sku) await applySkuAdjust(sku, TENT_LABEL, -Math.min(missing, skuNum(sku, locationToSkuField(TENT_LABEL))));
+        if (sku) await applySkuAdjust(sku, WL(), -Math.min(missing, skuNum(sku, locationToSkuField(WL()))));
         if (n <= 0) {
           const fields = { 'Physical location': null, 'Comments': appendNote(f(it, F.item_comments) || '', note) };
           await patchRecord(ITEMS_TBL, it.id, fields);
@@ -8046,7 +8082,7 @@ function finishTentVerify() {
   const r = st.results;
   let html = `<div class="detail-section" style="padding:20px 16px;">
     <div style="text-align:center;font-size:36px;margin-bottom:8px;">${r.flagged.length ? '⚠' : '✓'}</div>
-    <div style="text-align:center;font-size:16px;font-weight:600;margin-bottom:4px;">Unit Tent walk done</div>
+    <div style="text-align:center;font-size:16px;font-weight:600;margin-bottom:4px;">${escapeHtml(WL())} walk done</div>
     <div style="text-align:center;font-size:13px;color:var(--text-muted);margin-bottom:16px;">${r.verified} verified · ${r.flagged.reduce((a, x) => a + x.missing, 0)} not found · ${r.movedIn.length} moved in</div>`;
   if (r.flagged.length) {
     html += `<div style="background:var(--warn-light);border:1px solid var(--warn);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;">
@@ -8057,7 +8093,7 @@ function finishTentVerify() {
   }
   if (r.movedIn.length) {
     html += `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;">
-      <div style="font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Moved into the Unit Tent</div>
+      <div style="font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Moved to ${escapeHtml(WL())}</div>
       ${r.movedIn.map(x => `<div style="font-size:13px;padding:2px 0;">• ${escapeHtml(x.model)} <span style="color:var(--text-muted);">(was ${escapeHtml(x.from)})</span></div>`).join('')}
     </div>`;
   }
