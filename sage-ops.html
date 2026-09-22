@@ -1304,6 +1304,25 @@
   </div>
 </div>
 
+<!-- MATERIAL LOCATION MODAL (where a job's material line is / is pulled from) -->
+<div class="modal-bg" id="mat-src-modal" onclick="if(event.target===this)closeMatSource()">
+  <div class="modal" style="max-width:420px;">
+    <h3 id="mat-src-title">Where is it?</h3>
+    <p id="mat-src-sub" style="margin-bottom:12px;"></p>
+    <select id="mat-src-loc" onchange="updateMatSourceHint()" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;background:var(--surface);margin-bottom:12px;"></select>
+    <label id="mat-src-move-wrap" style="display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--text);margin-bottom:6px;cursor:pointer;">
+      <input type="checkbox" id="mat-src-move" checked onchange="updateMatSourceHint()" style="margin-top:2px;" />
+      <span id="mat-src-move-label"></span>
+    </label>
+    <div id="mat-src-hint" style="font-size:12px;color:var(--text-muted);line-height:1.5;margin-bottom:14px;"></div>
+    <div id="mat-src-error" style="display:none;color:var(--danger);font-size:13px;margin-bottom:10px;"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeMatSource()">Cancel</button>
+      <button class="btn-sm btn-sm-accent" id="mat-src-save" onclick="saveMatSource()" style="padding:10px 20px;">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- TRANSFER MODAL (move counts between locations) -->
 <div class="modal-bg" id="xfer-modal" onclick="if(event.target===this)closeXfer()">
   <div class="modal">
@@ -2893,9 +2912,98 @@ function runRecountQueue() {
   recountActive = true;
   openInvEdit(r.skuId, r.field, r.label);
   const note = document.getElementById('inv-edit-note');
-  note.textContent = `${r.label} showed ${r.shown} ${r.name} but ${r.qty} went on the rig, so the ${r.label} count was off. Count what's left in the ${r.label} now and enter it here.`;
+  note.textContent = r.msg || `${r.label} showed ${r.shown} ${r.name} but ${r.qty} went on the rig, so the ${r.label} count was off. Count what's left in the ${r.label} now and enter it here.`;
   note.style.display = 'block';
   document.getElementById('inv-edit-val').value = '';
+}
+
+// ── MATERIAL LINE LOCATION (job page) ──
+// A stock-SKU line's Physical location is the shelf it will be pulled from. When the parts are
+// physically moved — pulled from the Ducting Tent and staged in the Unit Tent for the job — the
+// line should say so, and the SKU's counts should move with them ("Move the count too").
+// Unchecked = just correct the label (the count already sits on the new shelf, e.g. parts that
+// were received straight into the Unit Tent). Job materials (no SKU) only change the label.
+let matSrcId = null;
+function openMatSource(itemId) {
+  const item = items.find(i => i.id === itemId); if (!item) return;
+  matSrcId = itemId;
+  const links = f(item, F.item_sku);
+  const sku = Array.isArray(links) && links.length ? skus.find(s => s.id === (typeof links[0] === 'string' ? links[0] : links[0].id)) : null;
+  const cur = f(item, F.item_location) || '';
+  const qty = Number(f(item, F.item_qty)) || 1;
+  const opts = sku ? SKU_LOCATIONS : LOCATIONS;
+  document.getElementById('mat-src-title').textContent = f(item, F.item_model) || 'Material';
+  document.getElementById('mat-src-sub').textContent = sku
+    ? `${qty} for this job · currently from ${cur || 'no shelf set'}`
+    : `${qty} for this job · currently ${cur || 'no shelf set'}`;
+  const sel = document.getElementById('mat-src-loc');
+  sel.innerHTML = opts.map(l => {
+    const cnt = sku ? ` (${skuNum(sku, l.field)} there)` : '';
+    return `<option value="${escapeHtml(l.label)}"${l.label === cur ? ' selected' : ''}>${escapeHtml(l.label)}${cnt}</option>`;
+  }).join('');
+  if (!opts.some(l => l.label === cur)) sel.value = TENT_LABEL;
+  document.getElementById('mat-src-move').checked = true;
+  document.getElementById('mat-src-error').style.display = 'none';
+  const btn = document.getElementById('mat-src-save'); btn.disabled = false; btn.textContent = 'Save';
+  updateMatSourceHint();
+  document.getElementById('mat-src-modal').classList.add('open');
+}
+function closeMatSource() {
+  document.getElementById('mat-src-modal').classList.remove('open');
+  matSrcId = null;
+}
+function matSrcContext() {
+  const item = items.find(i => i.id === matSrcId); if (!item) return null;
+  const links = f(item, F.item_sku);
+  const sku = Array.isArray(links) && links.length ? skus.find(s => s.id === (typeof links[0] === 'string' ? links[0] : links[0].id)) : null;
+  const cur = f(item, F.item_location) || '';
+  const next = document.getElementById('mat-src-loc').value;
+  const qty = Number(f(item, F.item_qty)) || 1;
+  const curIsShelf = SKU_LOCATIONS.some(l => l.label === cur);
+  return { item, sku, cur, next, qty, curIsShelf };
+}
+function updateMatSourceHint() {
+  const c = matSrcContext(); if (!c) return;
+  const wrap = document.getElementById('mat-src-move-wrap');
+  const hint = document.getElementById('mat-src-hint');
+  const canMoveCount = !!c.sku && c.curIsShelf && c.next !== c.cur;
+  wrap.style.display = canMoveCount ? 'flex' : 'none';
+  document.getElementById('mat-src-move-label').textContent = `Move the count too — I physically moved these ${c.qty} from ${c.cur} to ${c.next}`;
+  if (!c.sku) { hint.textContent = 'Job material — only its shelf changes.'; return; }
+  if (c.next === c.cur) { hint.textContent = 'No change.'; return; }
+  if (!c.curIsShelf) { hint.textContent = `Only the line changes. It will be pulled from ${c.next} when loaded.`; return; }
+  const moving = document.getElementById('mat-src-move').checked;
+  hint.textContent = moving
+    ? `${c.sku ? (f(c.sku, F.sku_name) || 'SKU') : ''}: ${c.cur} goes down by ${c.qty}, ${c.next} goes up by ${c.qty}. When loaded, it comes from ${c.next}.`
+    : `Counts stay as they are — use this when they were already counted at ${c.next}. When loaded, it comes from ${c.next}.`;
+}
+async function saveMatSource() {
+  const c = matSrcContext(); if (!c) return;
+  if (c.next === c.cur) { closeMatSource(); return; }
+  const moveCount = !!c.sku && c.curIsShelf && document.getElementById('mat-src-move').checked;
+  const btn = document.getElementById('mat-src-save'); btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    if (moveCount) {
+      const fromField = locationToSkuField(c.cur);
+      const shown = skuNum(c.sku, fromField);
+      if (c.qty > shown) {
+        const nm = f(c.sku, F.sku_name) || 'this item';
+        recountQueue.push({ skuId: c.sku.id, field: fromField, label: c.cur, shown, qty: c.qty, name: nm,
+          msg: `${c.cur} showed ${shown} ${nm} but ${c.qty} were moved to ${c.next}, so the ${c.cur} count was off. Count what's left in the ${c.cur} now and enter it here.` });
+      }
+      await applySkuMove(c.sku, c.cur, c.next, c.qty);
+    }
+    await patchRecord(ITEMS_TBL, c.item.id, { 'Physical location': c.next });
+    c.item.fields['Physical location'] = c.next;
+    closeMatSource();
+    if (currentJobId) renderDetailBody(currentJobId);
+    renderInventory(); renderLoadList();
+    runRecountQueue();
+  } catch (e) {
+    const el = document.getElementById('mat-src-error');
+    el.textContent = 'Could not save — check your connection.'; el.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Save';
+  }
 }
 
 // Switch a not-yet-loaded consumable line between drawing on the Rig's spare stock and
@@ -3237,9 +3345,18 @@ function renderDetailBody(jobId) {
     consumables.forEach(item => {
       const iid=item.id, model=f(item,F.item_model)||'', qty=f(item,F.item_qty)??1, unit=f(item,'Unit')||'';
       // Show "60 feet · Lineset 1/2 roll" when a unit is set; otherwise "Qty: 1" as before.
+      // Where the line sits / will be pulled from. Tap to change it (not once it's loaded —
+      // then it's on the truck and the load list owns it).
+      const mLoc = f(item, F.item_location) || '';
+      const mSku = f(item, F.item_sku);
+      const isSkuLine = Array.isArray(mSku) && mSku.length > 0;
+      const canMove = (String(status || "").toLowerCase() !== "complete") && !isSpecLine(item) && f(item, F.item_loaded) !== true && (isSkuLine || isJobMaterial(item));
+      const locBit = canMove
+        ? ` · <span onclick="openMatSource('${iid}')" title="Change where this is" style="cursor:pointer;text-decoration:underline dotted;color:var(--text);">${isSkuLine ? 'from ' : ''}${escapeHtml(mLoc || 'no shelf set')}</span>`
+        : (mLoc && (isSkuLine || isJobMaterial(item)) ? ` · ${isSkuLine && f(item, F.item_loaded) === true ? 'on the rig' : escapeHtml(mLoc)}` : '');
       const qtyDisplay = (unit
         ? `<span style="font-weight:600;color:var(--text);">${qty} ${escapeHtml(unit)}</span>`
-        : `Qty: ${qty}`) + (isJobMaterial(item) && f(item, F.item_location) ? ` · ${escapeHtml(f(item, F.item_location))}` : '');
+        : `Qty: ${qty}`) + locBit;
       // Spec lines say so on their face, so nobody reads a footage line as reserved stock.
       const specTag = isSpecLine(item)
         ? ` <span style="font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-faint);border:1px solid var(--border);border-radius:99px;padding:1px 7px;margin-left:6px;white-space:nowrap;">spec</span>`
