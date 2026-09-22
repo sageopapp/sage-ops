@@ -691,6 +691,12 @@
     <p>Add a new item to the stock catalog. Use this when you start stocking something new or find unexpected material that needs to be tracked.</p>
     <div style="display:flex;flex-direction:column;gap:14px;">
       <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Already in the catalog?</label>
+        <select id="sku-pick-existing" onchange="onPickExistingSku()" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
+          <option value="">— Not listed, add new below —</option>
+        </select>
+      </div>
+      <div>
         <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">SKU name *</label>
         <input type="text" id="sku-name" placeholder="e.g. Lineset 3/4&quot; roll" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
       </div>
@@ -4995,9 +5001,56 @@ async function saveAddUnit() {
 // ── ADD SKU (create new Stock SKU from app) ──
 let addSkuPrefilledLoc = null; // when called from count walk, prefill location
 
+// Existing-SKU picker for the Add SKU modal — same grouped-by-location list used in
+// Job Detail's Add Material picker and the Add-to-order SKU picker, so Count walk and
+// the Inventory tab's "add consumable" path get the same duplicate check: pick the SKU
+// here if it's already in the catalog, instead of typing a name that creates a dupe.
+function populateSkuPickerExisting() {
+  const sel = document.getElementById('sku-pick-existing');
+  if (!sel) return;
+  const GROUP_ORDER = ['Barn','Unit Tent','Ducting Tent','Lumber Rack','Susie','Shop'];
+  function skuGroupLabel(s) {
+    const buckets = [
+      ['Barn', f(s, F.sku_barn)], ['Unit Tent', f(s, F.sku_tent)],
+      ['Susie', f(s, F.sku_susie)], ['Lumber Rack', f(s, F.sku_lumber)],
+      ['Shop', f(s, F.sku_shop)], ['Ducting Tent', f(s, F.sku_ducting)],
+    ];
+    let best = null, bestQty = -1;
+    buckets.forEach(([label, q]) => {
+      const n = Number(q) || 0;
+      if (n > bestQty) { bestQty = n; best = label; }
+    });
+    return best || 'No stock';
+  }
+  const groups = {};
+  skus.forEach(s => { const l = skuGroupLabel(s) || 'No stock'; (groups[l] = groups[l] || []).push(s); });
+  const orderedLabels = GROUP_ORDER.filter(l => groups[l]);
+  if (groups['No stock']) orderedLabels.push('No stock');
+  const opts = orderedLabels.map(label => {
+    const opts = groups[label]
+      .sort((a,b)=>(f(a,F.sku_name)||'').toLowerCase().localeCompare((f(b,F.sku_name)||'').toLowerCase()))
+      .map(s => `<option value="${s.id}">${escapeHtml(f(s,F.sku_name)||'SKU')}</option>`).join('');
+    return `<optgroup label="${escapeHtml(label)}">${opts}</optgroup>`;
+  }).join('');
+  sel.innerHTML = '<option value="">— Not listed, add new below —</option>' + opts;
+  sel.value = '';
+}
+
+// Picking an existing SKU means there's nothing new to create — bounce straight to
+// editing that record (e.g. to bump its count) instead of letting the form below
+// go on to create a duplicate.
+function onPickExistingSku() {
+  const sel = document.getElementById('sku-pick-existing');
+  const skuId = sel.value;
+  if (!skuId) return;
+  closeAddSkuModal();
+  openSkuEdit(skuId);
+}
+
 function openAddSkuModal(prefilledLoc) {
   document.getElementById('sku-name').value = '';
   document.getElementById('sku-itemnumber').value = '';
+  populateSkuPickerExisting();
   // Populate Type tag dropdown from existing unique values in SKUs
   const typeTags = [...new Set(skus.map(s => f(s, F.sku_type)).filter(Boolean))].sort();
   const typeSel = document.getElementById('sku-type-tag');
@@ -5115,6 +5168,11 @@ async function saveNewSku() {
   const itemNumber = document.getElementById('sku-itemnumber').value.trim();
 
   if (!name) { skuShowError('Please enter a SKU name.'); return; }
+  // Belt-and-braces duplicate guard: even if the existing-SKU picker above was skipped,
+  // don't create a second catalog record for a name that's already there (case/spacing-insensitive).
+  const normName = name.trim().toLowerCase().replace(/\s+/g, ' ');
+  const dupe = skus.find(s => (f(s, F.sku_name) || '').trim().toLowerCase().replace(/\s+/g, ' ') === normName);
+  if (dupe) { skuShowError(`"${f(dupe, F.sku_name)}" is already in the catalog — pick it from the list above instead of adding it again.`); return; }
 
   const fields = { 'Item': name };
   if (itemNumber) fields['Item number'] = itemNumber;
