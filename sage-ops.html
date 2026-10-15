@@ -1071,6 +1071,24 @@
   </div>
 </div>
 
+<!-- MARK A MATERIAL USED (from Job Detail) — consumable SKU lines and job materials -->
+<div class="modal-bg" id="mat-used-modal">
+  <div class="modal" style="max-width:420px;">
+    <h3>Mark used: <span id="mu-model">this item</span></h3>
+    <p>How many went in?</p>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+      <input type="number" id="mu-qty" min="1" step="1" style="flex:1;padding:10px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:16px;outline:none;" />
+      <span id="mu-of" style="font-size:14px;color:var(--text-muted);white-space:nowrap;"></span>
+    </div>
+    <p id="mu-src" style="font-size:12.5px;color:var(--text-faint);line-height:1.5;"></p>
+    <div id="mu-error" style="display:none;color:var(--danger);font-size:13px;margin-top:14px;background:var(--danger-light);padding:8px 12px;border-radius:var(--radius-sm);"></div>
+    <div class="modal-btns" style="margin-top:18px;">
+      <button class="btn-cancel" onclick="closeMatUsedModal()">Cancel</button>
+      <button class="btn-sm btn-sm-accent" style="padding:10px 20px;" onclick="confirmMatUsed()">Mark installed</button>
+    </div>
+  </div>
+</div>
+
 <!-- CLOSE OUT A VISIT whose date has passed -->
 <div class="modal-bg" id="close-visit-modal">
   <div class="modal" style="max-width:460px;">
@@ -1523,6 +1541,7 @@ let showAddMat = false;
 // Job detail: whether the "previously installed" equipment roll-up is expanded. Collapsed by
 // default so a returning customer's reused job record doesn't open buried in old units.
 let showRetiredEquip = false;
+let showUsedMats = false;
 let showCompleted = false;
 let invEditState = null; // {skuId, locField, locLabel, skuName}
 let xferState = null; // {skuId, skuName}
@@ -3347,8 +3366,13 @@ function renderDetailBody(jobId) {
   }
 
   let matHtml = '';
-  if (consumables.length) {
-    consumables.forEach(item => {
+  // Lines already marked used (per line, or by completing the job) collapse into a roll-up so
+  // the live list is only what's still headed to the job.
+  const usedMats = consumables.filter(i => (f(i, F.item_status) || '').toLowerCase() === 'installed');
+  const liveMats = consumables.filter(i => (f(i, F.item_status) || '').toLowerCase() !== 'installed');
+  const jobIsComplete = String(status || '').toLowerCase() === 'complete';
+  if (liveMats.length) {
+    liveMats.forEach(item => {
       const iid=item.id, model=f(item,F.item_model)||'', qty=f(item,F.item_qty)??1, unit=f(item,'Unit')||'';
       // Show "60 feet · Lineset 1/2 roll" when a unit is set; otherwise "Qty: 1" as before.
       // Where the line sits / will be pulled from. Tap to change it (not once it's loaded —
@@ -3367,13 +3391,28 @@ function renderDetailBody(jobId) {
       const specTag = isSpecLine(item)
         ? ` <span style="font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-faint);border:1px solid var(--border);border-radius:99px;padding:1px 7px;margin-left:6px;white-space:nowrap;">spec</span>`
         : '';
+      // Spec lines (footage) never get a Used button — rolls are reconciled on the walk.
+      const usedBtn = (!jobIsComplete && !isSpecLine(item))
+        ? `<button class="btn-sm btn-sm-accent-outline" onclick="openMatUsedModal('${iid}')" title="Mark installed — takes it out of inventory" style="font-size:11px;padding:3px 9px;border-radius:var(--radius-sm);white-space:nowrap;">Mark installed</button>`
+        : '';
       matHtml += `<div class="mat-row">
         <div class="mat-info"><div class="mat-name">${model}${specTag}</div><div class="mat-qty">${qtyDisplay}</div></div>
-        <button class="mat-del" onclick="deleteMaterial('${iid}')" title="Remove">×</button>
+        <div style="display:flex;gap:4px;flex:none;align-items:center;">${usedBtn}<button class="mat-del" onclick="deleteMaterial('${iid}')" title="Remove">×</button></div>
       </div>`;
     });
   } else {
-    matHtml = `<div style="font-size:13px;color:var(--text-faint);padding:8px 0;">No consumables added yet</div>`;
+    matHtml = `<div style="font-size:13px;color:var(--text-faint);padding:8px 0;">${usedMats.length ? 'Nothing left to install' : 'No consumables added yet'}</div>`;
+  }
+  if (usedMats.length) {
+    matHtml += `<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;">
+      <div onclick="showUsedMats=!showUsedMats;renderDetailBody('${jobId}')" style="cursor:pointer;font-size:12px;color:var(--text-faint);font-weight:600;padding:4px 0;">${showUsedMats ? '▾' : '▸'} Installed (${usedMats.length} line${usedMats.length !== 1 ? 's' : ''})</div>
+      ${showUsedMats ? usedMats.map(i => {
+        const u = f(i, 'Unit') || '';
+        const bits = [`${f(i, F.item_qty) ?? 1}${u && u !== 'each' ? ' ' + u : (u ? ' each' : '')}`];
+        const l = f(i, F.item_location); if (l && Array.isArray(f(i, F.item_sku)) && f(i, F.item_sku).length) bits.push('from ' + l);
+        return `<div class="mat-row" style="opacity:.75;"><div class="mat-info"><div class="mat-name">${escapeHtml(f(i, F.item_model) || 'Item')}</div><div class="mat-qty">${bits.map(escapeHtml).join(' · ')}</div></div>${!jobIsComplete ? `<div style="flex:none;"><button class="btn-sm btn-sm-ghost" onclick="undoMatUsed('${i.id}')" title="Put it back in inventory and back on the job" style="font-size:11px;padding:2px 8px;border-radius:var(--radius-sm);">Undo</button></div>` : ''}</div>`;
+      }).join('') : ''}
+    </div>`;
   }
 
   let addFormHtml = '';
@@ -3791,9 +3830,8 @@ async function deleteMaterial(itemId) {
 
 // ── MARK A SINGLE UNIT INSTALLED (from Job Detail) ─────────────────────────────
 // Before this, the only route to Installed was completing the whole job — which doesn't
-// fit a rough-in / trim-out job where units go in across separate visits. Equipment only:
-// a consumable's stock already left the count when it was loaded, so there is nothing for
-// this action to do there (materials still reconcile at completion via "used N of M").
+// fit a rough-in / trim-out job where units go in across separate visits. Equipment only —
+// consumables and job materials have their own per-line version below (applyMatUsed).
 let installItemId = null;
 
 function openInstallModal(itemId) {
@@ -3869,6 +3907,135 @@ async function applyInstall(itemId, n) {
     if (jobId) offerCompleteIfAllInstalled(jobId);
   } catch(e) {
     showError('Could not mark installed.');
+  }
+}
+
+// ── MARK A MATERIAL INSTALLED (from Job Detail) ───────────────────────────────
+// Per-line version of what completion does for consumables, for jobs that never get
+// "completed" (one reusable record per customer) or that span several visits.
+//   · Stock SKU line, loaded   → used qty comes off the Rig (it went there at load)
+//   · Stock SKU line, unloaded → used qty comes off the line's source shelf / rig spare
+//   · Job material (no SKU)    → the record itself is the stock; flipping it Installed removes it
+// Using fewer than the whole line splits it — the rest stays on the job, still promised.
+// The installed record's Physical location is pinned to the bucket the stock came out of,
+// so Undo knows exactly where to put it back.
+let matUsedItemId = null;
+
+function openMatUsedModal(itemId) {
+  const item = items.find(i => i.id === itemId);
+  if (!item || isSpecLine(item)) return;
+  const qty = Number(f(item, F.item_qty)) || 1;
+  if (qty <= 1) { applyMatUsed(itemId, 1); return; }
+  matUsedItemId = itemId;
+  const unit = f(item, 'Unit') || '';
+  document.getElementById('mu-model').textContent = f(item, F.item_model) || 'this item';
+  document.getElementById('mu-of').textContent = `of ${qty}${unit && unit !== 'each' ? ' ' + unit : ''}`;
+  const sku = matSku(item);
+  let src = 'It comes off the job and out of inventory.';
+  if (sku) {
+    src = f(item, F.item_loaded) === true
+      ? 'Comes off the Rig count (it was loaded).'
+      : `Comes off the ${consumableSourceLocation(item, sku) || 'shelf'} count.`;
+  }
+  document.getElementById('mu-src').textContent = src + ' Using fewer than the whole line leaves the rest on the job.';
+  const qtyEl = document.getElementById('mu-qty');
+  qtyEl.value = qty; qtyEl.max = qty;
+  document.getElementById('mu-error').style.display = 'none';
+  document.getElementById('mat-used-modal').classList.add('open');
+}
+
+function closeMatUsedModal() {
+  document.getElementById('mat-used-modal').classList.remove('open');
+  matUsedItemId = null;
+}
+
+function confirmMatUsed() {
+  const item = items.find(i => i.id === matUsedItemId);
+  if (!item) return closeMatUsedModal();
+  const avail = Number(f(item, F.item_qty)) || 1;
+  const n = Number(document.getElementById('mu-qty').value);
+  if (!Number.isFinite(n) || n <= 0 || n > avail) {
+    const el = document.getElementById('mu-error');
+    el.textContent = `Enter a number above 0 and up to ${avail}.`; el.style.display = 'block';
+    return;
+  }
+  const id = matUsedItemId;
+  closeMatUsedModal();
+  applyMatUsed(id, n);
+}
+
+function matSku(item) {
+  const l = f(item, F.item_sku);
+  if (!Array.isArray(l) || !l.length) return null;
+  const id = typeof l[0] === 'string' ? l[0] : l[0].id;
+  return skus.find(s => s.id === id) || null;
+}
+
+async function applyMatUsed(itemId, n) {
+  const item = items.find(i => i.id === itemId);
+  if (!item || isSpecLine(item)) return;
+  const jobId = currentJobId;
+  const qty = Number(f(item, F.item_qty)) || 1;
+  const sku = matSku(item);
+  const loaded = f(item, F.item_loaded) === true;
+  try {
+    let takenFrom = null;
+    if (sku) {
+      takenFrom = loaded ? 'Rig' : consumableSourceLocation(item, sku);
+      if (!takenFrom) {
+        showError(`No stock recorded anywhere for "${f(item, F.item_model) || 'this item'}". Tap its "from" shelf to set one, then try again.`);
+        return;
+      }
+      await applySkuAdjust(sku, takenFrom, -n);
+    }
+    if (n >= qty) {
+      const fields = { 'Status': 'Installed', 'Loaded?': false };
+      if (takenFrom) fields['Physical location'] = takenFrom;
+      await patchRecord(ITEMS_TBL, itemId, fields);
+      Object.assign(item.fields, fields);
+    } else {
+      await patchRecord(ITEMS_TBL, itemId, { 'Quantity': qty - n });
+      item.fields['Quantity'] = qty - n;
+      const owners = f(item, F.item_owner);
+      const ownerIds = Array.isArray(owners) ? owners.map(o => (typeof o === 'string' ? o : o.id)) : [];
+      const split = { 'Model number': f(item, F.item_model) || '', 'Quantity': n, 'Status': 'Installed', 'Loaded?': false };
+      if (sku) split['Stock SKU'] = [sku.id];
+      if (ownerIds.length) split['Owner'] = ownerIds;
+      const u = f(item, 'Unit'); if (u) split['Unit'] = u;
+      const ct = f(item, 'Combo tag'); if (ct) split['Combo tag'] = ct;
+      const desc = f(item, F.item_description); if (desc) split['Description'] = desc;
+      const loc = takenFrom || f(item, F.item_location); if (loc) split['Physical location'] = loc;
+      const created = await createRecord(ITEMS_TBL, split);
+      if (created && created.id) items.push(created);
+    }
+    if (jobId) renderDetailBody(jobId);
+    renderLoadList();
+    if (typeof renderInventory === 'function') renderInventory();
+  } catch(e) {
+    showError('Could not mark installed.');
+  }
+}
+
+// Undo a used material: stock goes back into the bucket it came out of and the line goes
+// back on the job (unloaded — if it came off the Rig it's now rig spare promised to the job).
+async function undoMatUsed(itemId) {
+  const item = items.find(i => i.id === itemId);
+  if (!item) return;
+  const jobId = currentJobId;
+  const qty = Number(f(item, F.item_qty)) || 1;
+  const sku = matSku(item);
+  try {
+    if (sku && !isSpecLine(item)) {
+      const loc = f(item, F.item_location) || '';
+      if (locationToSkuField(loc)) await applySkuAdjust(sku, loc, qty);
+    }
+    await patchRecord(ITEMS_TBL, itemId, { 'Status': 'Allocated', 'Loaded?': false });
+    item.fields['Status'] = 'Allocated'; item.fields['Loaded?'] = false;
+    if (jobId) renderDetailBody(jobId);
+    renderLoadList();
+    if (typeof renderInventory === 'function') renderInventory();
+  } catch(e) {
+    showError('Could not undo.');
   }
 }
 
