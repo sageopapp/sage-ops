@@ -3528,6 +3528,9 @@ function renderDetailBody(jobId) {
             <option value="San Juan"${island==='San Juan'?' selected':''}>San Juan</option>
             <option value="Shaw"${island==='Shaw'?' selected':''}>Shaw</option>
             <option value="Decatur"${island==='Decatur'?' selected':''}>Decatur</option>
+            <option value="Center"${island==='Center'?' selected':''}>Center</option>
+            <option value="Blakely"${island==='Blakely'?' selected':''}>Blakely</option>
+            <option value="Mainland"${island==='Mainland'?' selected':''}>Mainland</option>
             <option value="Off-island"${island==='Off-island'?' selected':''}>Off-island</option>
             <option value="Other"${island==='Other'?' selected':''}>Other</option>
           </select>
@@ -5574,7 +5577,7 @@ async function saveNewJob() {
   const jobType = document.getElementById('nj-type').value;
   const teamNotes = document.getElementById('nj-detail-notes').value.trim();
   const address = document.getElementById('nj-address').value.trim();
-  const island = document.getElementById('nj-island').value;
+  let island = document.getElementById('nj-island').value;
   const phone = document.getElementById('nj-phone').value.trim();
   const email = document.getElementById('nj-email').value.trim();
 
@@ -5609,13 +5612,8 @@ async function saveNewJob() {
   if (visitType) fields['Next phase'] = visitType;
   if (phone) fields['Primary contact phone'] = phone;
   if (email) fields['Primary contact email'] = email;
-  // Address/Island live on the Property, not the Job. Fold anything the user
-  // entered into Detail Notes so it isn't lost, plus any team notes.
-  const noteParts = [];
-  const locLine = [island, address].filter(Boolean).join(' ').trim();
-  if (locLine) noteParts.push('Detail Notes: ' + locLine);
-  if (teamNotes) noteParts.push(teamNotes);
-  if (noteParts.length) fields['Detail Notes'] = noteParts.join('\n');
+  // Address/Island live on the linked Property (written below, after the Customer link exists).
+  if (teamNotes) fields['Detail Notes'] = teamNotes;
 
   try {
     // Customer link: reuse an existing account or create one.
@@ -5627,7 +5625,45 @@ async function saveNewJob() {
       accounts.push(acct);
       fields['Customer'] = [acct.id];
     }
+    // Property link: reuse this customer's property if the street address matches, else create one.
+    // Property.Island is a single-select; only send values it accepts.
+    const PROP_ISLANDS = ['Lopez','Orcas','Shaw','San Juan','Decatur','Center','Blakely','Mainland','Off-island','Other'];
+    if (island && !PROP_ISLANDS.includes(island)) {
+      fields['Detail Notes'] = ['Island: ' + island, fields['Detail Notes']].filter(Boolean).join('\n');
+      island = '';
+    }
+    if (address || island) {
+      const custId = fields['Customer'] && fields['Customer'][0];
+      const ownedBy = p => { const o = (p.fields||{})['Owner']; return Array.isArray(o) && o.some(x => (typeof x === 'string' ? x : x.id) === custId); };
+      let prop = address ? properties.find(p => custId && ownedBy(p) && normName((p.fields||{})['Street address']||'') === normName(address)) : null;
+      try {
+        if (prop) {
+          if (island && !(prop.fields||{})['Island']) { await patchRecord(PROPERTIES_TBL, prop.id, { 'Island': island }); prop.fields['Island'] = island; }
+        } else {
+          const pf = {};
+          if (address) pf['Street address'] = address;
+          if (island) pf['Island'] = island;
+          if (custId) pf['Owner'] = [custId];
+          prop = await createRecord(PROPERTIES_TBL, pf);
+          properties.push(prop);
+        }
+        fields['Property'] = [prop.id];
+      } catch (e) {
+        // Don't lose what was entered if the Property write fails.
+        console.warn('property save failed', e);
+        const locLine = [island, address].filter(Boolean).join(' ').trim();
+        fields['Detail Notes'] = ['Location: ' + locLine, teamNotes].filter(Boolean).join('\n');
+      }
+    }
     const newJob = await createRecord(JOBS_TBL, fields);
+    // Denormalize address/island onto the in-memory job so lists and detail show it immediately.
+    if (fields['Property']) {
+      const pf = (properties.find(x => x.id === fields['Property'][0]) || {}).fields || {};
+      const parts = [pf['Street address'], pf['City'], [pf['State'], pf['Zip']].filter(Boolean).join(' ')].filter(Boolean);
+      newJob.fields = newJob.fields || {};
+      if (parts.length) newJob.fields['Address'] = parts.join(', ');
+      if (pf['Island']) newJob.fields['Island'] = pf['Island'];
+    }
     jobs.push(newJob);
     if (startDate) {
       const vlabel=name+' — '+(visitType||'Visit');
