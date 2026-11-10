@@ -774,7 +774,8 @@
 
     <div id="ord-sku-mode">
       <div style="margin-bottom:12px;">
-        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Stock item *</label>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Stock item or unit *</label>
+        <input type="text" id="ord-sku-search" placeholder="Search — e.g. fan, reducer, Titan, FV-0511" oninput="filterOrdSkuPick(this.value)" autocomplete="off" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;box-sizing:border-box;margin-bottom:6px;" />
         <select id="ord-sku-pick" onchange="onOrdSkuPick()" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
           <option value="">Select a SKU...</option>
         </select>
@@ -6147,20 +6148,64 @@ function openEditOrderModal(orderId) {
   document.getElementById('add-order-modal').classList.add('open');
 }
 
+// ── Add-to-order picker: stock SKUs + unit models, one A–Z searchable list ──
+let ordPickEntries = [];
+function buildOrdPickEntries() {
+  const out = [];
+  skus.forEach(s => {
+    const name = f(s, F.sku_name) || 'SKU';
+    const loc = skuPickerGroup(s);
+    out.push({ value: s.id, label: name, sub: loc, search: (name + ' ' + (f(s, F.sku_itemnumber) || '')).toLowerCase() });
+  });
+  // Units live in Items, one row per physical unit — list each model once.
+  const byModel = {};
+  items.forEach(it => {
+    const model = (f(it, F.item_model) || '').trim(); if (!model) return;
+    const key = model.toUpperCase();
+    const st = f(it, F.item_status); const status = st && typeof st === 'object' ? st.name : (st || '');
+    const lc = f(it, F.item_location); const loc = lc && typeof lc === 'object' ? lc.name : (lc || '');
+    const ty = f(it, F.item_type); const type = ty && typeof ty === 'object' ? ty.name : (ty || '');
+    const vd = f(it, 'Vendor'); const vendor = vd && typeof vd === 'object' ? vd.name : (vd || '');
+    const m = byModel[key] || (byModel[key] = { model, desc: '', type: '', vendor: '', inStock: 0, locs: new Set() });
+    if (!m.desc && f(it, F.item_description)) m.desc = f(it, F.item_description);
+    if (!m.type && type && type !== 'other') m.type = type;
+    if (!m.vendor && vendor) m.vendor = vendor;
+    if (status === 'Stock') { m.inStock += Number(f(it, F.item_qty)) || 1; if (loc) m.locs.add(loc); }
+  });
+  Object.values(byModel).forEach(m => {
+    const desc = [m.desc, m.type].filter(Boolean).join(' · ');
+    const sub = 'Unit' + (m.inStock ? ` — ${m.inStock} in stock${m.locs.size ? ' (' + [...m.locs].join(', ') + ')' : ''}` : ' — none in stock');
+    out.push({ value: 'model:' + m.model, label: m.model + (desc ? ' — ' + desc : ''), sub, model: m.model, vendor: m.vendor,
+      search: (m.model + ' ' + desc + ' unit').toLowerCase() });
+  });
+  out.sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()));
+  return out;
+}
+function filterOrdSkuPick(q) {
+  const sel = document.getElementById('ord-sku-pick');
+  const keep = sel.value;
+  const terms = (q || '').toLowerCase().split(/\s+/).filter(Boolean);
+  const list = terms.length ? ordPickEntries.filter(e => terms.every(t => e.search.includes(t) || e.label.toLowerCase().includes(t))) : ordPickEntries;
+  sel.innerHTML = `<option value="">${terms.length ? (list.length ? list.length + ' match' + (list.length === 1 ? '' : 'es') + ' — pick one' : 'No matches — try Manual entry') : 'Select an item…'}</option>` +
+    list.map(e => `<option value="${escapeHtml(e.value)}">${escapeHtml(e.label)}  ·  ${escapeHtml(e.sub)}</option>`).join('');
+  if (keep && list.some(e => e.value === keep)) sel.value = keep;
+  else if (terms.length && list.length === 1) { sel.value = list[0].value; onOrdSkuPick(); }
+}
+function findOpenOrderForModel(model) {
+  const m = (model || '').trim().toUpperCase();
+  return orders.find(o => {
+    const st = f(o, 'Status'); const s = st && typeof st === 'object' ? st.name : st;
+    return s === 'Needed' && (f(o, 'Item number') || '').trim().toUpperCase() === m;
+  });
+}
+
 function openAddOrderModal() {
   // Default to SKU mode
   setAddOrderMode('sku');
-  // Populate SKU dropdown — grouped by primary location like the Add Material picker
-  const groups = {};
-  skus.forEach(s => { const l = skuPickerGroup(s); (groups[l] = groups[l] || []).push(s); });
-  const orderedLabels = skuPickerOrderedLabels(groups);
-  const opts = orderedLabels.map(label => {
-    const items = groups[label]
-      .sort((a,b)=>(f(a,F.sku_name)||'').toLowerCase().localeCompare((f(b,F.sku_name)||'').toLowerCase()))
-      .map(s => `<option value="${s.id}">${escapeHtml(f(s,F.sku_name)||'SKU')}</option>`).join('');
-    return `<optgroup label="${escapeHtml(label)}">${items}</optgroup>`;
-  }).join('');
-  document.getElementById('ord-sku-pick').innerHTML = '<option value="">Select a SKU...</option>' + opts;
+  // One A–Z list: stock SKUs plus unit models (fans, heads, etc. tracked as Items), searchable.
+  ordPickEntries = buildOrdPickEntries();
+  document.getElementById('ord-sku-search').value = '';
+  filterOrdSkuPick('');
   // Reset fields
   document.getElementById('ord-item').value = '';
   document.getElementById('ord-qty').value = '';
@@ -6197,6 +6242,15 @@ function onOrdSkuPick() {
   errEl.style.display = 'none';
   errEl.textContent = '';
   if (!skuId) return;
+  if (skuId.startsWith('model:')) {
+    const entry = ordPickEntries.find(e => e.value === skuId); if (!entry) return;
+    const ex = findOpenOrderForModel(entry.model);
+    if (ex) { errEl.textContent = `Heads up: this is already on the order list (${describeExistingOrder(ex)}).`; errEl.style.display = 'block'; }
+    document.getElementById('ord-itemnumber').value = entry.model;
+    if (entry.vendor) document.getElementById('ord-vendor').value = entry.vendor;
+    if (!document.getElementById('ord-qty').value) document.getElementById('ord-qty').value = 1;
+    return;
+  }
   const sku = skus.find(s => s.id === skuId);
   if (!sku) return;
   // Heads-up if this SKU is already on the order list as Needed.
@@ -6270,7 +6324,16 @@ async function saveAddOrder() {
   let itemName = '', skuLink = null;
   if (addOrderMode === 'sku') {
     const skuId = document.getElementById('ord-sku-pick').value;
-    if (!skuId) { errEl.textContent = 'Pick a SKU or switch to Manual entry.'; errEl.style.display='block'; return; }
+    if (!skuId) { errEl.textContent = 'Pick an item or switch to Manual entry.'; errEl.style.display='block'; return; }
+    if (skuId.startsWith('model:')) {
+      const entry = ordPickEntries.find(e => e.value === skuId);
+      const ex = entry && findOpenOrderForModel(entry.model);
+      if (ex) { errEl.textContent = `Already on the order list (${describeExistingOrder(ex)}). Switch to the Order tab to see it.`; errEl.style.display = 'block'; return; }
+      itemName = entry ? entry.label : skuId.slice(6);
+    }
+  }
+  if (addOrderMode === 'sku' && !itemName) {
+    const skuId = document.getElementById('ord-sku-pick').value;
     // Block duplicate: if this SKU already has a Needed Order List entry, surface it
     // here instead of creating a second one. (Manual mode is free-text and isn't checked
     // — duplicates there are for one-off items not in the SKU catalog.)
@@ -6283,7 +6346,7 @@ async function saveAddOrder() {
     const sku = skus.find(s => s.id === skuId);
     itemName = f(sku, F.sku_name) || 'SKU';
     skuLink = [skuId];
-  } else {
+  } else if (addOrderMode !== 'sku') {
     itemName = document.getElementById('ord-item').value.trim();
     if (!itemName) { errEl.textContent = 'Item name is required.'; errEl.style.display='block'; return; }
   }
