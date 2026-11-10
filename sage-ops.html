@@ -3142,10 +3142,11 @@ function islandFilteredJobs() {
 // This is the single source of truth for the Jobs/Firm/Penciled tabs.
 function jobNextDate(j) {
   const t = today0();
-  let bestRaw = null, bestD = null;
+  let bestRaw = null, bestD = null, hasVisits = false;
   visits.forEach(v => {
     const vj = visitJob(v);
     if (!vj || vj.id !== j.id) return;
+    hasVisits = true;
     if (f(v, F.visit_complete) === true) return;
     const raw = f(v, F.visit_date);
     const d = parseDate(raw);
@@ -3154,7 +3155,10 @@ function jobNextDate(j) {
     if (d < t) return;
     if (!bestD || d < bestD) { bestD = d; bestRaw = raw; }
   });
-  return bestRaw || f(j, F.job_next_date) || '';
+  // Legacy job-level date only for jobs with no visit records at all. Once a job has visits,
+  // they're the truth — all done/past means nothing upcoming (not a stale "Penciled").
+  if (bestRaw) return bestRaw;
+  return hasVisits ? '' : (f(j, F.job_next_date) || '');
 }
 
 // The next upcoming visit record for a job (today-or-later, not complete), mirroring
