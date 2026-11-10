@@ -3417,32 +3417,10 @@ function renderDetailBody(jobId) {
 
   let addFormHtml = '';
   if (showAddMat) {
-    // Group SKUs by primary location (bucket with most on-hand), in Tony's tab order.
-    // Alphabetical within each group. Zero-stock SKUs go in a "No stock" group at the end.
-    const GROUP_ORDER = ['Barn', 'Unit Tent', 'Ducting Tent', 'Lumber Rack', 'Susie', 'Shop'];
-    function skuGroupLabel(s) {
-      const buckets = [
-        ['Barn', f(s, F.sku_barn)],
-        ['Unit Tent', f(s, F.sku_tent)],
-        ['Susie', f(s, F.sku_susie)],
-        ['Lumber Rack', f(s, F.sku_lumber)],
-        ['Shop', f(s, F.sku_shop)],
-        ['Ducting Tent', f(s, F.sku_ducting)],
-      ];
-      let best = null, bestQty = 0;
-      buckets.forEach(([label, q]) => {
-        const n = Number(q) || 0;
-        if (n > bestQty) { bestQty = n; best = label; }
-      });
-      return best; // null = no stock anywhere
-    }
+    // Group SKUs by the location with the most on-hand; zero-stock in "No stock".
     const groups = {};
-    skus.forEach(s => {
-      const label = skuGroupLabel(s) || 'No stock';
-      (groups[label] = groups[label] || []).push(s);
-    });
-    const orderedLabels = GROUP_ORDER.filter(l => groups[l]);
-    if (groups['No stock']) orderedLabels.push('No stock');
+    skus.forEach(s => { const l = skuPickerGroup(s); (groups[l] = groups[l] || []).push(s); });
+    const orderedLabels = skuPickerOrderedLabels(groups);
     const skuOptions = orderedLabels.map(label => {
       const opts = groups[label]
         .sort((a,b)=>(f(a,F.sku_name)||'').toLowerCase().localeCompare((f(b,F.sku_name)||'').toLowerCase()))
@@ -5171,6 +5149,22 @@ async function saveAddUnit() {
 // ── ADD SKU (create new Stock SKU from app) ──
 let addSkuPrefilledLoc = null; // when called from count walk, prefill location
 
+// Shared grouping for SKU pickers: each SKU sits under the location holding the most
+// stock; zero on hand everywhere = "No stock" (previously these were lumped into Barn).
+const SKU_GROUP_ORDER = ['Barn','Unit Tent','Ducting Tent','Lumber Rack','Susie','Shop'];
+function skuPickerGroup(s) {
+  const buckets = [['Barn', f(s, F.sku_barn)], ['Unit Tent', f(s, F.sku_tent)], ['Susie', f(s, F.sku_susie)],
+    ['Lumber Rack', f(s, F.sku_lumber)], ['Shop', f(s, F.sku_shop)], ['Ducting Tent', f(s, F.sku_ducting)]];
+  let best = null, bestQty = 0;
+  buckets.forEach(([label, q]) => { const n = Number(q) || 0; if (n > bestQty) { bestQty = n; best = label; } });
+  return best || 'No stock';
+}
+function skuPickerOrderedLabels(groups) {
+  const known = SKU_GROUP_ORDER.filter(l => groups[l]);
+  const extra = Object.keys(groups).filter(l => !SKU_GROUP_ORDER.includes(l) && l !== 'No stock').sort();
+  return known.concat(extra, groups['No stock'] ? ['No stock'] : []);
+}
+
 // Existing-SKU picker for the Add SKU modal — same grouped-by-location list used in
 // Job Detail's Add Material picker and the Add-to-order SKU picker, so Count walk and
 // the Inventory tab's "add consumable" path get the same duplicate check: pick the SKU
@@ -5178,24 +5172,9 @@ let addSkuPrefilledLoc = null; // when called from count walk, prefill location
 function populateSkuPickerExisting() {
   const sel = document.getElementById('sku-pick-existing');
   if (!sel) return;
-  const GROUP_ORDER = ['Barn','Unit Tent','Ducting Tent','Lumber Rack','Susie','Shop'];
-  function skuGroupLabel(s) {
-    const buckets = [
-      ['Barn', f(s, F.sku_barn)], ['Unit Tent', f(s, F.sku_tent)],
-      ['Susie', f(s, F.sku_susie)], ['Lumber Rack', f(s, F.sku_lumber)],
-      ['Shop', f(s, F.sku_shop)], ['Ducting Tent', f(s, F.sku_ducting)],
-    ];
-    let best = null, bestQty = -1;
-    buckets.forEach(([label, q]) => {
-      const n = Number(q) || 0;
-      if (n > bestQty) { bestQty = n; best = label; }
-    });
-    return best || 'No stock';
-  }
   const groups = {};
-  skus.forEach(s => { const l = skuGroupLabel(s) || 'No stock'; (groups[l] = groups[l] || []).push(s); });
-  const orderedLabels = GROUP_ORDER.filter(l => groups[l]);
-  if (groups['No stock']) orderedLabels.push('No stock');
+  skus.forEach(s => { const l = skuPickerGroup(s); (groups[l] = groups[l] || []).push(s); });
+  const orderedLabels = skuPickerOrderedLabels(groups);
   const opts = orderedLabels.map(label => {
     const opts = groups[label]
       .sort((a,b)=>(f(a,F.sku_name)||'').toLowerCase().localeCompare((f(b,F.sku_name)||'').toLowerCase()))
@@ -6172,24 +6151,9 @@ function openAddOrderModal() {
   // Default to SKU mode
   setAddOrderMode('sku');
   // Populate SKU dropdown — grouped by primary location like the Add Material picker
-  const GROUP_ORDER = ['Barn','Unit Tent','Ducting Tent','Lumber Rack','Susie','Shop'];
-  function skuGroupLabel(s) {
-    const buckets = [
-      ['Barn', f(s, F.sku_barn)], ['Unit Tent', f(s, F.sku_tent)],
-      ['Susie', f(s, F.sku_susie)], ['Lumber Rack', f(s, F.sku_lumber)],
-      ['Shop', f(s, F.sku_shop)], ['Ducting Tent', f(s, F.sku_ducting)],
-    ];
-    let best = null, bestQty = -1;
-    buckets.forEach(([label, q]) => {
-      const n = Number(q) || 0;
-      if (n > bestQty) { bestQty = n; best = label; }
-    });
-    return best || 'No stock';
-  }
   const groups = {};
-  skus.forEach(s => { const l = skuGroupLabel(s) || 'No stock'; (groups[l] = groups[l] || []).push(s); });
-  const orderedLabels = GROUP_ORDER.filter(l => groups[l]);
-  if (groups['No stock']) orderedLabels.push('No stock');
+  skus.forEach(s => { const l = skuPickerGroup(s); (groups[l] = groups[l] || []).push(s); });
+  const orderedLabels = skuPickerOrderedLabels(groups);
   const opts = orderedLabels.map(label => {
     const items = groups[label]
       .sort((a,b)=>(f(a,F.sku_name)||'').toLowerCase().localeCompare((f(b,F.sku_name)||'').toLowerCase()))
