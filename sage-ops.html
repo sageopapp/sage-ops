@@ -447,7 +447,7 @@
     <div class="inv-controls">
       <input type="text" id="inv-search" placeholder="Search inventory..." oninput="renderInventory()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
       <div class="inv-filter-row">
-        <label class="inv-checkbox"><input type="checkbox" id="inv-low-only" onchange="renderInventory()" /> Low stock only</label>
+        <label class="inv-checkbox"><input type="checkbox" id="inv-low-only" onchange="renderInventory()" /> Below rig minimum</label>
         <div style="display:flex;gap:8px;">
           <button class="btn-walk" onclick="openAddItemPicker()" style="background:var(--action);color:white;border:1px solid var(--action);">+ Add item</button>
           <button class="btn-walk" onclick="startWalk()">📋 Count walk</button>
@@ -4036,12 +4036,6 @@ function skuAvailable(sku) {
   if (!sku) return 0;
   return skuShelfStock(sku) + skuRigSpare(sku);
 }
-function skuIsLow(sku) {
-  const thr = Number(f(sku, F.sku_threshold));
-  if (Number.isFinite(thr) && thr > 0) return skuAvailable(sku) <= thr;
-  const flag = f(sku, F.sku_order_flag);
-  return !!(flag && String(flag).includes('order'));
-}
 
 // Resolve the Stock SKU behind an order row: prefer the explicit "Stock SKU"
 // link, fall back to matching on Item number so manually-typed orders that
@@ -4095,19 +4089,12 @@ function renderOrders() {
         if (da !== db) return db.localeCompare(da);
         return (f(a, F.order_item)||'').toLowerCase().localeCompare((f(b, F.order_item)||'').toLowerCase());
       }
-      // Within a status: low-stock auto-added first, then alphabetical
-      const sa = f(a, F.order_source) || '';
-      const sb = f(b, F.order_source) || '';
-      if (sa !== sb) {
-        if (sa.includes('Auto')) return -1;
-        if (sb.includes('Auto')) return 1;
-      }
       return (f(a, F.order_item)||'').toLowerCase().localeCompare((f(b, F.order_item)||'').toLowerCase());
     });
 
   if (!list.length) {
     const emptyMsg = currentOrderStatus === 'Needed'
-      ? `<div class="empty"><div class="icon">🛒</div>Nothing needs ordering<div style="margin-top:8px;font-size:13px;color:var(--text-faint);">Add manually with + Add to Needs List, or low-stock SKUs can be added from the Inventory tab.</div></div>`
+      ? `<div class="empty"><div class="icon">🛒</div>Nothing needs ordering<div style="margin-top:8px;font-size:13px;color:var(--text-faint);">Add manually with + Add to Needs List, or tap + Order on any SKU in the Inventory tab.</div></div>`
       : `<div class="empty"><div class="icon">📦</div>No ${currentOrderStatus.toLowerCase()} items</div>`;
     body.innerHTML = emptyMsg;
     return;
@@ -4617,7 +4604,7 @@ function describeExistingOrder(order) {
   return dateStr ? `${verb} ${dateStr}` : verb;
 }
 
-// One-tap helper: add a low-stock SKU to the order list as "Auto (low stock)"
+// One-tap helper: add a SKU to the Needs List
 async function addSkuToOrderList(skuId) {
   const sku = skus.find(s => s.id === skuId);
   if (!sku) return;
@@ -4627,11 +4614,6 @@ async function addSkuToOrderList(skuId) {
     alert(`Already on the Needs List (${describeExistingOrder(existing)}).`);
     return;
   }
-  // Source reflects WHY this is being added:
-  //  Auto (low stock) — the system flagged it via threshold and Tony tapped the warning button
-  //  Manual           — Tony added it ahead of need (not currently flagged)
-  const orderFlag = f(sku, F.sku_order_flag);
-  const isCurrentlyLow = orderFlag && String(orderFlag).includes('order');
   const fields = {
     'Item': f(sku, F.sku_name) || 'SKU',
     'Item number': f(sku, F.sku_itemnumber) || undefined,
@@ -4639,7 +4621,7 @@ async function addSkuToOrderList(skuId) {
     'Quantity': f(sku, F.sku_threshold) || 1,
     'Unit': f(sku, F.sku_unit) || undefined,
     'Status': 'Needed',
-    'Source': isCurrentlyLow ? 'Auto (low stock)' : 'Manual',
+    'Source': 'Manual',
     'Stock SKU': [skuId],
   };
   // Copy the SKU's Vendor link directly (cleaner than re-resolving by name).
@@ -4835,7 +4817,8 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
   });
   const onRigTabEarly = (currentInvLocation === RIG.field);
   // On the Rig tab, "Low stock only" means below the Rig minimum (the Monday rig-reset list).
-  if (lowOnly) filtered = filtered.filter(s => onRigTabEarly ? skuBelowRigMin(s) : skuIsLow(s));
+  if (lowOnly && onRigTabEarly) filtered = filtered.filter(s => skuBelowRigMin(s));
+  if (lowOnlyEl) lowOnlyEl.closest('label').style.display = onRigTabEarly ? '' : 'none';
   // The Archive tab is units-only — consumable SKUs are a running balance, not something
   // that gets retired, so no SKU cards there.
   const onArchiveTab = (currentInvLocation === 'archive');
@@ -4945,14 +4928,7 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     filtered = filtered.filter(s => (f(s, F.sku_type) || '').trim() === currentInvType);
   }
 
-  // Sort: low-stock SKUs first, then alphabetical within each group
-  filtered.sort((a,b) => {
-    const aLow = (() => { const fl=f(a,F.sku_order_flag); return fl && String(fl).includes('order'); })();
-    const bLow = (() => { const fl=f(b,F.sku_order_flag); return fl && String(fl).includes('order'); })();
-    if (aLow && !bLow) return -1;
-    if (!aLow && bLow) return 1;
-    return (f(a,F.sku_name)||'').localeCompare(f(b,F.sku_name)||'');
-  });
+  filtered.sort((a,b) => (f(a,F.sku_name)||'').localeCompare(f(b,F.sku_name)||''));
 
   // ── Equipment section: render on any specific location tab, OR on "All" when searching ──
   // The location + search filter has already been applied above (inScopeItems). Here we
@@ -5170,10 +5146,8 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     const name = f(sku,F.sku_name)||'Unnamed';
     const vendor = f(sku,F.sku_vendor)||'';
     const itemNumber = f(sku,F.sku_itemnumber)||'';
-    const threshold = f(sku,F.sku_threshold);
     const available = skuAvailable(sku); // shelf stock across all six storage locations
     const total = available;
-    const isLow = skuIsLow(sku);
 
     let locsHtml = '';
     SKU_LOCATIONS.forEach(loc => {
@@ -5189,11 +5163,11 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
     });
     if (!locsHtml) locsHtml = `<div style="font-size:12px;color:var(--text-faint);padding:4px 0;">No location counts set</div>`;
 
-    html += `<div class="inv-card${isLow?' low':''}">
+    html += `<div class="inv-card">
       <div class="inv-card-top">
         <div class="inv-card-title">
           <div class="inv-name">${name}</div>
-          <div class="inv-meta">${itemNumber?`<span style="font-weight:600;color:var(--text);">${escapeHtml(itemNumber)}</span> · `:''}${vendor||'—'}${threshold!=null?` · reorder &lt; ${threshold}`:''}</div>
+          <div class="inv-meta">${itemNumber?`<span style="font-weight:600;color:var(--text);">${escapeHtml(itemNumber)}</span> · `:''}${vendor||'—'}</div>
         </div>
         <div class="inv-card-right">
           ${(() => {
@@ -5201,9 +5175,6 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
             const onOrder = !!findOpenOrderForSku(sid);
             if (onOrder) {
               return `<span class="inv-low-badge" style="background:var(--accent-light);color:var(--accent-text);">✓ on Needs List</span>`;
-            }
-            if (isLow) {
-              return `<button class="inv-low-badge" onclick="event.stopPropagation();addSkuToOrderList('${sid}')" style="border:none;cursor:pointer;" title="Add to Needs List">⚠ + Order</button>`;
             }
             // Quiet add-to-order button for any SKU that isn't currently flagged or already on the list
             return `<button class="inv-low-badge" onclick="event.stopPropagation();addSkuToOrderList('${sid}')" style="background:var(--bg-soft,#f5f5f5);color:var(--text-muted);border:1px solid var(--border-strong);cursor:pointer;" title="Add to Needs List">+ Order</button>`;
