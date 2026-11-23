@@ -418,65 +418,12 @@
   </div>
 
   <nav>
-    <button class="active" onclick="showView('schedule')">📅 Schedule</button>
-    <button onclick="showView('loadlist')">📋 Load List</button>
+    <button class="active" onclick="showView('inventory')">📦 Inventory</button>
     <button onclick="showView('orders')">🛒 Orders</button>
     <button onclick="showView('jobs')">🏗 Jobs</button>
-    <button onclick="showView('inventory')">📦 Inventory</button>
   </nav>
 
   <div id="error-bar" class="error-bar" style="display:none"></div>
-
-  <div id="view-schedule" class="view active">
-    <div style="text-align:center;margin-bottom:10px;">
-      <button id="calview-month" class="calview-tab active" onclick="setCalView('month')">Month</button>
-      <button id="calview-agenda" class="calview-tab" onclick="setCalView('agenda')">Agenda</button>
-    </div>
-    <div class="cal-nav" id="cal-nav">
-      <button class="cal-arrow" onclick="changeMonth(-1)">‹</button>
-      <h2 id="cal-title"></h2>
-      <button class="cal-arrow" onclick="changeMonth(1)">›</button>
-    </div>
-    <div style="text-align:center;margin-bottom: 12px;">
-      <button class="btn-sm btn-sm-action" onclick="openNewJobModal()" style="padding: 5px 12px;font-size:12px;">+ New Job</button>
-      <button class="btn-sm" id="cal-import-btn" onclick="openCalImport()" style="display:none;padding:5px 12px;font-size:12px;margin-left:8px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);cursor:pointer;">📥 Import from Calendar</button>
-    </div>
-    <div id="cal-source-tabs" style="display:none;text-align:center;margin-bottom:8px;"></div>
-    <div style="text-align:center;margin-bottom:10px;">
-      <input id="sched-search" type="text" placeholder="🔍 Search jobs by name…" oninput="setScheduleSearch(this.value)" autocomplete="off" style="width:100%;max-width:320px;padding:7px 12px;font-size:13px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);box-sizing:border-box;">
-    </div>
-    <div class="loc-tabs" id="island-tabs-cal" style="display:none;margin-bottom:10px;"></div>
-    <div class="cal-grid" id="cal-labels"></div>
-    <div class="cal-grid" id="cal-body"></div>
-  </div>
-
-  <!-- IMPORT FROM CALENDAR MODAL -->
-  <div class="modal-bg" id="cal-import-modal" onclick="if(event.target===this)closeCalImport()">
-    <div class="modal" style="max-width:560px;max-height:82vh;overflow-y:auto;">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
-        <h3>Import from Calendar</h3>
-        <button class="detail-close" onclick="closeCalImport()" title="Close" style="margin-top:-4px;">×</button>
-      </div>
-      <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Upcoming jobs from your Google calendars that aren't on the schedule yet. Tap Add to review &amp; create — Doug's title, dates, address, and notes come pre-filled.</p>
-      <div id="cal-import-body"></div>
-    </div>
-  </div>
-
-  <div id="view-loadlist" class="view">
-    <div class="load-controls">
-      <label>Show jobs:</label>
-      <select id="load-window" onchange="renderLoadList()">
-        <option value="1">Today only</option>
-        <option value="2" selected>Next 2 days</option>
-        <option value="3">Next 3 days</option>
-        <option value="7">Next 7 days</option>
-        <option value="14">Next 2 weeks</option>
-        <option value="9999">All upcoming</option>
-        <option value="needs-closing">Needs closing</option>
-      </select>
-    </div>
-    <div id="loadlist-body"></div>
-  </div>
 
   <div id="view-orders" class="view">
     <div style="text-align:center;margin-bottom: 12px;">
@@ -496,7 +443,7 @@
     <div id="jobs-body"></div>
   </div>
 
-  <div id="view-inventory" class="view">
+  <div id="view-inventory" class="view active">
     <div class="inv-controls">
       <input type="text" id="inv-search" placeholder="Search inventory..." oninput="renderInventory()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
       <div class="inv-filter-row">
@@ -546,28 +493,16 @@
   </div>
 </div>
 
-<!-- MOVE JOB CONFIRM MODAL -->
-<div class="modal-bg" id="move-modal">
-  <div class="modal">
-    <h3 id="move-title">Move job?</h3>
-    <p id="move-msg"></p>
-    <div class="modal-btns">
-      <button class="btn-cancel" onclick="closeMoveModal()">Cancel</button>
-      <button class="btn-sm btn-sm-accent" onclick="confirmMove()" style="padding:10px 20px;">Move job</button>
-    </div>
-  </div>
-</div>
-
 <!-- NEW JOB MODAL -->
 <div class="modal-bg" id="new-job-modal" onclick="if(event.target===this)closeNewJobModal()">
   <div class="modal" style="max-width:520px;">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
-      <h3>Schedule new job</h3>
+      <h3>New job</h3>
       <button class="detail-close" onclick="closeNewJobModal()" title="Cancel" style="margin-top:-4px;">×</button>
     </div>
-    <p>Add a job to the schedule. You can update details, add items, and notes after creating.</p>
+    <p>Add a job so materials and equipment can be allocated to it. You can update details, add items, and notes after creating.</p>
     <div style="background:var(--accent-light,#E3EDF3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:14px;">
-      <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Paste from calendar <span style="font-weight:400;color:var(--text-faint);">(optional — auto-fills the fields below)</span></label>
+      <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Paste job info <span style="font-weight:400;color:var(--text-faint);">(optional — auto-fills the fields below)</span></label>
       <textarea id="nj-paste" rows="3" placeholder="Paste the whole job block here, then Parse…" style="width:100%;padding:8px 10px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:13px;outline:none;font-family:inherit;resize:vertical;box-sizing:border-box;"></textarea>
       <div style="text-align:right;margin-top:6px;"><button type="button" class="btn-sm btn-sm-accent" style="font-size:12px;padding:6px 12px;" onclick="parseJobPaste()">Parse &amp; fill &#8595;</button></div>
     </div>
@@ -582,37 +517,6 @@
         <input type="text" id="nj-contact" placeholder="Homeowner, GC, property mgr…" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
       </div>
       <div style="display:flex;gap:10px;">
-        <div style="flex:1;">
-          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Start date</label>
-          <input type="date" id="nj-start" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
-        </div>
-        <div style="flex:1;">
-          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">End date <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
-          <input type="date" id="nj-end" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
-        </div>
-        <div style="flex:1;">
-          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Start time <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
-          <input type="text" id="nj-time" placeholder="e.g. 3:00 PM" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;" />
-        </div>
-      </div>
-      <div style="display:flex;gap:10px;">
-        <div style="flex:1;">
-          <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Next phase</label>
-          <select id="nj-visit-type" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
-            <option value="">— None —</option>
-            <option value="Rough-In">Rough-In</option>
-            <option value="Trim-Out">Trim-Out</option>
-            <option value="Clean">Clean</option>
-            <option value="Service">Service</option>
-            <option value="Retrofit">Retrofit</option>
-            <option value="Fire-Up">Fire-Up</option>
-            <option value="DHP Install">DHP Install</option>
-            <option value="Ducting Install">Ducting Install</option>
-            <option value="Furnace Swap">Furnace Swap</option>
-            <option value="Punch-List">Punch-List</option>
-            <option value="Walk">Walk</option>
-          </select>
-        </div>
         <div style="flex:1;">
           <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:4px;">Type <span style="font-weight:400;color:var(--text-faint);">(optional)</span></label>
           <select id="nj-type" style="width:100%;padding:9px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:14px;outline:none;background:var(--surface);">
@@ -669,17 +573,6 @@
     <div class="modal-btns" style="margin-top:20px;">
       <button class="btn-cancel" onclick="closeNewJobModal()">Cancel</button>
       <button class="btn-sm btn-sm-accent" onclick="saveNewJob()" style="padding:10px 20px;">Create job</button>
-    </div>
-  </div>
-</div>
-
-<!-- DAY JOBS MODAL (when clicking +N more) -->
-<div class="modal-bg" id="day-jobs-modal">
-  <div class="modal" style="max-width:380px;">
-    <h3 id="day-jobs-title">Jobs</h3>
-    <div id="day-jobs-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px;"></div>
-    <div class="modal-btns">
-      <button class="btn-cancel" onclick="closeDayJobsModal()">Close</button>
     </div>
   </div>
 </div>
@@ -1090,28 +983,6 @@
   </div>
 </div>
 
-<!-- CLOSE OUT A VISIT whose date has passed -->
-<div class="modal-bg" id="close-visit-modal">
-  <div class="modal" style="max-width:460px;">
-    <h3>Close out <span id="cv-phase">this visit</span></h3>
-    <p id="cv-sub"></p>
-    <div id="cv-choices" style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
-      <button class="btn-sm btn-sm-accent" style="width:100%;padding:14px;text-align:left;" onclick="closeVisitAndTick()">
-        <span id="cv-tick-label">It happened — mark everything loaded</span><br>
-        <span style="font-weight:400;font-size:12px;opacity:0.85;">Ticks the items and takes their stock off the shelf, then closes the visit</span>
-      </button>
-      <button class="btn-sm" style="width:100%;padding:14px;text-align:left;background:var(--surface);border:1px solid var(--border-strong);" onclick="closeVisitOnly()">
-        Close without deducting<br>
-        <span style="font-weight:400;font-size:12px;opacity:0.85;">The material never left the shelf — counts stay as they are</span>
-      </button>
-    </div>
-    <div id="cv-error" style="display:none;color:var(--danger);font-size:13px;margin-top:14px;background:var(--danger-light);padding:8px 12px;border-radius:var(--radius-sm);"></div>
-    <div class="modal-btns" style="margin-top:16px;">
-      <button class="btn-cancel" onclick="closeCloseVisitModal()">Cancel</button>
-    </div>
-  </div>
-</div>
-
 <!-- OFFER TO COMPLETE once the last unit on a job is installed -->
 <div class="modal-bg" id="alldone-modal">
   <div class="modal" style="max-width:420px;">
@@ -1497,9 +1368,6 @@ const VENDORS_TBL = 'tblPI5nJ8s8T7qM7j';
 const ACCOUNTS_TBL = 'tblfJNtq425aFBkGU';
 const PROPERTIES_TBL = 'tblqcXsAEtmT19OYK';
 const UNITS_TBL = 'tblT4U3YI7YBnycwO';
-const VISITS_TBL = 'tblBuenCnGta2Tzp7';
-const DHP_CAL_TBL = 'tblXUqGsPT5NH7hsD';    // synced Google Calendar — DHP (installs)
-const DHPSVC_CAL_TBL = 'tbldVtJD01d2uIYFX'; // synced Google Calendar — DHP Service (routine service)
 
 const F = {
   job_name: 'Job label', job_type: 'Job type', job_status: 'Status',
@@ -1530,13 +1398,10 @@ const F = {
   order_received_date: 'Received date', order_received_location: 'Received location', order_received_qty: 'Received quantity',
 };
 
-let apiKey = '', jobs = [], items = [], skus = [], orders = [], vendors = [], accounts = [], properties = [], units = [], visits = [], calEvents = [];
-let pendingCalImport = null; // {eventId, source, penciled} while importing a calendar event via the New Job modal
+let apiKey = '', jobs = [], items = [], skus = [], orders = [], vendors = [], accounts = [], properties = [], units = [];
 let calSourceHidden = {};    // { 'DHP Service': true } → that calendar's jobs hidden on the Schedule
 let calView = 'month';       // 'month' grid or 'agenda' list
 let calShowDismissed = false; // reveal the dismissed section in the import panel
-let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
-let checkedLocally = {};
 let currentJobId = null, completeJobId = null;
 let showAddMat = false;
 // Job detail: whether the "previously installed" equipment roll-up is expanded. Collapsed by
@@ -1637,22 +1502,8 @@ async function syncData() {
   btn.classList.add('spinning');
   showError('');
   try {
-    const _r = await Promise.all([fetchAll(JOBS_TBL), fetchAll(ITEMS_TBL), fetchAll(SKUS_TBL), fetchAll(ORDERS_TBL), fetchAll(VENDORS_TBL), fetchAll(ACCOUNTS_TBL), fetchAll(PROPERTIES_TBL), fetchAll(UNITS_TBL), fetchAll(VISITS_TBL), fetchAll(DHP_CAL_TBL).catch(()=>[]), fetchAll(DHPSVC_CAL_TBL).catch(()=>[])]);
-    [jobs, items, skus, orders, vendors, accounts, properties, units, visits] = _r;
-    // Tag each synced calendar event with its source (transient property, not a stored field).
-    calEvents = (_r[9]||[]).map(e => (e._source = 'DHP', e)).concat((_r[10]||[]).map(e => (e._source = 'DHP Service', e)));
-    // Backfill the "Cal updated" baseline on imported visits that lack it, so change-detection has
-    // a reference point and pre-feature imports don't all flag as "changed" at once. Fire-and-forget.
-    (async () => {
-      const _byId = {}; calEvents.forEach(ev => { const id = f(ev, F.cal_eventid); if (id) _byId[id] = ev; });
-      for (const v of visits) {
-        if (f(v, F.visit_calupdated)) continue;
-        const gid = f(v, F.visit_gcal); if (!gid) continue;
-        const ev = _byId[gid]; if (!ev) continue;
-        const up = f(ev, F.cal_updated); if (!up) continue;
-        try { await patchRecord(VISITS_TBL, v.id, { 'Cal updated': up }); v.fields['Cal updated'] = up; } catch(e) {}
-      }
-    })();
+    const _r = await Promise.all([fetchAll(JOBS_TBL), fetchAll(ITEMS_TBL), fetchAll(SKUS_TBL), fetchAll(ORDERS_TBL), fetchAll(VENDORS_TBL), fetchAll(ACCOUNTS_TBL), fetchAll(PROPERTIES_TBL), fetchAll(UNITS_TBL)]);
+    [jobs, items, skus, orders, vendors, accounts, properties, units] = _r;
     // Denormalize: pull address/island from each job's linked Property into the job record
     const propById = {};
     properties.forEach(p => { propById[p.id] = p; });
@@ -1666,9 +1517,6 @@ async function syncData() {
         if (p['Island']) j.fields['Island'] = p['Island'];
       }
     });
-    // Fresh data from Airtable is now authoritative — drop any stale optimistic
-    // load-state overrides so the checkbox and location can't diverge.
-    checkedLocally = {};
     renderAll();
     document.getElementById('last-synced').textContent = 'Synced ' + new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
     if (currentJobId) renderDetailBody(currentJobId);
@@ -1709,451 +1557,8 @@ function typeToClass(phase) {
   return 'type-other';
 }
 
-function renderAll() { renderCalendar(); renderLoadList(); renderJobs(); renderInventory(); renderOrders(); }
+function renderAll() { renderJobs(); renderInventory(); renderOrders(); }
 
-// ── CALENDAR ──
-const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-
-function changeMonth(dir) {
-  calMonth += dir;
-  if (calMonth > 11) { calMonth=0; calYear++; }
-  if (calMonth < 0) { calMonth=11; calYear--; }
-  renderCalendar();
-}
-
-// ── CALENDAR DRAG-AND-DROP ──
-let dragState = null; // {jobId, fromDate, ghostEl, startX, startY, moved}
-let pendingMove = null; // {jobId, fromDate, toDate, jobName}
-let arrowHoverTimer = null;
-
-function attachCalendarDragHandlers() {
-  // DESKTOP: HTML5 drag-and-drop on .cal-event
-  document.querySelectorAll('#cal-body .cal-event').forEach(el => {
-    el.addEventListener('dragstart', onCalDragStart);
-    el.addEventListener('dragend', onCalDragEnd);
-    el.addEventListener('click', onCalEventClick);
-    // MOBILE: long-press touch
-    el.addEventListener('touchstart', onCalTouchStart, {passive: false});
-  });
-  document.querySelectorAll('#cal-body .cal-cell').forEach(el => {
-    el.addEventListener('dragover', onCalDragOver);
-    el.addEventListener('dragleave', onCalDragLeave);
-    el.addEventListener('drop', onCalDrop);
-  });
-  // Arrow drop-zones
-  document.querySelectorAll('.cal-arrow').forEach(el => {
-    el.addEventListener('dragover', onArrowDragOver);
-    el.addEventListener('dragleave', onArrowDragLeave);
-  });
-}
-
-function onCalEventClick(e) {
-  // Distinguish click from drag: if dragState says we moved, swallow the click
-  if (dragState && dragState.moved) { e.stopPropagation(); return; }
-  const jobId = e.currentTarget.dataset.jobId;
-  if (jobId) openDetail(jobId);
-}
-
-// ── DESKTOP DRAG ──
-function onCalDragStart(e) {
-  const el = e.currentTarget;
-  const jobId = el.dataset.jobId;
-  const visitId = el.dataset.visitId;
-  const fromDate = el.dataset.fromDate;
-  dragState = { jobId, visitId, fromDate, moved: false };
-  el.classList.add('dragging');
-  e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setData('text/plain', visitId);
-}
-
-function onCalDragEnd(e) {
-  e.currentTarget.classList.remove('dragging');
-  clearDropHighlights();
-  cancelArrowHover();
-  setTimeout(()=>{ dragState = null; }, 50); // let click handler check moved flag
-}
-
-function onCalDragOver(e) {
-  if (!dragState) return;
-  e.preventDefault();
-  dragState.moved = true;
-  const cell = e.currentTarget;
-  const isPast = cell.dataset.past === '1';
-  const toDate = cell.dataset.date;
-  const sameDay = toDate === dragState.fromDate;
-  clearDropHighlights();
-  if (sameDay) return; // no highlight for same day
-  if (isPast) {
-    cell.classList.add('drop-invalid');
-    e.dataTransfer.dropEffect = 'none';
-  } else {
-    cell.classList.add('drop-valid');
-    e.dataTransfer.dropEffect = 'move';
-  }
-}
-
-function onCalDragLeave(e) {
-  e.currentTarget.classList.remove('drop-valid', 'drop-invalid');
-}
-
-function onCalDrop(e) {
-  e.preventDefault();
-  const cell = e.currentTarget;
-  cell.classList.remove('drop-valid', 'drop-invalid');
-  if (!dragState) return;
-  const isPast = cell.dataset.past === '1';
-  const toDate = cell.dataset.date;
-  if (isPast) return;
-  if (toDate === dragState.fromDate) return;
-  promptMove(dragState.visitId, dragState.fromDate, toDate);
-}
-
-function onArrowDragOver(e) {
-  if (!dragState) return;
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-  const arrow = e.currentTarget;
-  if (arrow.classList.contains('drop-armed')) return;
-  arrow.classList.add('drop-armed');
-  if (arrowHoverTimer) clearTimeout(arrowHoverTimer);
-  const dir = arrow.textContent.includes('›') ? 1 : -1;
-  arrowHoverTimer = setTimeout(() => {
-    changeMonth(dir);
-    arrow.classList.remove('drop-armed');
-    arrowHoverTimer = null;
-  }, 600);
-}
-
-function onArrowDragLeave(e) {
-  e.currentTarget.classList.remove('drop-armed');
-  if (arrowHoverTimer) { clearTimeout(arrowHoverTimer); arrowHoverTimer = null; }
-}
-
-function cancelArrowHover() {
-  document.querySelectorAll('.cal-arrow.drop-armed').forEach(a=>a.classList.remove('drop-armed'));
-  if (arrowHoverTimer) { clearTimeout(arrowHoverTimer); arrowHoverTimer = null; }
-}
-
-function clearDropHighlights() {
-  document.querySelectorAll('.cal-cell.drop-valid, .cal-cell.drop-invalid').forEach(c=>c.classList.remove('drop-valid','drop-invalid'));
-}
-
-// ── MOBILE TOUCH (long-press to pick up) ──
-let touchTimer = null;
-let touchEl = null;
-
-function onCalTouchStart(e) {
-  if (e.touches.length !== 1) return;
-  touchEl = e.currentTarget;
-  const touch = e.touches[0];
-  const startX = touch.clientX, startY = touch.clientY;
-  const startTime = Date.now();
-  const jobId = touchEl.dataset.jobId;
-  const visitId = touchEl.dataset.visitId;
-  const fromDate = touchEl.dataset.fromDate;
-  let tapCancelled = false;
-  touchTimer = setTimeout(() => {
-    // Activated long-press: start drag
-    if (navigator.vibrate) navigator.vibrate(30);
-    dragState = { jobId, visitId, fromDate, moved: true, ghostEl: null, isTouch: true };
-    const ghost = document.createElement('div');
-    ghost.className = 'cal-event-ghost';
-    ghost.textContent = touchEl.textContent;
-    ghost.style.left = startX + 'px';
-    ghost.style.top = startY + 'px';
-    document.body.appendChild(ghost);
-    dragState.ghostEl = ghost;
-    touchEl.classList.add('dragging');
-    document.addEventListener('touchmove', onCalTouchMove, {passive: false});
-    document.addEventListener('touchend', onCalTouchEnd);
-    document.addEventListener('touchcancel', onCalTouchEnd);
-    touchTimer = null;
-  }, 450);
-  // If user moves substantially before long-press triggers, cancel timer (treat as scroll/click)
-  const cancelOnMove = (mv) => {
-    const t2 = mv.touches[0];
-    if (Math.abs(t2.clientX-startX) > 15 || Math.abs(t2.clientY-startY) > 15) {
-      if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; }
-      tapCancelled = true;
-      document.removeEventListener('touchmove', cancelOnMove);
-    }
-  };
-  document.addEventListener('touchmove', cancelOnMove, {passive: true, once: false});
-  // If user releases before long-press fires AND didn't move, treat as a tap
-  // and open the detail panel.
-  const onQuickTap = () => {
-    document.removeEventListener('touchmove', cancelOnMove);
-    document.removeEventListener('touchend', onQuickTap);
-    if (touchTimer) {
-      clearTimeout(touchTimer);
-      touchTimer = null;
-      if (!tapCancelled && (Date.now() - startTime) < 450) {
-        // It's a tap → open the job detail. setTimeout to let the click event fire naturally
-        // (we don't preventDefault, so the normal click-to-openDetail handler should run)
-      }
-    }
-  };
-  document.addEventListener('touchend', onQuickTap, {once: true});
-}
-
-function onCalTouchMove(e) {
-  if (!dragState || !dragState.isTouch) return;
-  e.preventDefault();
-  const touch = e.touches[0];
-  if (dragState.ghostEl) {
-    dragState.ghostEl.style.left = touch.clientX + 'px';
-    dragState.ghostEl.style.top = touch.clientY + 'px';
-  }
-  // Find element under finger
-  if (dragState.ghostEl) dragState.ghostEl.style.display = 'none';
-  const under = document.elementFromPoint(touch.clientX, touch.clientY);
-  if (dragState.ghostEl) dragState.ghostEl.style.display = '';
-  clearDropHighlights();
-  cancelArrowHoverIfNotOver(under);
-  if (!under) return;
-  const cell = under.closest('.cal-cell');
-  if (cell) {
-    const isPast = cell.dataset.past === '1';
-    const toDate = cell.dataset.date;
-    if (toDate !== dragState.fromDate) {
-      cell.classList.add(isPast ? 'drop-invalid' : 'drop-valid');
-    }
-    return;
-  }
-  const arrow = under.closest('.cal-arrow');
-  if (arrow && !arrow.classList.contains('drop-armed')) {
-    arrow.classList.add('drop-armed');
-    if (arrowHoverTimer) clearTimeout(arrowHoverTimer);
-    const dir = arrow.textContent.includes('›') ? 1 : -1;
-    arrowHoverTimer = setTimeout(() => {
-      changeMonth(dir);
-      arrow.classList.remove('drop-armed');
-      arrowHoverTimer = null;
-    }, 600);
-  }
-}
-
-function cancelArrowHoverIfNotOver(under) {
-  document.querySelectorAll('.cal-arrow.drop-armed').forEach(a => {
-    if (!under || !under.closest('.cal-arrow') || under.closest('.cal-arrow') !== a) {
-      a.classList.remove('drop-armed');
-      if (arrowHoverTimer) { clearTimeout(arrowHoverTimer); arrowHoverTimer = null; }
-    }
-  });
-}
-
-function onCalTouchEnd(e) {
-  if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; }
-  document.removeEventListener('touchmove', onCalTouchMove);
-  document.removeEventListener('touchend', onCalTouchEnd);
-  document.removeEventListener('touchcancel', onCalTouchEnd);
-  if (!dragState || !dragState.isTouch) { touchEl = null; return; }
-  const touch = e.changedTouches[0];
-  if (dragState.ghostEl) dragState.ghostEl.style.display = 'none';
-  const under = touch ? document.elementFromPoint(touch.clientX, touch.clientY) : null;
-  if (dragState.ghostEl) { dragState.ghostEl.remove(); dragState.ghostEl = null; }
-  if (touchEl) touchEl.classList.remove('dragging');
-  clearDropHighlights();
-  cancelArrowHover();
-  let droppedOnValidCell = false;
-  if (under) {
-    const cell = under.closest('.cal-cell');
-    if (cell && cell.dataset.past !== '1' && cell.dataset.date !== dragState.fromDate) {
-      droppedOnValidCell = true;
-      promptMove(dragState.visitId, dragState.fromDate, cell.dataset.date);
-    }
-  }
-  touchEl = null;
-  dragState = null;
-}
-
-// ── MOVE CONFIRM MODAL ──
-function promptMove(visitId, fromDate, toDate) {
-  const visit = visits.find(v=>v.id===visitId);
-  if (!visit) return;
-  const job = visitJob(visit);
-  const jobName = job ? (f(job,F.job_name) || 'Job') : 'Visit';
-  const startDate = f(visit, F.visit_date);
-  const endDate = f(visit, F.visit_end) || startDate;
-  const isMultiDay = endDate && endDate !== startDate;
-  // Compute the delta in days between fromDate (where they grabbed) and toDate
-  const fromD = parseDate(fromDate), toD = parseDate(toDate);
-  const deltaDays = Math.round((toD - fromD) / 86400000);
-  // New start = current start + delta, new end = current end + delta
-  const sd = parseDate(startDate);
-  const newStart = new Date(sd.getTime() + deltaDays * 86400000);
-  const newStartStr = ymd(newStart.getFullYear(), newStart.getMonth(), newStart.getDate());
-  let newEndStr = null;
-  if (isMultiDay) {
-    const ed = parseDate(endDate);
-    const newEnd = new Date(ed.getTime() + deltaDays * 86400000);
-    newEndStr = ymd(newEnd.getFullYear(), newEnd.getMonth(), newEnd.getDate());
-  }
-  // Block move if new start would be in the past
-  const t = today0();
-  if (newStart < t) {
-    // Drag was to a past date for the start — should be impossible via UI, but safeguard
-    return;
-  }
-  pendingMove = { visitId, newStart: newStartStr, newEnd: newEndStr, jobName };
-  document.getElementById('move-title').textContent = `Move ${jobName}?`;
-  let msg;
-  if (isMultiDay) {
-    msg = `From ${fmtDate(startDate)}–${fmtDate(endDate)} → ${fmtDate(newStartStr)}–${fmtDate(newEndStr)}`;
-  } else {
-    msg = `From ${fmtDate(startDate)} → ${fmtDate(newStartStr)}`;
-  }
-  document.getElementById('move-msg').textContent = msg;
-  document.getElementById('move-modal').classList.add('open');
-}
-
-function closeMoveModal() {
-  document.getElementById('move-modal').classList.remove('open');
-  pendingMove = null;
-}
-
-async function confirmMove() {
-  if (!pendingMove) return;
-  const { visitId, newStart, newEnd } = pendingMove;
-  try {
-    const updates = { 'Date': newStart };
-    if (newEnd) updates['End date'] = newEnd;
-    await patchRecord(VISITS_TBL, visitId, updates);
-    const visit = visits.find(v=>v.id===visitId);
-    if (visit) {
-      visit.fields['Date'] = newStart;
-      if (newEnd) visit.fields['End date'] = newEnd;
-    }
-    closeMoveModal();
-    renderCalendar();
-    renderLoadList();
-    renderJobs();
-  } catch(e) {
-    alert('Could not move visit. Check your connection.');
-    closeMoveModal();
-  }
-}
-
-function ymd(y, m, d) {
-  return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-}
-
-// Returns array of {date: 'YYYY-MM-DD', isStart, isEnd, isMid} for each day the job spans
-function jobSpanDates(job) {
-  const start = f(job, F.job_next_date);
-  if (!start) return [];
-  const end = f(job, F.job_end_date) || start;
-  const sd = parseDate(start), ed = parseDate(end);
-  if (!sd || !ed || ed < sd) return [{ date: start, isStart: true, isEnd: true }];
-  const dates = [];
-  const cur = new Date(sd.getTime());
-  while (cur <= ed) {
-    const ds = ymd(cur.getFullYear(), cur.getMonth(), cur.getDate());
-    dates.push({
-      date: ds,
-      isStart: ds === start,
-      isEnd: ymd(cur.getFullYear(), cur.getMonth(), cur.getDate()) === ymd(ed.getFullYear(), ed.getMonth(), ed.getDate()),
-    });
-    cur.setDate(cur.getDate() + 1);
-  }
-  // Mark mid days
-  dates.forEach(d => { if (!d.isStart && !d.isEnd) d.isMid = true; });
-  return dates;
-}
-
-function visitJobId(v){ const l=f(v,F.visit_job); return (Array.isArray(l)&&l.length)?(typeof l[0]==='string'?l[0]:(l[0]&&l[0].id)):null; }
-function visitJob(v){ const id=visitJobId(v); return id?jobs.find(j=>j.id===id):null; }
-// day-span for a visit (mirrors jobSpanDates but reads visit Date/End date)
-function visitSpanDates(v){
-  const start=f(v,F.visit_date); if(!start) return [];
-  const end=f(v,F.visit_end)||start;
-  const sd=parseDate(start), ed=parseDate(end);
-  if(!sd||!ed||ed<sd) return [{date:start,isStart:true,isEnd:true}];
-  const dates=[]; const cur=new Date(sd.getTime());
-  while(cur<=ed){ const ds=ymd(cur.getFullYear(),cur.getMonth(),cur.getDate());
-    dates.push({date:ds,isStart:ds===start,isEnd:ymd(cur.getFullYear(),cur.getMonth(),cur.getDate())===ymd(ed.getFullYear(),ed.getMonth(),ed.getDate())});
-    cur.setDate(cur.getDate()+1); }
-  dates.forEach(d=>{if(!d.isStart&&!d.isEnd)d.isMid=true;});
-  return dates;
-}
-
-// ── GOOGLE CALENDAR IMPORT ───────────────────────────────────────────────────
-const CAL_SOURCES = ['DHP','DHP Service'];
-const CAL_ISLANDS = [['lopez','Lopez'],['orcas','Orcas'],['eastsound','Orcas'],['san juan','San Juan'],['friday harbor','San Juan'],['\\bfh\\b','San Juan'],['shaw','Shaw'],['decatur','Decatur']];
-const CAL_PHASES = [['rough','Rough-In'],['trim','Trim-Out'],['fire','Fire-Up'],['retrofit','Retrofit'],['furnace','Furnace Swap'],['punch','Punch-List'],['ducting','Ducting Install'],['measure','Walk'],['walk','Walk'],['quilt','DHP Install'],['install','DHP Install'],['\\bdhp\\b','DHP Install'],['clean','Clean'],['filter','Service'],['inspection','Service'],['service','Service'],['troubleshoot','Service'],['stat','Service']];
-// Titles that are NOT customer jobs — team ops, time off, logistics.
-const CAL_NOISE = /\b(out|away|off|birthday|sageaversary|meeting|consult|training|recycling|dumpster|delivery|holiday|gensco|vacation|pto)\b/i;
-
-// Local (Pacific) YYYY-MM-DD for a synced dateTime ISO string.
-function calLocalDate(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (isNaN(d)) return '';
-  return d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
-}
-function stripHtml(s) {
-  if (!s) return '';
-  return String(s).replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,'').replace(/&nbsp;/gi,' ')
-    .replace(/&amp;/gi,'&').replace(/&quot;/gi,'"').replace(/&#39;/gi,"'").replace(/&gt;/gi,'>').replace(/&lt;/gi,'<')
-    .replace(/\n{3,}/g,'\n\n').trim();
-}
-// Turn a synced calendar event into a pre-filled job guess.
-function parseCalEvent(ev) {
-  const rawTitle = (f(ev, F.cal_title) || '').trim();
-  const penciled = /^\s*\?/.test(rawTitle);
-  const title = rawTitle.replace(/^\s*\?\s*/, '').trim();
-  const startDate = calLocalDate(f(ev, F.cal_start));
-  let endDate = calLocalDate(f(ev, F.cal_end));
-  if (!endDate || endDate < startDate) endDate = startDate;
-  // Time-of-day for timed (non-all-day) events, in Pacific.
-  const allDay = f(ev, F.cal_allday) === true;
-  let startTime = '';
-  if (!allDay) {
-    const _sd = new Date(f(ev, F.cal_start));
-    if (!isNaN(_sd)) startTime = _sd.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' });
-  }
-  const address = f(ev, F.cal_loc) || '';
-  const notes = stripHtml(f(ev, F.cal_desc) || '');
-  const eventId = f(ev, F.cal_eventid) || '';
-  const source = ev._source || '';
-  const tl = title.toLowerCase();
-  let phase = '';
-  for (const [kw, ph] of CAL_PHASES) { if (new RegExp(kw).test(tl)) { phase = ph; break; } }
-  let island = '';
-  const hay = (title + ' ' + address).toLowerCase();
-  for (const [kw, isl] of CAL_ISLANDS) { if (new RegExp(kw).test(hay)) { island = isl; break; } }
-  // Customer: prefer "Last, First" (optionally "& Second"); else text up to the first phase keyword / separator.
-  let customer = '';
-  const lf = title.match(/^([A-Z][A-Za-z'.\-]+(?:\s+[A-Z][A-Za-z'.\-]+)?,\s*[A-Z][A-Za-z'.\-]+(?:\s*&\s*[A-Z][A-Za-z'.\-]+)?)/);
-  if (lf) { customer = lf[1].trim(); }
-  else {
-    let cut = title.length;
-    for (const [kw] of CAL_PHASES) { const m = tl.search(new RegExp(kw)); if (m > 0 && m < cut) cut = m; }
-    const sepM = title.search(/\s[-:]/); if (sepM > 0 && sepM < cut) cut = sepM;
-    customer = title.slice(0, cut).replace(/[\s,\-:]+$/,'').trim();
-  }
-  if (!customer) customer = title;
-  const multiDay = endDate && endDate !== startDate;
-  const updated = f(ev, F.cal_updated) || '';
-  return { eventId, source, penciled, customer, phase, island, startDate, endDate: multiDay ? endDate : '', startTime, address, notes, rawTitle, title, updated };
-}
-// Is this event a real customer job (vs time off / meeting / logistics)?
-function isCalJob(ev) {
-  const rawTitle = (f(ev, F.cal_title) || '').trim();
-  if (!rawTitle) return false;
-  const title = rawTitle.replace(/^\s*\?\s*/, '');
-  if (CAL_NOISE.test(title)) return false;
-  const hasAddr = !!(f(ev, F.cal_loc) || '').trim();
-  const p = parseCalEvent(ev);
-  const lastFirst = /^[A-Z][A-Za-z'.\-]+.*,\s*[A-Z]/.test(title);
-  return hasAddr || !!p.phase || lastFirst;
-}
-function importedEventIds() {
-  const s = new Set();
-  visits.forEach(v => { const id = f(v, F.visit_gcal); if (id) s.add(id); });
-  return s;
-}
 // Canonical form of a customer/job name so "Hobi, Mike" and "Mike Hobi" match.
 // Lowercase, drop parentheticals/punctuation, treat & as a separator, then sort the tokens.
 function normName(s) {
@@ -2164,575 +1569,6 @@ function normName(s) {
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/).filter(Boolean)
     .sort().join(' ');
-}
-function appJobNames() {
-  const s = new Set();
-  jobs.forEach(j => { const n = normName(f(j, F.job_name)); if (n) s.add(n); });
-  return s;
-}
-// Importable list: job-like, not already imported, starting within [today, today+horizon].
-// The horizon keeps recurring service instances (which sync out to 2028) from flooding the
-// list — far-future jobs simply appear as they come within the window on later syncs.
-const CAL_IMPORT_HORIZON_DAYS = 120;
-function calImportables() {
-  const todayStr = calLocalDate(new Date().toISOString());
-  const _h = new Date(); _h.setDate(_h.getDate() + CAL_IMPORT_HORIZON_DAYS);
-  const horizonStr = calLocalDate(_h.toISOString());
-  const done = importedEventIds();
-  const out = [];
-  calEvents.forEach(ev => {
-    const id = f(ev, F.cal_eventid) || '';
-    if (id && done.has(id)) return;
-    if (f(ev, F.cal_dismissed) === true) return; // dismissed from the import list
-    if (!isCalJob(ev)) return;
-    const p = parseCalEvent(ev);
-    if (!p.startDate || p.startDate < todayStr || p.startDate > horizonStr) return;
-    p.recId = ev.id;
-    p.srcTable = ev._source === 'DHP Service' ? DHPSVC_CAL_TBL : DHP_CAL_TBL;
-    out.push(p);
-  });
-  out.sort((a,b) => a.startDate < b.startDate ? -1 : a.startDate > b.startDate ? 1 : a.customer.localeCompare(b.customer));
-  return out;
-}
-function updateCalImportBtn() {
-  const btn = document.getElementById('cal-import-btn');
-  if (!btn) return;
-  if (!calEvents.length) { btn.style.display = 'none'; return; }
-  const n = calImportables().length + calChangedList().length;
-  btn.style.display = '';
-  btn.textContent = `📥 Import from Calendar${n ? ' (' + n + ')' : ''}`;
-}
-// Per-calendar show/hide checkboxes (only for calendars that have imported visits).
-function renderCalSourceTabs() {
-  const el = document.getElementById('cal-source-tabs');
-  if (!el) return;
-  // "DHP" = installs — everything app-created (blank source) OR imported from the DHP calendar.
-  // "DHP Service" = imported routine service. Row appears only when both exist (so there's something to separate).
-  const svcPresent = visits.some(v => f(v, F.visit_source) === 'DHP Service');
-  const dhpPresent = visits.some(v => visitJob(v) && f(v, F.visit_source) !== 'DHP Service');
-  const groups = [];
-  if (dhpPresent) groups.push('DHP');
-  if (svcPresent) groups.push('DHP Service');
-  if (groups.length < 2) { el.style.display = 'none'; el.innerHTML = ''; return; }
-  el.style.display = '';
-  el.innerHTML = '<span style="font-size:11px;color:var(--text-faint);margin-right:4px;">Show:</span>' + groups.map(s =>
-    `<label style="font-size:12px;color:var(--text-muted);margin:0 8px;cursor:pointer;white-space:nowrap;"><input type="checkbox" ${calSourceHidden[s]?'':'checked'} onchange="toggleCalSource('${s.replace(/'/g,"\\'")}')" style="vertical-align:middle;margin-right:3px;" />${escapeHtml(s)}</label>`
-  ).join('');
-}
-function toggleCalSource(src) { calSourceHidden[src] = !calSourceHidden[src]; renderCalendar(); }
-function openCalImport() { renderCalImport(); document.getElementById('cal-import-modal').classList.add('open'); }
-function closeCalImport() { document.getElementById('cal-import-modal').classList.remove('open'); }
-function renderCalImport() {
-  const body = document.getElementById('cal-import-body');
-  if (!body) return;
-  const list = calImportables();
-  const dismissed = calDismissedList();
-  const names = appJobNames();
-  window._calImportCache = {};
-  const rowHtml = (p, isDismissed) => {
-    window._calImportCache[p.eventId] = p;
-    const dupe = names.has(normName(p.customer));
-    const dateStr = fmtDate(p.startDate) + (p.endDate ? ' – ' + fmtDate(p.endDate) : '') + (p.startTime ? ' · ' + p.startTime : '');
-    const bits = [p.phase, p.island].filter(Boolean).join(' · ');
-    const badge = p.penciled
-      ? `<span style="font-size:10px;font-weight:600;color:var(--text-muted);border:1px dashed var(--text-muted);border-radius:99px;padding:1px 7px;">Penciled</span>`
-      : `<span style="font-size:10px;font-weight:600;color:white;background:var(--accent);border-radius:99px;padding:1px 7px;">Firm</span>`;
-    const eid = (p.eventId||'').replace(/'/g,"\\'");
-    const actions = isDismissed
-      ? `<button class="btn-sm btn-sm-ghost" style="font-size:12px;padding:5px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);" onclick="calImportRestore('${eid}')">↺ Restore</button>`
-      : `<button class="btn-sm btn-sm-accent" style="font-size:12px;padding:5px 12px;" onclick="calImportAdd('${eid}')">+ Add</button>
-         <button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:2px 8px;color:var(--text-faint);" onclick="calImportDismiss('${eid}')" title="Remove from this list — does NOT delete the Google event">Dismiss</button>`;
-    return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;${isDismissed?'opacity:0.7;':''}">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
-        <div style="min-width:0;flex:1;">
-          <div style="font-weight:600;font-size:14px;">${escapeHtml(p.customer||p.title)}${dupe?' <span style="font-size:10px;color:var(--warn);font-weight:600;">· already in app</span>':''}</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${escapeHtml(dateStr)}${bits?' · '+escapeHtml(bits):''}</div>
-          ${p.address?`<div style="font-size:11px;color:var(--text-faint);margin-top:2px;">${escapeHtml(p.address)}</div>`:''}
-          <div style="font-size:11px;color:var(--text-faint);margin-top:3px;font-style:italic;">“${escapeHtml(p.rawTitle)}”</div>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none;">
-          <div style="display:flex;gap:5px;align-items:center;">${badge}<span style="font-size:10px;color:var(--text-faint);">${escapeHtml(p.source)}</span></div>
-          ${actions}
-        </div>
-      </div>
-    </div>`;
-  };
-  const changed = calChangedList();
-  window._calChangeCache = {};
-  let html = '';
-  if (changed.length) {
-    html += `<div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--warn);margin:2px 0 6px;">Changed on calendar</div>`;
-    html += changed.map(c => {
-      window._calChangeCache[c.visitId] = c;
-      return `<div style="border:1px solid var(--warn);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
-          <div style="min-width:0;flex:1;">
-            <div style="font-weight:600;font-size:14px;">${escapeHtml(c.name)}</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${c.changes.map(x => escapeHtml(x)).join(' · ')}</div>
-          </div>
-          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none;">
-            <button class="btn-sm btn-sm-accent" style="font-size:12px;padding:5px 12px;" onclick="calChangeApply('${c.visitId}')">Apply</button>
-            <button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:2px 8px;color:var(--text-faint);" onclick="calChangeKeep('${c.visitId}')" title="Keep the app version, ignore this change">Keep mine</button>
-          </div>
-        </div>
-      </div>`;
-    }).join('');
-  }
-  if (list.length) {
-    if (changed.length) html += `<div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint);margin:12px 0 6px;">New to import</div>`;
-    html += list.map(p => rowHtml(p, false)).join('');
-  } else if (!changed.length) {
-    html += `<div style="font-size:13px;color:var(--text-faint);padding:14px 0;">Nothing new to import — you're all caught up.</div>`;
-  }
-  if (dismissed.length) {
-    html += `<div style="text-align:center;margin-top:12px;"><a onclick="toggleShowDismissed()" style="font-size:12px;color:var(--text-faint);cursor:pointer;text-decoration:underline;">${calShowDismissed?'Hide':'Show'} ${dismissed.length} dismissed</a></div>`;
-    if (calShowDismissed) {
-      html += `<div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint);margin:12px 0 6px;">Dismissed</div>`;
-      html += dismissed.map(p => rowHtml(p, true)).join('');
-    }
-  }
-  body.innerHTML = html;
-}
-function toggleShowDismissed() { calShowDismissed = !calShowDismissed; renderCalImport(); }
-// Imported visits whose Google event was edited (Updated timestamp moved) since import.
-function calChangedList() {
-  const byId = {};
-  calEvents.forEach(ev => { const id = f(ev, F.cal_eventid); if (id) byId[id] = ev; });
-  const out = [];
-  visits.forEach(v => {
-    const gid = f(v, F.visit_gcal); if (!gid) return;
-    const ev = byId[gid]; if (!ev) return;
-    const stored = f(v, F.visit_calupdated) || '';
-    const cur = f(ev, F.cal_updated) || '';
-    if (!stored || !cur || cur === stored) return; // no baseline (not yet detectable) or unchanged
-    const p = parseCalEvent(ev);
-    const changes = [];
-    const vDate = f(v, F.visit_date) || '';
-    if (p.startDate && p.startDate !== vDate) changes.push(`date ${vDate ? fmtDate(vDate) : '—'} → ${fmtDate(p.startDate)}`);
-    if ((p.endDate || '') !== (f(v, F.visit_end) || '')) changes.push(p.endDate ? `ends ${fmtDate(p.endDate)}` : 'end cleared');
-    const wasFirm = (f(v, F.visit_sched) || '').toLowerCase() === 'firm';
-    if (wasFirm !== !p.penciled) changes.push(!p.penciled ? 'now Firm' : 'now Penciled');
-    if (p.phase && p.phase !== (f(v, F.visit_phase) || '')) changes.push(`phase → ${p.phase}`);
-    if ((p.startTime || '') !== (f(v, F.visit_time) || '')) changes.push(p.startTime ? `time → ${p.startTime}` : 'time cleared');
-    if (!changes.length) return; // only untracked fields changed (notes, etc.) — nothing to apply
-    out.push({ visitId: v.id, name: f(visitJob(v), F.job_name) || 'Job', p, changes, cur });
-  });
-  return out;
-}
-async function calChangeApply(visitId) {
-  const c = (window._calChangeCache || {})[visitId];
-  if (!c) return;
-  const p = c.p;
-  const updates = { 'Cal updated': c.cur };
-  if (p.startDate) updates['Date'] = p.startDate;
-  updates['End date'] = p.endDate || null;
-  if (p.phase) updates['Phase'] = p.phase;
-  updates['Schedule status'] = p.penciled ? null : 'Firm';
-  updates['Start time'] = p.startTime || null;
-  try {
-    await patchRecord(VISITS_TBL, visitId, updates);
-    const v = visits.find(x => x.id === visitId);
-    if (v) Object.keys(updates).forEach(k => { v.fields[k] = (updates[k] === null ? undefined : updates[k]); });
-    renderCalImport(); renderCalendar();
-  } catch(e) { alert('Could not apply the change. Check your connection.'); }
-}
-async function calChangeKeep(visitId) {
-  const c = (window._calChangeCache || {})[visitId];
-  if (!c) return;
-  try {
-    await patchRecord(VISITS_TBL, visitId, { 'Cal updated': c.cur });
-    const v = visits.find(x => x.id === visitId);
-    if (v) v.fields['Cal updated'] = c.cur;
-    renderCalImport();
-  } catch(e) { alert('Could not update. Check your connection.'); }
-}
-async function calImportRestore(eventId) {
-  const p = (window._calImportCache||{})[eventId];
-  if (!p || !p.recId) return;
-  try {
-    await patchRecord(p.srcTable, p.recId, { 'Dismissed': false });
-    const ev = calEvents.find(e => e.id === p.recId);
-    if (ev && ev.fields) ev.fields['Dismissed'] = false;
-    renderCalImport();
-    updateCalImportBtn();
-  } catch(e) { alert('Could not restore. Check your connection.'); }
-}
-// Dismissed events (still job-like + upcoming), for the Restore list.
-function calDismissedList() {
-  const todayStr = calLocalDate(new Date().toISOString());
-  const _h = new Date(); _h.setDate(_h.getDate() + CAL_IMPORT_HORIZON_DAYS);
-  const horizonStr = calLocalDate(_h.toISOString());
-  const done = importedEventIds();
-  const out = [];
-  calEvents.forEach(ev => {
-    if (f(ev, F.cal_dismissed) !== true) return;
-    const id = f(ev, F.cal_eventid) || '';
-    if (id && done.has(id)) return;
-    if (!isCalJob(ev)) return;
-    const p = parseCalEvent(ev);
-    if (!p.startDate || p.startDate < todayStr || p.startDate > horizonStr) return;
-    p.recId = ev.id;
-    p.srcTable = ev._source === 'DHP Service' ? DHPSVC_CAL_TBL : DHP_CAL_TBL;
-    out.push(p);
-  });
-  out.sort((a, b) => a.startDate < b.startDate ? -1 : a.startDate > b.startDate ? 1 : a.customer.localeCompare(b.customer));
-  return out;
-}
-function calImportAdd(eventId) {
-  const p = (window._calImportCache||{})[eventId];
-  if (!p) return;
-  pendingCalImport = { eventId: p.eventId, source: p.source, penciled: p.penciled, startTime: p.startTime, updated: p.updated };
-  closeCalImport();
-  openNewJobModal({ name: p.customer, start: p.startDate, end: p.endDate, startTime: p.startTime, island: p.island, visitType: p.phase, address: p.address, notes: p.notes });
-}
-// Dismiss: flag the synced event (not delete — the sync would just re-create it) so it
-// leaves the import list. The Google Calendar event is untouched.
-async function calImportDismiss(eventId) {
-  const p = (window._calImportCache||{})[eventId];
-  if (!p || !p.recId) return;
-  try {
-    await patchRecord(p.srcTable, p.recId, { 'Dismissed': true });
-    const ev = calEvents.find(e => e.id === p.recId);
-    if (ev) { ev.fields = ev.fields || {}; ev.fields['Dismissed'] = true; }
-    renderCalImport();
-    updateCalImportBtn();
-  } catch(e) { alert('Could not dismiss. Check your connection.'); }
-}
-
-function setCalView(v) { calView = v; renderCalendar(); }
-function updateCalViewToggle() {
-  const m = document.getElementById('calview-month'), a = document.getElementById('calview-agenda'), nav = document.getElementById('cal-nav');
-  if (m) m.classList.toggle('active', calView === 'month');
-  if (a) a.classList.toggle('active', calView === 'agenda');
-  if (nav) nav.style.display = calView === 'agenda' ? 'none' : '';
-}
-// Agenda (list) view — upcoming visits grouped by date, respecting the island + calendar filters.
-function renderAgenda() {
-  const body = document.getElementById('cal-body');
-  const labels = document.getElementById('cal-labels');
-  if (labels) labels.innerHTML = '';
-  const title = document.getElementById('cal-title'); if (title) title.textContent = 'Upcoming';
-  const t = today0();
-  const rows = [];
-  visits.forEach(v => {
-    const job = visitJob(v); if (!job) return;
-    if (f(v, F.visit_complete) === true) return;
-    const vsrc = (f(v, F.visit_source) === 'DHP Service') ? 'DHP Service' : 'DHP'; if (calSourceHidden[vsrc]) return;
-    if (currentIslandFilter !== 'all' && (f(job, F.job_island) || '') !== currentIslandFilter) return;
-    if (!scheduleNameMatch(job)) return;
-    const ds = f(v, F.visit_date); if (!ds) return;
-    const d = parseDate(ds); if (!d || d < t) return;
-    rows.push({ v, job, ds });
-  });
-  rows.sort((a, b) => a.ds < b.ds ? -1 : a.ds > b.ds ? 1 : (f(a.job, F.job_name) || '').localeCompare(f(b.job, F.job_name) || ''));
-  if (!rows.length) {
-    body.className = 'agenda-list';
-    body.innerHTML = `<div style="font-size:13px;color:var(--text-faint);padding:20px 0;text-align:center;">No upcoming jobs on the schedule.</div>`;
-    return;
-  }
-  let html = '', lastDate = '';
-  rows.forEach(({ v, job, ds }) => {
-    if (ds !== lastDate) { html += `<div class="agenda-date">${escapeHtml(fmtDate(ds))}</div>`; lastDate = ds; }
-    const name = f(job, F.job_name) || 'Job';
-    const phase = f(v, F.visit_phase) || '';
-    const time = f(v, F.visit_time) || '';
-    const island = f(job, F.job_island) || '';
-    const penciled = (f(v, F.visit_sched) || '').toLowerCase() !== 'firm';
-    const tag = penciled
-      ? `<span class="agenda-tag" style="color:var(--text-muted);border:1px dashed var(--text-muted);">Penciled</span>`
-      : `<span class="agenda-tag" style="color:white;background:var(--accent);">Firm</span>`;
-    const sub = [phase, island].filter(Boolean).join(' · ');
-    html += `<div class="agenda-row${penciled ? ' penciled' : ''}" onclick="openDetail('${job.id}')">
-      <div class="agenda-time${time ? '' : ' allday'}">${time ? escapeHtml(time) : 'All day'}</div>
-      <div class="agenda-main">
-        <div class="agenda-name">${escapeHtml(name)}</div>
-        ${sub ? `<div class="agenda-sub">${escapeHtml(sub)}</div>` : ''}
-      </div>
-      ${tag}
-    </div>`;
-  });
-  body.className = 'agenda-list';
-  body.innerHTML = html;
-}
-
-function renderCalendar() {
-  renderIslandTabs();
-  renderCalSourceTabs();
-  updateCalImportBtn();
-  updateCalViewToggle();
-  if (calView === 'agenda') { renderAgenda(); return; }
-  { const _cb = document.getElementById('cal-body'); if (_cb) _cb.className = 'cal-grid'; }
-  document.getElementById('cal-title').textContent = MONTHS[calMonth] + ' ' + calYear;
-  document.getElementById('cal-labels').innerHTML = DAYS.map(d=>`<div class="cal-day-label">${d}</div>`).join('');
-  // Build byDate map — each job appears on every date in its span, with positioning info
-  const byDate = {};
-  visits.forEach(v => {
-    const job = visitJob(v);
-    if (!job) return;
-    // Per-calendar checkbox filter. Everything is "DHP" (installs — app-created or imported)
-    // except explicitly imported "DHP Service" jobs.
-    const _vsrc = (f(v, F.visit_source) === 'DHP Service') ? 'DHP Service' : 'DHP';
-    if (calSourceHidden[_vsrc]) return;
-    // Island filter
-    if (currentIslandFilter !== 'all' && (f(job, F.job_island) || '') !== currentIslandFilter) return;
-    // Name search filter
-    if (!scheduleNameMatch(job)) return;
-    const span = visitSpanDates(v);
-    span.forEach(seg => {
-      if (!byDate[seg.date]) byDate[seg.date] = [];
-      byDate[seg.date].push({ visit: v, job: job, isStart: seg.isStart, isEnd: seg.isEnd, isMid: seg.isMid, fromDate: f(v, F.visit_date) });
-    });
-  });
-  // Sort each day's visits deterministically: by start date (so multi-day spans
-  // keep the same row across days), then alphabetically by name as tiebreaker.
-  Object.keys(byDate).forEach(ds => {
-    byDate[ds].sort((a, b) => {
-      const ad = a.fromDate || '';
-      const bd = b.fromDate || '';
-      if (ad !== bd) return ad < bd ? -1 : 1;
-      const an = (f(a.job, F.job_name) || '').toLowerCase();
-      const bn = (f(b.job, F.job_name) || '').toLowerCase();
-      if (an !== bn) return an < bn ? -1 : 1;
-      return 0;
-    });
-  });
-  const firstDay = new Date(calYear,calMonth,1).getDay();
-  const daysInMonth = new Date(calYear,calMonth+1,0).getDate();
-  const prevDays = new Date(calYear,calMonth,0).getDate();
-  const t = today0();
-  let html = '';
-  for (let i=firstDay-1;i>=0;i--) {
-    const pm = calMonth===0?11:calMonth-1, py = calMonth===0?calYear-1:calYear;
-    const dayNum = prevDays-i;
-    const ds=`${py}-${String(pm+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
-    const cd=new Date(py,pm,dayNum); cd.setHours(0,0,0,0);
-    const isPast = cd<t;
-    html+=`<div class="cal-cell other-month" data-date="${ds}" data-past="${isPast?'1':'0'}"><div class="cal-num">${dayNum}</div></div>`;
-  }
-  for (let d=1;d<=daysInMonth;d++) {
-    const ds=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const cd=new Date(calYear,calMonth,d); cd.setHours(0,0,0,0);
-    const isToday=cd.getTime()===t.getTime();
-    const isPast = cd<t;
-    const dayJobs=byDate[ds]||[];
-    const eventsHtml = dayJobs.slice(0,2).map(entry => {
-      const j = entry.job;
-      const phase = f(entry.visit, F.visit_phase);
-      // Class for span position: spans only get the .span-* class if multi-day
-      let cls = '';
-      if (!entry.isStart || !entry.isEnd) {
-        // Multi-day
-        if (entry.isStart) cls = ' span-start';
-        else if (entry.isEnd) cls = ' span-end';
-        else cls = ' span-mid';
-      }
-      // Type color class (by visit phase)
-      cls += ' ' + typeToClass(phase);
-      // Firm/Penciled is per-visit (each visit row has its own dropdown). A visit is "firm"
-      // only when explicitly tagged Firm; Penciled or untagged (the default) render dashed.
-      if ((f(entry.visit, F.visit_sched) || '').toLowerCase() !== 'firm') cls += ' penciled';
-      // Only show the name on the first day; mid/end show invisible text so the bar continues but stays the same height
-      const name = (f(j, F.job_name) || 'Job') + (phase ? ' · ' + phase : '');
-      // Compact time prefix for timed visits (e.g. "3p"), shown on the start day only.
-      const _vt = f(entry.visit, F.visit_time) || '';
-      const _tpre = (_vt && entry.isStart) ? `<span class="cal-time">${escapeHtml(_vt.replace(':00','').replace(' AM','a').replace(' PM','p'))}</span>` : '';
-      // Name shows on the start day only; continuation days use a non-breaking space to
-      // hold the bar height WITHOUT setting color:transparent (which would also erase the
-      // penciled dashed border, since it's drawn in currentColor).
-      const showName = entry.isStart ? (_tpre + name) : '&nbsp;';
-      return `<div class="cal-event${cls}" data-job-id="${j.id}" data-visit-id="${entry.visit.id}" data-from-date="${entry.fromDate}" draggable="true">${showName}</div>`;
-    }).join('');
-    html+=`<div class="cal-cell${isToday?' today':''}" data-date="${ds}" data-past="${isPast?'1':'0'}"><div class="cal-num">${d}</div>
-      ${eventsHtml}
-      ${dayJobs.length>2?`<div class="cal-more" onclick="showDayJobs('${ds}')">+${dayJobs.length-2} more</div>`:''}
-    </div>`;
-  }
-  const used=firstDay+daysInMonth; const tail=used%7===0?0:7-(used%7);
-  for (let i=1;i<=tail;i++) {
-    const nm = calMonth===11?0:calMonth+1, ny = calMonth===11?calYear+1:calYear;
-    const ds=`${ny}-${String(nm+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
-    const cd=new Date(ny,nm,i); cd.setHours(0,0,0,0);
-    const isPast = cd<t;
-    html+=`<div class="cal-cell other-month" data-date="${ds}" data-past="${isPast?'1':'0'}"><div class="cal-num">${i}</div></div>`;
-  }
-  document.getElementById('cal-body').innerHTML = html;
-  attachCalendarDragHandlers();
-}
-
-// ── LOAD LIST ──
-// Load-list ordering: Equipment first, then SKU materials, then manual/misc.
-// "Equipment" = no Stock SKU link AND a real-gear type tag. SKU materials have a
-// Stock SKU link. Everything else with no SKU link (other, box of parts, pad,
-// mounting feet, line-set, lumber, sheet metal, electrical, filters, grille, gasket)
-// is manual/misc.
-const EQUIPMENT_TYPES = new Set([
-  'outdoor unit','indoor cassette','indoor wallhead','indoor floor','indoor all-in-one',
-  'indoor air handler','air handler','hrv','branch box','controller','wifi adapter',
-  'storage tank','bath exhaust fan','quilt iu front panel','quilt ou front panel'
-]);
-const LOAD_GROUP_LABELS = ['Equipment','Materials','Manual / misc'];
-function itemLoadGroup(item) {
-  const skuLinks = f(item, F.item_sku);
-  if (Array.isArray(skuLinks) && skuLinks.length) return 1; // SKU material
-  const type = (f(item, F.item_type) || '').trim().toLowerCase();
-  return EQUIPMENT_TYPES.has(type) ? 0 : 2; // equipment vs manual/misc
-}
-
-function renderLoadList() {
-  // The window select doubles as a mode switch: every numeric value is a forward-looking
-  // window, "overdue" is a backward-looking one. They're kept separate so the daily list
-  // stays about today's work — an overdue backlog mixed into it would be noise every morning.
-  const winEl = document.getElementById('load-window');
-  const winVal = winEl ? winEl.value : '2';
-  const overdueMode = (winVal === 'needs-closing');
-  const days = overdueMode ? 0 : parseInt(winVal);
-  const t = today0(); const cutoff = new Date(t); cutoff.setDate(cutoff.getDate()+days);
-  // Expand each visit into (visit, displayDate) pairs for each day in span that falls in window
-  const entries = [];
-  let overdueCount = 0;   // counted on every render so the dropdown can advertise the backlog
-  visits.forEach(v => {
-    const job = visitJob(v);
-    if (!job) return;
-    const status = (f(job,F.job_status)||'').toLowerCase();
-    if (status==='complete') return;
-    // A visit marked Complete is done with — drop it, same as the calendar and agenda already
-    // do. Without this the load list ignored the flag entirely, so `toggleVisitComplete` had
-    // no effect here and an overdue visit with nothing to load could never be cleared.
-    if (f(v, F.visit_complete) === true) return;
-    const span = visitSpanDates(v);
-    if (!span.length) return;
-
-    // A visit is overdue only when the WHOLE span has passed. Judging it day-by-day made a
-    // three-day visit that slipped show up as three identical rows, and falsely flagged a
-    // multi-day visit that started yesterday and is still running.
-    const dayTimes = span.map(s => { const d = parseDate(s.date); if (!d) return null; d.setHours(0,0,0,0); return d.getTime(); })
-                         .filter(x => x !== null);
-    if (!dayTimes.length) return;
-    const lastDay = Math.max(...dayTimes);
-    const visitIsOverdue = lastDay < t.getTime();
-    if (visitIsOverdue) overdueCount++;
-
-    if (overdueMode) {
-      // One row per overdue VISIT, dated to when it was meant to start — that's the honest
-      // measure of how long it's been sitting. The backlog item is "this visit didn't
-      // happen", which is one thing regardless of how many days it was booked for.
-      if (visitIsOverdue) {
-        entries.push({ visit: v, job: job, displayDate: span[0].date, totalDays: span.length, dayIdx: 1, overdue: true, spanned: span.length > 1 });
-      }
-      return;
-    }
-    // Forward windows still expand day-by-day: on a three-day install you want to know
-    // what's going out each morning.
-    span.forEach((seg, idx) => {
-      const d = parseDate(seg.date); if (!d) return;
-      d.setHours(0,0,0,0);
-      if (d >= t && d < cutoff) {
-        entries.push({ visit: v, job: job, displayDate: seg.date, totalDays: span.length, dayIdx: idx + 1 });
-      }
-    });
-  });
-  // Oldest first in both modes — in Overdue that puts the longest-neglected job on top.
-  entries.sort((a, b) => (parseDate(a.displayDate) || 0) - (parseDate(b.displayDate) || 0)
-    || (f(a.job,F.job_name)||'').localeCompare(f(b.job,F.job_name)||''));
-
-  // Advertise the backlog on the dropdown itself, so you don't have to go looking to find out
-  // whether there's anything there.
-  if (winEl) {
-    const opt = Array.from(winEl.options).find(o => o.value === 'needs-closing');
-    if (opt) opt.textContent = overdueCount ? `Needs closing (${overdueCount})` : 'Needs closing';
-  }
-
-  const body = document.getElementById('loadlist-body');
-  if (!entries.length) {
-    body.innerHTML = overdueMode
-      ? `<div class="empty"><div class="icon">✅</div>Nothing to close out — every active job is still ahead of its date</div>`
-      : `<div class="empty"><div class="icon">📭</div>No jobs scheduled in this window${overdueCount?` · <a href="#" onclick="document.getElementById('load-window').value='needs-closing';renderLoadList();return false;">${overdueCount} to close out</a>`:''}</div>`;
-    return;
-  }
-
-  const itemsByJob = {};
-  items.forEach(item => {
-    const owners = f(item,F.item_owner);
-    if (!Array.isArray(owners)) return;
-    owners.forEach(o => { const id=typeof o==='string'?o:o.id; if (!itemsByJob[id]) itemsByJob[id]=[]; itemsByJob[id].push(item); });
-  });
-
-  let html = '';
-  entries.forEach(entry => {
-    const job = entry.job;
-    const jid=job.id, jname=f(job,F.job_name)||'Unnamed', jtype=f(entry.visit,F.visit_phase)||'';
-    const detailNotes = f(job,F.job_detail_notes)||'';
-    const jtypeLower=jtype.toLowerCase();
-    const jobItems=(itemsByJob[jid]||[]).filter(item=>{
-      const s=(f(item,F.item_status)||'').toLowerCase();
-      if (s==='installed'||s==='pending order') return false;
-      const visitAt=(f(item,F.item_visit)||'').toLowerCase();
-      if (visitAt && jtypeLower) {
-        if (visitAt==='rough-in' && !jtypeLower.includes('rough')) return false;
-        if (visitAt==='trim-out' && !jtypeLower.includes('trim')) return false;
-      }
-      return true;
-    });
-    // Order: Equipment → SKU materials → Manual/misc; alphabetical within each group.
-    jobItems.sort((a,b) => {
-      const ga=itemLoadGroup(a), gb=itemLoadGroup(b);
-      if (ga!==gb) return ga-gb;
-      return (f(a,F.item_model)||'').toLowerCase().localeCompare((f(b,F.item_model)||'').toLowerCase());
-    });
-    const loadedCount=jobItems.filter(i=>checkedLocally[i.id]!==undefined?checkedLocally[i.id]:f(i,F.item_loaded)===true).length;
-    const total=jobItems.length;
-    // Overdue rows are the whole visit collapsed, so "day 1 of 3" would be a lie — say how
-    // long it was booked for instead.
-    const dayLabel = entry.spanned
-      ? ` <span style="font-size:12px;color:var(--text-faint);font-weight:500;">(${entry.totalDays}-day visit)</span>`
-      : (entry.totalDays > 1 ? ` <span style="font-size:12px;color:var(--text-faint);font-weight:500;">(day ${entry.dayIdx} of ${entry.totalDays})</span>` : '');
-    html+=`<div class="job-block">
-      <div class="job-block-header">
-        <div class="job-block-name" onclick="openDetail('${jid}')" style="cursor:pointer;" title="Open this job">${jname}${jtype?' — '+jtype:''}${dayLabel}</div>
-        <div class="job-block-meta"><span${entry.overdue?' style="color:var(--warn);font-weight:600;"':''}>${fmtDate(entry.displayDate)}</span>${total>0?`<span class="progress-text">${loadedCount}/${total} loaded</span>`:''}${entry.overdue?`<button class="btn-sm btn-sm-ghost" onclick="event.stopPropagation();openCloseVisit('${entry.visit.id}')" title="Close this visit out" style="font-size:11px;padding:3px 9px;margin-left:8px;border-radius:var(--radius-sm);white-space:nowrap;">Close out →</button>`:''}</div>
-      </div>`;
-    if (detailNotes) {
-      html += `<div class="detail-note-sticky" onclick="openNoteEdit('${jid}','detail','loadlist')" title="Tap to edit">
-        <span class="sticky-icon">📌</span>
-        <span class="sticky-text">${escapeHtml(detailNotes)}</span>
-      </div>`;
-    } else {
-      html += `<div class="detail-note-empty" onclick="openNoteEdit('${jid}','detail','loadlist')">+ Add jobsite note</div>`;
-    }
-    if (!jobItems.length) {
-      html+=`<div style="font-size:13px;color:var(--text-faint);padding:10px 0;">No items assigned yet</div>`;
-    } else {
-      let lastGroup=-1;
-      jobItems.forEach(item=>{
-        const iid=item.id;
-        const grp=itemLoadGroup(item);
-        if (grp!==lastGroup) {
-          html+=`<div style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-faint);padding:9px 0 3px;">${LOAD_GROUP_LABELS[grp]}</div>`;
-          lastGroup=grp;
-        }
-        const isLoaded=checkedLocally[iid]!==undefined?checkedLocally[iid]:f(item,F.item_loaded)===true;
-        const model=f(item,F.item_model)||'Unknown', type=f(item,F.item_type)||'', qty=f(item,F.item_qty)??1, status=f(item,F.item_status)||'';
-        // Physical storage location of the item (Barn/yard). Loading no longer moves
-        // anything to a Rig, so this just reflects where the stock lives.
-        const loc = f(item,F.item_location)||'';
-        const locClass='item-loc';
-        const lsk = f(item, F.item_sku);
-        const canSwitchSrc = !isLoaded && Array.isArray(lsk) && lsk.length && !isSpecLine(item);
-        html+=`<div class="item-row${isLoaded?' done':''}" data-item-id="${iid}">
-          <div class="item-check${isLoaded?' checked':''}" onclick="toggleLoaded('${iid}')" title="Mark as loaded">
-            <svg class="checkmark" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="white" stroke-width="2.5"><polyline points="2,6 5,9 10,3"/></svg>
-          </div>
-          <div class="item-info"><div class="item-model">${model}</div><div class="item-detail">${[type, isSpecLine(item) ? 'spec — bring this much' : status].filter(Boolean).join(' · ')}</div></div>
-          <span class="item-qty">×${qty}</span>
-          ${loc ? (canSwitchSrc
-            ? `<span class="${locClass}" onclick="event.stopPropagation();toggleMatSource('${iid}')" title="Where this comes from — tap to switch between the rig and its shelf" style="cursor:pointer;text-decoration:underline dotted;">from ${escapeHtml(loc)}</span>`
-            : `<span class="${locClass}">${loc}</span>`) : ''}
-        </div>`;
-      });
-    }
-    html+=`</div>`;
-  });
-  body.innerHTML = html;
 }
 
 // Map a location label (e.g. "Barn") to the SKU on-hand field name (e.g. "On-hand (Barn)")
@@ -2824,107 +1660,6 @@ function isLengthBasedUnit(unit) {
 // Roll counts move during the inventory walk, not through these lines.
 function isSpecLine(item) {
   return isLengthBasedUnit(f(item, 'Unit') || '');
-}
-
-// The stock-and-status half of loading, with no DOM in it. `toggleLoaded` drives it from the
-// load-list checkbox; the close-out-a-visit flow drives it headlessly so a late tick goes
-// through exactly the same guards and math as an on-the-day one. Throws on failure so a
-// caller ticking several items can stop rather than half-finish.
-async function applyLoadState(itemId, newVal) {
-  const item = items.find(i => i.id === itemId);
-  if (!item) throw new Error('Item not found');
-
-  // Determine consumable vs equipment
-  const skuLinks = f(item, F.item_sku);
-  const isConsumable = Array.isArray(skuLinks) && skuLinks.length > 0;
-  const sku = isConsumable
-    ? skus.find(s => s.id === (typeof skuLinks[0] === 'string' ? skuLinks[0] : skuLinks[0].id))
-    : null;
-  const qty = Number(f(item, F.item_qty)) || 1;
-  const itemUnit = f(item, 'Unit') || '';
-  const lengthBased = isLengthBasedUnit(itemUnit);
-
-  // ── Resolve the stock bucket ONCE, before any write ────────────────────────────
-  // Load and unload must agree on which shelf the quantity moves to and from. Two
-  // things used to break that agreement:
-  //   1. Anything that rewrites Physical location between load and unload (an Airtable
-  //      automation used to stamp it "Rig") leaves the return trip with no origin.
-  //   2. The fallback picks "whichever bucket holds the most", and that answer changes
-  //      as stock moves — so the return could land on a different shelf than it left.
-  // When no bucket can be resolved at all, we now REFUSE instead of patching Loaded?
-  // and skipping the stock math, which silently destroyed the quantity.
-  const needsStockMath = isConsumable && sku && !lengthBased;
-  const itemLocNow = f(item, F.item_location) || '';
-  const STORAGE_BUCKETS = ['Barn','Unit Tent','Susie','Lumber Rack','Shop','Ducting Tent','Rig'];
-  const locIsRealBucket = STORAGE_BUCKETS.includes(itemLocNow);
-  const src = needsStockMath ? consumableSourceLocation(item, sku) : null;
-
-  if (needsStockMath && !src) {
-    const name = f(item, F.item_model) || 'this item';
-    const err = new Error(
-      newVal
-        ? `Can't load "${name}" — no stock to pull from. Its location reads "${itemLocNow || 'blank'}", which isn't a storage shelf, and no shelf has any on hand. Set its Physical location and try again.`
-        : `Can't unload "${name}" — nowhere to return the stock to. Its location reads "${itemLocNow || 'blank'}", which isn't a storage shelf. Set its Physical location to the shelf it came from, then uncheck it.`
-    );
-    err.userMessage = err.message;
-    throw err;
-  }
-
-  {
-    // Reserve-at-load: checking a counted SKU material onto the load list pulls its
-    // quantity OUT of stock immediately (so it can't be double-promised while on the
-    // truck); unchecking returns the full quantity. Length-based rolls (feet) are
-    // reconciled physically — no auto-math. Equipment is tracked by status only.
-    // A spec line's tick means "it's on the truck", nothing more — never write an
-    // inventory Status onto it, or we're back to claiming a reservation that can't exist.
-    const specLine = isSpecLine(item);
-
-    // Rig model: loading moves the quantity from its shelf onto the Rig — still inventory,
-    // now committed to this job. A line sourced from the Rig's own spare stock moves nothing;
-    // ticking it just commits that stock. Unloading reverses exactly what loading did.
-    if (newVal) {
-      if (needsStockMath && src !== 'Rig') {
-        // Safeguard: loading more than the shelf shows proves the shelf count was wrong.
-        // The Rig still gets the full quantity (that's what physically went on the truck);
-        // queue a recount of the shelf so the real number gets entered on the spot.
-        const srcField = locationToSkuField(src);
-        const shown = skuNum(sku, srcField);
-        if (qty > shown) {
-          recountQueue.push({ skuId: sku.id, field: srcField, label: src, shown, qty,
-            name: f(sku, F.sku_name) || 'this item' });
-        }
-        await applySkuMove(sku, src, 'Rig', qty);
-      }
-      const loadFields = specLine ? { 'Loaded?': true } : { 'Loaded?': true, 'Status': 'Loaded' };
-      // Pin the origin. If the item's own location wasn't a real shelf, we resolved `src`
-      // by fallback — write it back so the unload returns the quantity to the same place
-      // instead of re-guessing against a stock picture that has since changed.
-      if (needsStockMath && !locIsRealBucket) loadFields['Physical location'] = src;
-      await patchRecord(ITEMS_TBL, itemId, loadFields);
-      checkedLocally[itemId] = true;
-      item.fields['Loaded?'] = true;
-      if (!specLine) item.fields['Status'] = 'Loaded';
-      if (loadFields['Physical location']) item.fields['Physical location'] = src;
-    } else {
-      if (needsStockMath && src !== 'Rig') await applySkuMove(sku, 'Rig', src, Math.min(qty, skuOnRig(sku)));
-      const unloadFields = specLine ? { 'Loaded?': false } : { 'Loaded?': false, 'Status': 'Allocated' };
-      // Same repair on the way back: an item that came off the truck should not be left
-      // parked at a non-shelf location, where it renders on no tab and looks lost.
-      if (needsStockMath && !locIsRealBucket) unloadFields['Physical location'] = src;
-      await patchRecord(ITEMS_TBL, itemId, unloadFields);
-      checkedLocally[itemId] = false;
-      item.fields['Loaded?'] = false;
-      if (!specLine) item.fields['Status'] = 'Allocated';
-      if (unloadFields['Physical location']) item.fields['Physical location'] = src;
-    }
-  }
-}
-
-// Mark one item loaded without needing a rendered checkbox. No-op if it already is.
-async function markItemLoaded(itemId) {
-  const item = items.find(i => i.id === itemId);
-  if (!item || f(item, F.item_loaded) === true) return;
-  await applyLoadState(itemId, true);
 }
 
 // ── SHORT-SHELF RECOUNT ──
@@ -3023,7 +1758,7 @@ async function saveMatSource() {
     c.item.fields['Physical location'] = c.next;
     closeMatSource();
     if (currentJobId) renderDetailBody(currentJobId);
-    renderInventory(); renderLoadList();
+    renderInventory();
     runRecountQueue();
   } catch (e) {
     const el = document.getElementById('mat-src-error');
@@ -3032,79 +1767,13 @@ async function saveMatSource() {
   }
 }
 
-// Switch a not-yet-loaded consumable line between drawing on the Rig's spare stock and
-// being pulled from its shelf at load time.
-async function toggleMatSource(itemId) {
-  const item = items.find(i => i.id === itemId);
-  if (!item || f(item, F.item_loaded) === true) return;
-  const links = f(item, F.item_sku);
-  const sku = Array.isArray(links) && links.length ? skus.find(s => s.id === (typeof links[0] === 'string' ? links[0] : links[0].id)) : null;
-  if (!sku) return;
-  const cur = f(item, F.item_location) || '';
-  let next;
-  if (cur === 'Rig') {
-    let best = null, bestQty = -1;
-    LOCATIONS.forEach(l => { const n = skuNum(sku, l.field); if (n > bestQty) { bestQty = n; best = l.label; } });
-    next = best || 'Barn';
-  } else {
-    next = 'Rig';
-  }
-  try {
-    await patchRecord(ITEMS_TBL, itemId, { 'Physical location': next });
-    item.fields['Physical location'] = next;
-    renderLoadList();
-  } catch(e) { showError('Could not change the source.'); }
-}
-
-async function toggleLoaded(itemId) {
-  const rows = document.querySelectorAll(`[data-item-id="${itemId}"]`);
-  if (!rows.length) return;
-  const firstCheck = rows[0].querySelector('.item-check');
-  const wasLoaded = firstCheck.classList.contains('checked');
-
-  rows.forEach(row => {
-    const c = row.querySelector('.item-check');
-    c.classList.add('loading'); c.classList.remove('checked');
-  });
-
-  try {
-    await applyLoadState(itemId, !wasLoaded);
-    renderLoadList();
-    if (typeof renderInventory === 'function') renderInventory();
-    runRecountQueue();
-  } catch(e) {
-    rows.forEach(row => {
-      const c = row.querySelector('.item-check');
-      c.classList.remove('loading');
-      if (wasLoaded) c.classList.add('checked');
-    });
-    // Surface the specific refusal (bad location, nothing to return to) rather than a generic
-    // failure — that message is the only clue about what to fix.
-    showError(e && e.userMessage ? e.userMessage : 'Could not update item.');
-  }
-}
-
-// ── JOBS ──
 let currentIslandFilter = 'all';
-
-// Schedule-tab name search (filters both Month grid and Agenda by job name)
-let currentScheduleSearch = '';
-function setScheduleSearch(val) {
-  currentScheduleSearch = (val || '').trim().toLowerCase();
-  renderCalendar();
-}
-function scheduleNameMatch(job) {
-  if (!currentScheduleSearch) return true;
-  return (f(job, F.job_name) || '').toLowerCase().includes(currentScheduleSearch);
-}
-
 function setIslandFilter(island) {
   currentIslandFilter = island;
   renderJobs();
-  renderCalendar();
 }
 
-// Render island filter chips into both the Jobs and Schedule containers.
+// Render island filter chips into the Jobs container.
 // Chips appear only when at least one job has an island set.
 function renderIslandTabs() {
   const ISLAND_ORDER = ['Lopez','San Juan','Orcas','Shaw','Decatur','Center','Blakely','Mainland','Other'];
@@ -3117,7 +1786,7 @@ function renderIslandTabs() {
         `<button class="loc-tab${currentIslandFilter===isl?' active':''}" onclick="setIslandFilter('${isl.replace(/'/g,"\\'")}')">${escapeHtml(isl)}</button>`
       ).join('')
     : '';
-  ['island-tabs','island-tabs-cal'].forEach(id => {
+  ['island-tabs'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     if (chipsHtml) { el.style.display = ''; el.innerHTML = chipsHtml; }
@@ -3132,70 +1801,8 @@ function islandFilteredJobs() {
     : jobs.filter(j => (f(j,F.job_island)||'') === currentIslandFilter);
 }
 
-// Effective schedule state for a job:
-//  'unscheduled' — no date at all (Brian's actionable pile)
-//  'firm'        — has a date, explicitly tagged Firm
-//  'penciled'    — has a date; tagged Penciled OR untagged (conservative default:
-//                  a date nobody confirmed is treated as tentative)
-// Next upcoming visit date for a job, read straight from the Visits table (today-or-later,
-// not complete). Falls back to the legacy job-level date only if the job has no visits.
-// This is the single source of truth for the Jobs/Firm/Penciled tabs.
-function jobNextDate(j) {
-  const t = today0();
-  let bestRaw = null, bestD = null, hasVisits = false;
-  visits.forEach(v => {
-    const vj = visitJob(v);
-    if (!vj || vj.id !== j.id) return;
-    hasVisits = true;
-    if (f(v, F.visit_complete) === true) return;
-    const raw = f(v, F.visit_date);
-    const d = parseDate(raw);
-    if (!d) return;
-    d.setHours(0,0,0,0);
-    if (d < t) return;
-    if (!bestD || d < bestD) { bestD = d; bestRaw = raw; }
-  });
-  // Legacy job-level date only for jobs with no visit records at all. Once a job has visits,
-  // they're the truth — all done/past means nothing upcoming (not a stale "Penciled").
-  if (bestRaw) return bestRaw;
-  return hasVisits ? '' : (f(j, F.job_next_date) || '');
-}
-
-// The next upcoming visit record for a job (today-or-later, not complete), mirroring
-// jobNextDate. Used to roll a job's overall firm/penciled state up from its visits.
-function jobNextVisit(j) {
-  const t = today0();
-  let best = null, bestD = null;
-  visits.forEach(v => {
-    const vj = visitJob(v);
-    if (!vj || vj.id !== j.id) return;
-    if (f(v, F.visit_complete) === true) return;
-    const d = parseDate(f(v, F.visit_date));
-    if (!d) return;
-    d.setHours(0,0,0,0);
-    if (d < t) return;
-    if (!bestD || d < bestD) { bestD = d; best = v; }
-  });
-  return best;
-}
-
-function jobScheduleStatus(j) {
-  if (!jobNextDate(j)) return 'unscheduled';
-  // Firm/Penciled is now per-visit; a job rolls up from its next upcoming visit.
-  // Fall back to the legacy job-level flag only if there's no visit record (legacy date).
-  const nv = jobNextVisit(j);
-  const s = (nv ? (f(nv, F.visit_sched) || '') : (f(j, F.job_sched_status) || '')).toLowerCase();
-  return s === 'firm' ? 'firm' : 'penciled';
-}
-
-let currentSchedFilter = 'all';
 let currentJobSearch = '';
 function onJobSearch(v) { currentJobSearch = v; renderJobs(); }
-
-function setSchedFilter(filter) {
-  currentSchedFilter = currentSchedFilter === filter ? 'all' : filter; // tap again to clear
-  renderJobs();
-}
 
 function renderJobs() {
   renderIslandTabs();
@@ -3205,36 +1812,20 @@ function renderJobs() {
 
   const activeAll=visible.filter(j=>(f(j,F.job_status)||'').toLowerCase()!=='complete');
   const complete=visible.filter(j=>(f(j,F.job_status)||'').toLowerCase()==='complete');
-  const firmN = activeAll.filter(j=>jobScheduleStatus(j)==='firm').length;
-  const pencN = activeAll.filter(j=>jobScheduleStatus(j)==='penciled').length;
-  const unschedN = activeAll.filter(j=>jobScheduleStatus(j)==='unscheduled').length;
-
-  const active = currentSchedFilter==='all'
-    ? activeAll
-    : activeAll.filter(j=>jobScheduleStatus(j)===currentSchedFilter);
+  const active = activeAll;
 
   document.getElementById('jobs-stats').innerHTML=`
-    <div class="stat stat-clickable${currentSchedFilter==='all'?' stat-active':''}" onclick="setSchedFilter('all')"><div class="stat-label">Active</div><div class="stat-val">${activeAll.length}</div></div>
-    <div class="stat stat-clickable${currentSchedFilter==='firm'?' stat-active':''}" onclick="setSchedFilter('firm')"><div class="stat-label">Firm</div><div class="stat-val">${firmN}</div></div>
-    <div class="stat stat-clickable${currentSchedFilter==='penciled'?' stat-active':''}" onclick="setSchedFilter('penciled')"><div class="stat-label">Penciled</div><div class="stat-val">${pencN}</div></div>
-    <div class="stat stat-clickable${currentSchedFilter==='unscheduled'?' stat-active':''}" onclick="setSchedFilter('unscheduled')"><div class="stat-label">Not sched.</div><div class="stat-val">${unschedN}</div></div>
+    <div class="stat"><div class="stat-label">Active</div><div class="stat-val">${activeAll.length}</div></div>
     <div class="stat stat-clickable${showCompleted?' stat-active':''}" onclick="toggleCompleted()"><div class="stat-label">Complete ${showCompleted?'▾':'▸'}</div><div class="stat-val">${complete.length}</div></div>`;
 
-  const sorted=[...active].sort((a,b)=>{
-    const da=parseDate(jobNextDate(a)),db=parseDate(jobNextDate(b));
-    if (da&&db) return da-db; if (da) return -1; if (db) return 1;
-    return (f(a,F.job_name)||'').localeCompare(f(b,F.job_name)||'');
-  });
+  const byName=(a,b)=>(f(a,F.job_name)||'').localeCompare(f(b,F.job_name)||'');
+  const sorted=[...active].sort(byName);
   if (!sorted.length && !showCompleted) { document.getElementById('jobs-body').innerHTML=`<div class="empty"><div class="icon">📭</div>No ${currentIslandFilter==='all'?'active jobs':'active jobs on '+escapeHtml(currentIslandFilter)}</div>`; return; }
 
   let html = '';
   if (showCompleted && complete.length) {
     html += `<div class="completed-section-header" style="margin-top:0;padding-top:0;border-top:none;">Completed (${complete.length})</div>`;
-    const sortedComplete = [...complete].sort((a,b)=>{
-      const da=parseDate(jobNextDate(a)),db=parseDate(jobNextDate(b));
-      if (da&&db) return db-da; if (da) return -1; if (db) return 1;
-      return (f(a,F.job_name)||'').localeCompare(f(b,F.job_name)||'');
-    });
+    const sortedComplete = [...complete].sort(byName);
     html += sortedComplete.map(j=>jobCardHtml(j, true)).join('');
     if (sorted.length) html += `<div class="completed-section-header">Active</div>`;
   }
@@ -3280,8 +1871,8 @@ async function setJobContractor(jobId, accId) {
 }
 
 function jobCardHtml(j, isComplete) {
-  const name=f(j,F.job_name)||'Unnamed', status=f(j,F.job_status)||'', type=f(j,F.job_next_type)||'';
-  const nextDate=jobNextDate(j), scheduled=f(j,F.job_scheduled)||'', readiness=f(j,F.job_readiness)||'';
+  const name=f(j,F.job_name)||'Unnamed', status=f(j,F.job_status)||'', type=f(j,F.job_type)||'';
+  const readiness=f(j,F.job_readiness)||'';
   const island=f(j,F.job_island)||'';
   const jcontractor=jobContractorName(j);
   const sl=status.toLowerCase();
@@ -3293,7 +1884,6 @@ function jobCardHtml(j, isComplete) {
       ${type?`<span>🔧 ${type}</span>`:''}
       ${island?`<span>🏝 ${island}</span>`:''}
       ${jcontractor?`<span title="Contractor — Sage is a sub">👷 ${escapeHtml(jcontractor)}</span>`:''}
-      ${scheduled?`<span>📅 ${scheduled}</span>`:nextDate?`<span>📅 ${fmtDate(nextDate)}</span>`:''}
     </div>
   </div>`;
 }
@@ -3320,8 +1910,6 @@ function renderDetailBody(jobId) {
   const job = jobs.find(j=>j.id===jobId); if (!job) return;
   const name=f(job,F.job_name)||'Unnamed', status=f(job,F.job_status)||'', type=f(job,F.job_type)||'';
   { const _t=document.getElementById('detail-title'); if(_t) _t.textContent = name; }
-  const nextDate=jobNextDate(job), nextType=f(job,F.job_next_type)||'', scheduled=f(job,F.job_scheduled)||'';
-  const endDate=f(job,F.job_end_date)||'';
   const readiness=f(job,F.job_readiness)||'', comments=f(job,F.job_comments)||'';
   const commsLog=f(job,F.job_comms_log)||'';
   const siu=f(job,F.job_siu)===true;
@@ -3331,7 +1919,6 @@ function renderDetailBody(jobId) {
   const _cl=f(job,F.job_contractor); const contractorId=(Array.isArray(_cl)&&_cl.length)?((typeof _cl[0]==='string')?_cl[0]:_cl[0].id):'';
   const contact=f(job,F.job_contact)||'';
   const island=f(job,F.job_island)||'';
-  const schedStatus=f(job,F.job_sched_status)||'';
 
   // Get consumable items (those linked to a Stock SKU)
   const jobItems = items.filter(item => {
@@ -3520,13 +2107,6 @@ function renderDetailBody(jobId) {
         </span>
       </div>
       <div class="detail-field" style="align-items:center;">
-        <span class="detail-field-label">Schedule</span>
-        <span class="detail-field-val" style="font-size:13px;color:var(--text-muted);display:flex;align-items:center;gap:8px;justify-content:flex-end;">
-          ${(()=>{const st=jobScheduleStatus(job);return st==='firm'?'<b style="color:var(--text);">✓ Firm</b>':st==='penciled'?'<span>✎ Penciled</span>':'<span style="color:var(--text-faint);">— Not scheduled</span>';})()}
-          <span style="color:var(--text-faint);font-size:11px;">set per visit ↓</span>
-        </span>
-      </div>
-      <div class="detail-field" style="align-items:center;">
         <span class="detail-field-label">OPALCO SIU</span>
         <span class="detail-field-val">
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
@@ -3536,45 +2116,6 @@ function renderDetailBody(jobId) {
         </span>
       </div>
     </div>
-
-    ${(() => {
-      const jobVisits = visits.filter(v => visitJobId(v) === jobId)
-        .sort((a,b) => (f(a,F.visit_date)||'').localeCompare(f(b,F.visit_date)||''));
-      const PHASES = ['Rough-In','Trim-Out','Clean','Service','Retrofit','Fire-Up','DHP Install','Ducting Install','Furnace Swap','Punch-List','Walk'];
-      const phaseOpts = (sel) => `<option value=""${!sel?' selected':''}>— None —</option>` +
-        PHASES.map(p=>`<option value="${p}"${sel===p?' selected':''}>${p}</option>`).join('');
-      // Per-visit firm/penciled. Untagged defaults to Penciled (matches the calendar's !== 'firm' rule).
-      const schedOpts = (sel) => { const s=(sel||'').toLowerCase();
-        return `<option value="Penciled"${s!=='firm'?' selected':''}>✎ Penciled</option>`+
-               `<option value="Firm"${s==='firm'?' selected':''}>✓ Firm</option>`; };
-      let rows = '';
-      if (jobVisits.length) {
-        jobVisits.forEach(v => {
-          const vd = f(v,F.visit_date)||'', vend = f(v,F.visit_end)||'', vph = f(v,F.visit_phase)||'', vcomp = f(v,F.visit_complete)===true, vsched = f(v,F.visit_sched)||'', vtime = f(v,F.visit_time)||'';
-          rows += `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 0;border-bottom:1px solid var(--border);">
-            <input type="date" value="${vd}" onchange="updateVisitField('${v.id}','Date',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;" />
-            <input type="text" value="${vtime.replace(/"/g,'&quot;')}" placeholder="time" title="Start time (optional) — e.g. 3:00 PM" onchange="updateVisitField('${v.id}','Start time',this.value)" style="width:66px;font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;" />
-            <select onchange="updateVisitField('${v.id}','Phase',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">${phaseOpts(vph)}</select>
-            <input type="date" value="${vend}" title="End date (optional)" onchange="updateVisitField('${v.id}','End date',this.value)" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;" />
-            <select onchange="updateVisitField('${v.id}','Schedule status',this.value)" title="Firm or penciled" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">${schedOpts(vsched)}</select>
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-muted);"><input type="checkbox" ${vcomp?'checked':''} onchange="toggleVisitComplete('${v.id}')" /> Done</label>
-            <button class="btn-sm btn-sm-ghost" style="font-size:11px;padding:3px 8px;" onclick="deleteVisit('${v.id}')" title="Delete visit">×</button>
-          </div>`;
-        });
-      } else {
-        rows = `<div style="font-size:13px;color:var(--text-faint);padding:8px 0;">No visits scheduled yet</div>`;
-      }
-      return `<div class="detail-section">
-        <div class="detail-section-title">Visits</div>
-        ${rows}
-        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 0 2px;">
-          <input type="date" id="add-visit-date" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;" />
-          <select id="add-visit-phase" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">${phaseOpts('')}</select>
-          <select id="add-visit-sched" style="font-size:13px;padding:3px 6px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);outline:none;background:var(--surface);">${schedOpts('')}</select>
-          <button class="btn-sm btn-sm-accent" style="font-size:12px;padding:4px 12px;" onclick="addVisit('${jobId}')">Add visit</button>
-        </div>
-      </div>`;
-    })()}
 
     <div class="detail-section">
       <div class="detail-section-title">Contact</div>
@@ -3800,7 +2341,6 @@ async function saveMaterial(jobId) {
     items.push(newItem);
     showAddMat = false;
     renderDetailBody(jobId);
-    renderLoadList();
   } catch(e) { alert('Could not add material. Check your connection.'); }
 }
 
@@ -3810,7 +2350,6 @@ async function deleteMaterial(itemId) {
     await deleteRecord(ITEMS_TBL, itemId);
     items = items.filter(i=>i.id!==itemId);
     renderDetailBody(currentJobId);
-    renderLoadList();
   } catch(e) { alert('Could not remove material.'); }
 }
 
@@ -3888,7 +2427,6 @@ async function applyInstall(itemId, n) {
       if (created && created.id) items.push(created);
     }
     if (jobId) renderDetailBody(jobId);
-    renderLoadList();
     if (typeof renderInventory === 'function') renderInventory();
     if (jobId) offerCompleteIfAllInstalled(jobId);
   } catch(e) {
@@ -3995,7 +2533,6 @@ async function applyMatUsed(itemId, n) {
       if (created && created.id) items.push(created);
     }
     if (jobId) renderDetailBody(jobId);
-    renderLoadList();
     if (typeof renderInventory === 'function') renderInventory();
   } catch(e) {
     showError('Could not mark installed.');
@@ -4018,7 +2555,6 @@ async function undoMatUsed(itemId) {
     await patchRecord(ITEMS_TBL, itemId, { 'Status': 'Allocated', 'Loaded?': false });
     item.fields['Status'] = 'Allocated'; item.fields['Loaded?'] = false;
     if (jobId) renderDetailBody(jobId);
-    renderLoadList();
     if (typeof renderInventory === 'function') renderInventory();
   } catch(e) {
     showError('Could not undo.');
@@ -4038,7 +2574,6 @@ async function undoInstall(itemId) {
     item.fields['Loaded?'] = false;
     try { await mergeIntoExistingPile(itemId); } catch(e) { console.warn('consolidate failed', e); }
     if (jobId) renderDetailBody(jobId);
-    renderLoadList();
     if (typeof renderInventory === 'function') renderInventory();
   } catch(e) {
     showError('Could not undo.');
@@ -4171,7 +2706,6 @@ async function reConfirmStock() {
     }
     closeRemoveEquipModal();
     renderDetailBody(currentJobId);
-    renderLoadList();
     if (typeof renderInventory === 'function') renderInventory();
   } catch(e) { reShowError('Could not return unit to stock.'); }
 }
@@ -4192,7 +2726,6 @@ async function reConfirmWriteoff() {
     }
     closeRemoveEquipModal();
     renderDetailBody(currentJobId);
-    renderLoadList();
   } catch(e) { reShowError('Could not archive unit.'); }
 }
 
@@ -4267,7 +2800,7 @@ function startComplete(jobId) {
             of ${qty}${unit?' '+escapeHtml(unit):''}</span>
         </div>`;
       });
-      html += `<div style="font-size:12px;color:var(--text-faint);padding:8px 0 2px;">These were on the job but never checked off the load list, so their stock is still on the shelf in the app. Set a line to 0 if it never actually got used.</div>`;
+      html += `<div style="font-size:12px;color:var(--text-faint);padding:8px 0 2px;">These were on the job but never loaded or marked installed, so their stock is still on the shelf in the app. Set a line to 0 if it never actually got used.</div>`;
     }
     if (specs.length) {
       html += `<div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint);margin:14px 0 6px;">Spec lines — left as-is</div>`;
@@ -4470,80 +3003,6 @@ async function revertComplete(jobId) {
   } catch(e) { alert('Could not revert job. Check your connection.'); }
 }
 
-// ── END DATE UPDATE ──
-async function updateEndDate(jobId, newDate) {
-  const job = jobs.find(j=>j.id===jobId);
-  if (!job) return;
-  const start = f(job, F.job_next_date);
-  // Validate: if a date is provided, must be on/after start
-  if (newDate && start) {
-    const sd = parseDate(start), ed = parseDate(newDate);
-    if (sd && ed && ed < sd) {
-      const proceed = confirm(`End date (${fmtDate(newDate)}) is before start date (${fmtDate(start)}).\n\nClick OK to also move the start date to ${fmtDate(newDate)}, or Cancel to fix manually.`);
-      if (proceed) {
-        // Auto-fix: set both start and end to newDate
-        try {
-          await patchRecord(JOBS_TBL, jobId, { 'Next visit date': newDate, 'End Date': newDate });
-          job.fields[F.job_next_date] = newDate;
-          job.fields[F.job_end_date] = newDate;
-          renderDetailBody(jobId);
-          renderCalendar();
-          renderLoadList();
-          renderJobs();
-        } catch(e) { alert('Could not save. Check your connection.'); renderDetailBody(jobId); }
-        return;
-      }
-      renderDetailBody(jobId);
-      return;
-    }
-  }
-  try {
-    // Empty string means clear the field
-    const fieldVal = newDate || null;
-    await patchRecord(JOBS_TBL, jobId, { 'End Date': fieldVal });
-    job.fields[F.job_end_date] = fieldVal;
-    renderDetailBody(jobId);
-    renderCalendar();
-    renderLoadList();
-  } catch(e) {
-    alert('Could not save end date. Check your connection.');
-    renderDetailBody(jobId);
-  }
-}
-
-// ── START DATE UPDATE (from detail panel) ──
-async function updateStartDate(jobId, newDate) {
-  const job = jobs.find(j=>j.id===jobId);
-  if (!job) return;
-  const endDate = f(job, F.job_end_date);
-  // If clearing the start date, also clear the end date (end can't exist without start)
-  // If setting a start date and there's an end date, validate that end >= new start
-  if (newDate && endDate) {
-    const sd = parseDate(newDate), ed = parseDate(endDate);
-    if (sd && ed && ed < sd) {
-      alert('Start date cannot be after the end date. Clear or update the end date first.');
-      renderDetailBody(jobId);
-      return;
-    }
-  }
-  try {
-    const fieldVal = newDate || null;
-    const updates = { 'Next visit date': fieldVal };
-    // If we're clearing the start date, also clear the end date
-    if (!newDate && endDate) updates['End Date'] = null;
-    await patchRecord(JOBS_TBL, jobId, updates);
-    job.fields[F.job_next_date] = fieldVal;
-    if (!newDate && endDate) job.fields[F.job_end_date] = null;
-    renderDetailBody(jobId);
-    renderCalendar();
-    renderLoadList();
-    renderJobs();
-  } catch(e) {
-    alert('Could not save start date. Check your connection.');
-    renderDetailBody(jobId);
-  }
-}
-
 // ── CLIENT COMMUNICATION LOG — prepend a timestamped, attributed entry ──
 let editingCommIdx = null;
 function editCommEntry(jobId, idx) {
@@ -4662,190 +3121,11 @@ async function updateJobField(jobId, fieldName, newValue) {
     job.fields[fieldName] = fieldVal;
     showSaved();
     renderDetailBody(jobId);
-    renderCalendar();
-    renderLoadList();
     renderJobs();
   } catch(e) {
     alert('Could not save. Check your connection.');
     renderDetailBody(jobId);
   }
-}
-
-// ── VISIT CRUD ──
-async function addVisit(jobId){
-  const job=jobs.find(j=>j.id===jobId); if(!job) return;
-  const date=document.getElementById('add-visit-date').value;
-  const phase=document.getElementById('add-visit-phase').value;
-  const sched=(document.getElementById('add-visit-sched')||{}).value||'';
-  if(!date){ alert('Pick a date for the visit.'); return; }
-  const label=(f(job,F.job_name)||'Job')+' — '+(phase||'Visit');
-  const fields={'Date':date,'Job':[jobId],'Visit':label}; if(phase) fields['Phase']=phase; if(sched) fields['Schedule status']=sched;
-  try{ const nv=await createRecord(VISITS_TBL,fields); visits.push(nv);
-    renderDetailBody(jobId); renderCalendar(); renderLoadList(); }
-  catch(e){ alert('Could not add visit. Check your connection.'); }
-}
-async function updateVisitField(visitId,field,value){
-  const v=visits.find(x=>x.id===visitId); if(!v) return;
-  const val=value===''?null:value;
-  try{ await patchRecord(VISITS_TBL,visitId,{[field]:val}); v.fields[field]=val;
-    if(currentJobId) renderDetailBody(currentJobId); renderCalendar(); renderLoadList(); }
-  catch(e){ alert('Could not save. Check your connection.'); }
-}
-// Clear one overdue visit off the load list. Marks the VISIT complete, not the job — a job
-// often has a rough-in and a trim-out, and finishing the first shouldn't close the second.
-// Warns if anything is still unticked, since clearing skips the stock deduction entirely.
-// ── CLOSING OUT A PAST-DATED VISIT ─────────────────────────────────────────────
-// A visit whose date has passed usually means the crew went and nobody ticked the load
-// list — not that the visit was missed. Those two situations need opposite stock
-// treatment, so the app asks which it was instead of guessing:
-//   · it happened  → tick the items, deduct their stock, close the visit
-//   · it didn't    → close the visit, leave every count alone
-// Guessing either way silently corrupts the counts, which is the failure mode this whole
-// area keeps producing.
-let closeVisitId = null;
-
-// Items on this visit's job that are still outstanding — not installed, not already ticked.
-// Respects the visit-phase filter so a rough-in close doesn't sweep up trim-out material.
-function visitOpenItems(v) {
-  const job = visitJob(v);
-  if (!job) return [];
-  const phase = (f(v, F.visit_phase) || '').toLowerCase();
-  return items.filter(item => {
-    const owners = f(item, F.item_owner);
-    if (!Array.isArray(owners) || !owners.some(o => (typeof o === 'string' ? o : o.id) === job.id)) return false;
-    const s = (f(item, F.item_status) || '').toLowerCase();
-    if (s === 'installed' || s === 'archived' || s === 'pending order') return false;
-    if (f(item, F.item_loaded) === true) return false;
-    const visitAt = (f(item, F.item_visit) || '').toLowerCase();
-    if (visitAt && phase) {
-      if (visitAt === 'rough-in' && !phase.includes('rough')) return false;
-      if (visitAt === 'trim-out' && !phase.includes('trim')) return false;
-    }
-    return true;
-  });
-}
-
-function openCloseVisit(visitId) {
-  const v = visits.find(x => x.id === visitId); if (!v) return;
-  closeVisitId = visitId;
-  const phase = f(v, F.visit_phase) || 'this visit';
-  const open = visitOpenItems(v);
-  document.getElementById('cv-phase').textContent = phase;
-  document.getElementById('cv-error').style.display = 'none';
-
-  const choices = document.getElementById('cv-choices');
-  if (!open.length) {
-    // Nothing outstanding — there's only one sensible outcome, so don't stage a false choice.
-    document.getElementById('cv-sub').textContent =
-      'Nothing left to load on this visit. Closing it takes it off the list; the job stays active.';
-    choices.style.display = 'none';
-    document.getElementById('cv-simple') && document.getElementById('cv-simple').remove();
-    const btn = document.createElement('div');
-    btn.id = 'cv-simple';
-    btn.className = 'modal-btns';
-    btn.style.marginTop = '4px';
-    btn.innerHTML = `<button class="btn-sm btn-sm-accent" style="padding:10px 20px;" onclick="closeVisitOnly()">Close out visit</button>`;
-    choices.parentNode.insertBefore(btn, choices.nextSibling);
-  } else {
-    const n = open.length;
-    document.getElementById('cv-sub').textContent =
-      `${n} item${n===1?'':'s'} on this visit ${n===1?'was':'were'} never ticked loaded. Did the visit happen?`;
-    document.getElementById('cv-tick-label').textContent =
-      `It happened — mark ${n === 1 ? 'the item' : `all ${n} items`} loaded`;
-    choices.style.display = 'flex';
-    const stale = document.getElementById('cv-simple'); if (stale) stale.remove();
-  }
-  document.getElementById('close-visit-modal').classList.add('open');
-}
-
-function closeCloseVisitModal() {
-  document.getElementById('close-visit-modal').classList.remove('open');
-  const stale = document.getElementById('cv-simple'); if (stale) stale.remove();
-  closeVisitId = null;
-}
-
-// "It happened" — run each outstanding item through the normal load path so the stock math,
-// the spec-line exemption and the refuse-on-unresolvable guard all apply exactly as they
-// would have if the tick had happened on the day.
-async function closeVisitAndTick() {
-  const v = visits.find(x => x.id === closeVisitId); if (!v) return;
-  const vid = closeVisitId;
-  const open = visitOpenItems(v);
-  const errEl = document.getElementById('cv-error');
-  try {
-    for (const item of open) {
-      await markItemLoaded(item.id);
-    }
-    closeCloseVisitModal();
-    await toggleVisitComplete(vid);
-    runRecountQueue();
-  } catch(e) {
-    errEl.textContent = 'Could not tick every item — nothing was closed. Check the load list.';
-    errEl.style.display = 'block';
-  }
-}
-
-async function closeVisitOnly() {
-  const vid = closeVisitId;
-  closeCloseVisitModal();
-  if (vid) await toggleVisitComplete(vid);
-}
-
-async function toggleVisitComplete(visitId){
-  const v=visits.find(x=>x.id===visitId); if(!v) return;
-  const nowComplete=!(f(v,F.visit_complete)===true);
-  try{ await patchRecord(VISITS_TBL,visitId,{'Complete':nowComplete}); v.fields['Complete']=nowComplete;
-    if(currentJobId) renderDetailBody(currentJobId); renderCalendar(); renderLoadList(); }
-  catch(e){ alert('Could not save. Check your connection.'); }
-}
-async function deleteVisit(visitId){
-  if(!confirm('Delete this visit?')) return;
-  try{ await deleteRecord(VISITS_TBL,visitId); visits=visits.filter(x=>x.id!==visitId);
-    if(currentJobId) renderDetailBody(currentJobId); renderCalendar(); renderLoadList(); }
-  catch(e){ alert('Could not delete. Check your connection.'); }
-}
-
-// ── DAY JOBS MODAL (shows all jobs on a given date) ──
-function showDayJobs(dateStr) {
-  // Find all visits on this date (including multi-day visits that span this date)
-  const matches = [];
-  visits.forEach(v => {
-    const job = visitJob(v);
-    if (!job) return;
-    const spans = visitSpanDates(v);
-    const hit = spans.find(s => s.date === dateStr);
-    if (hit) matches.push({ visit: v, job: job, entry: hit });
-  });
-  if (!matches.length) return;
-  // Format title
-  const d = parseDate(dateStr);
-  const dayName = d ? d.toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}) : dateStr;
-  document.getElementById('day-jobs-title').textContent = `Jobs on ${dayName}`;
-  // Build list
-  const listEl = document.getElementById('day-jobs-list');
-  listEl.innerHTML = matches.map(m => {
-    const j = m.job;
-    const name = escapeHtml(f(j, F.job_name) || 'Unnamed');
-    const vt = f(m.visit, F.visit_phase) || '';
-    const vsBadge = ((f(m.visit, F.visit_sched) || '').toLowerCase() === 'firm') ? '✓ Firm' : '✎ Penciled';
-    const spans = visitSpanDates(m.visit);
-    const isMulti = spans.length > 1;
-    const dayLabel = isMulti ? ` (day ${spans.findIndex(s => s.date === dateStr)+1} of ${spans.length})` : '';
-    // Match calendar event coloring by phase
-    const pc = typeToClass(vt);
-    let bg = 'var(--type-install-light)', fg = 'var(--type-install)';
-    if (pc === 'type-clean' || pc === 'type-service') { bg = 'var(--type-clean-light)'; fg = 'var(--type-clean)'; }
-    else if (pc === 'type-other') { bg = 'var(--type-other-light)'; fg = 'var(--type-other)'; }
-    return `<button onclick="closeDayJobsModal();openDetail('${j.id}')" style="text-align:left;padding:10px 12px;background:${bg};color:${fg};border:none;border-radius:var(--radius-sm);font-size:14px;font-weight:500;cursor:pointer;display:flex;flex-direction:column;gap:2px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><span>${name}${dayLabel}</span><span style="font-size:10px;font-weight:600;opacity:.7;white-space:nowrap;">${vsBadge}</span></div>
-      ${vt?`<div style="font-size:11px;color:var(--text-muted);font-weight:400;">${escapeHtml(vt)}</div>`:''}
-    </button>`;
-  }).join('');
-  document.getElementById('day-jobs-modal').classList.add('open');
-}
-
-function closeDayJobsModal() {
-  document.getElementById('day-jobs-modal').classList.remove('open');
 }
 
 // ── ADD ITEM PICKER (routes to Add Unit or Add SKU) ──
@@ -5123,7 +3403,6 @@ async function saveAddUnit() {
       renderJobs();
       renderInventory();
       if (currentJobId) renderDetailBody(currentJobId);
-      renderLoadList();
       return;
     }
 
@@ -5428,7 +3707,6 @@ async function saveCustomItem() {
     closeCustomItemModal();
     if (currentJobId === jobForItem) renderDetailBody(jobForItem);
     renderInventory();
-    renderLoadList();
     if (tentVerifyState) tentRefreshWalk();
   } catch(e) {
     ciShowError('Could not save item. Check your connection.');
@@ -5456,22 +3734,7 @@ function parseJobPaste() {
   const low = raw.toLowerCase();
   let jobType = '';
   for (let i = 0; i < typeMap.length; i++) { if (low.indexOf(typeMap[i][0]) !== -1) { jobType = typeMap[i][1]; break; } }
-  if (jobType) { setSel('nj-type', jobType); setSel('nj-visit-type', jobType); }
-
-  const months = { january:0, february:1, march:2, april:3, may:4, june:5, july:6, august:7, september:8, october:9, november:10, december:11, jan:0, feb:1, mar:2, apr:3, jun:5, jul:6, aug:7, sep:8, sept:8, oct:9, nov:10, dec:11 };
-  // Year is optional; when present it must be a plausible 20xx year ON THE SAME LINE as the
-  // date — otherwise a 4-digit street number on the next line (e.g. "1664 Roberts Rd") gets
-  // grabbed as the year, which is how a job once landed on the August 1664 calendar.
-  const mm = raw.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?[ \t]*(20\d{2}))?/i);
-  if (mm) {
-    const mo = months[mm[1].toLowerCase()];
-    const day = parseInt(mm[2], 10);
-    let yr = mm[3] ? parseInt(mm[3], 10) : (new Date()).getFullYear();
-    if (mo != null && day) {
-      if (!mm[3]) { const now = new Date(); now.setHours(0,0,0,0); if (new Date(yr, mo, day) < now) yr += 1; }
-      setVal('nj-start', yr + '-' + String(mo + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0'));
-    }
-  }
+  if (jobType) setSel('nj-type', jobType);
 
   const streetRe = /\b\d{1,6}\s+.+\b(?:rd|road|st|street|ave|avenue|ln|lane|dr|drive|way|blvd|ct|court|hwy|highway|pl|place|ter|terrace|cir|circle)\b/i;
   for (let i = 0; i < nonEmpty.length; i++) { if (streetRe.test(nonEmpty[i])) { setVal('nj-address', nonEmpty[i]); break; } }
@@ -5493,13 +3756,9 @@ function parseJobPaste() {
   if (typeof showSaved === 'function') showSaved('Filled from paste — review below');
 }
 
-function openNewJobModal(prefill) {
+function openNewJobModal() {
   document.getElementById('nj-name').value = '';
   document.getElementById('nj-contact').value = '';
-  document.getElementById('nj-start').value = '';
-  document.getElementById('nj-end').value = '';
-  document.getElementById('nj-time').value = '';
-  document.getElementById('nj-visit-type').value = '';
   document.getElementById('nj-type').value = '';
   document.getElementById('nj-address').value = '';
   document.getElementById('nj-island').value = '';
@@ -5508,19 +3767,6 @@ function openNewJobModal(prefill) {
   document.getElementById('nj-detail-notes').value = '';
   document.getElementById('nj-paste').value = '';
   document.getElementById('nj-error').style.display = 'none';
-
-  // Pre-fill from a calendar import (values may be tweaked before Create).
-  if (prefill && typeof prefill === 'object') {
-    const setV = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
-    setV('nj-name', prefill.name);
-    setV('nj-start', prefill.start);
-    setV('nj-end', prefill.end);
-    setV('nj-time', prefill.startTime);
-    setV('nj-visit-type', prefill.visitType); // select silently ignores an unknown value
-    setV('nj-island', prefill.island);
-    setV('nj-address', prefill.address);
-    setV('nj-detail-notes', prefill.notes);
-  }
 
   // Populate the customer-name datalist with existing names (deduped, alphabetical)
   const seen = new Set();
@@ -5542,7 +3788,6 @@ function openNewJobModal(prefill) {
 
 function closeNewJobModal() {
   document.getElementById('new-job-modal').classList.remove('open');
-  pendingCalImport = null;
 }
 
 function njShowError(msg) {
@@ -5554,10 +3799,6 @@ function njShowError(msg) {
 async function saveNewJob() {
   const name = document.getElementById('nj-name').value.trim();
   const contact = document.getElementById('nj-contact').value.trim();
-  const startDate = document.getElementById('nj-start').value;
-  const endDate = document.getElementById('nj-end').value;
-  const startTimeVal = document.getElementById('nj-time').value.trim();
-  const visitType = document.getElementById('nj-visit-type').value;
   const jobType = document.getElementById('nj-type').value;
   const teamNotes = document.getElementById('nj-detail-notes').value.trim();
   const address = document.getElementById('nj-address').value.trim();
@@ -5566,12 +3807,6 @@ async function saveNewJob() {
   const email = document.getElementById('nj-email').value.trim();
 
   if (!name) { njShowError('Please enter a customer / job name.'); return; }
-  if (endDate && startDate) {
-    const sd = parseDate(startDate), ed = parseDate(endDate);
-    if (sd && ed && ed < sd) { njShowError('End date cannot be before start date.'); return; }
-  }
-  if (endDate && !startDate) { njShowError('Please set a start date before adding an end date.'); return; }
-
   // Guard: if this customer already has a job, offer to open it instead of creating a duplicate.
   const _nn = normName(name);
   const dupAcct = accounts.find(a => normName(f(a,'Customer display name')) === _nn);
@@ -5581,7 +3816,7 @@ async function saveNewJob() {
     return normName(f(j, F.job_name)) === _nn;
   });
   if (dupJob) {
-    const openExisting = confirm(`"${name}" already has a job.\n\nOK = open that existing job (recommended — set its date and add equipment there).\nCancel = create a second job anyway.`);
+    const openExisting = confirm(`"${name}" already has a job.\n\nOK = open that existing job (recommended — add materials and equipment there).\nCancel = create a second job anyway.`);
     if (openExisting) {
       closeNewJobModal();
       openDetail(dupJob.id);
@@ -5591,9 +3826,6 @@ async function saveNewJob() {
 
   const fields = { 'Job label': name, 'Status': 'Active' };
   if (contact) fields['Primary contact name'] = contact;
-  if (startDate) fields['Next visit date'] = startDate;
-  if (endDate) fields['End Date'] = endDate;
-  if (visitType) fields['Next phase'] = visitType;
   if (phone) fields['Primary contact phone'] = phone;
   if (email) fields['Primary contact email'] = email;
   // Address/Island live on the linked Property (written below, after the Customer link exists).
@@ -5649,29 +3881,9 @@ async function saveNewJob() {
       if (pf['Island']) newJob.fields['Island'] = pf['Island'];
     }
     jobs.push(newJob);
-    if (startDate) {
-      const vlabel=name+' — '+(visitType||'Visit');
-      const vf={'Date':startDate,'Job':[newJob.id],'Visit':vlabel};
-      if(endDate) vf['End date']=endDate;
-      if(startTimeVal) vf['Start time']=startTimeVal;
-      if(visitType) vf['Phase']=visitType;
-      // Calendar import: stamp source event + firm/penciled so it never re-imports.
-      if (pendingCalImport) {
-        vf['Google event id'] = pendingCalImport.eventId;
-        vf['Source calendar'] = pendingCalImport.source;
-        if (pendingCalImport.updated) vf['Cal updated'] = pendingCalImport.updated;
-        if (!pendingCalImport.penciled) vf['Schedule status'] = 'Firm';
-      }
-      try{ const nv=await createRecord(VISITS_TBL, vf); visits.push(nv);}catch(e){ console.warn('visit create failed', e); alert('Heads up: the job was created, but its calendar visit did not save. Open the job and add the date/visit manually so it shows on the schedule.'); }
-    }
-    const wasImport = pendingCalImport;
-    closeNewJobModal(); // clears pendingCalImport
-    renderCalendar();
-    renderLoadList();
+    closeNewJobModal();
     renderJobs();
-    // After a calendar import, return to the import list (to add the next one); otherwise open the job.
-    if (wasImport) openCalImport();
-    else openDetail(newJob.id);
+    openDetail(newJob.id);
   } catch(e) {
     njShowError('Could not create job. Check your connection and try again.');
   }
@@ -5732,8 +3944,6 @@ async function confirmDeleteJob() {
     jobs = jobs.filter(j => j.id !== jobId);
     closeDeleteJobModal();
     closeDetail();
-    renderCalendar();
-    renderLoadList();
     renderJobs();
   } catch(e) {
     alert('Could not delete job. Check your connection and try again.');
@@ -5772,9 +3982,7 @@ async function saveNoteEdit() {
     if (job) job.fields[field] = newVal;
     closeNoteEdit();
     // Re-render based on where the edit was triggered from
-    if (returnTo === 'loadlist') renderLoadList();
     if (currentJobId === jobId) renderDetailBody(jobId);
-    if (returnTo === 'panel') renderLoadList(); // also keep load list in sync
   } catch(e) {
     alert('Could not save. Check your connection.');
   }
@@ -7289,7 +5497,7 @@ async function saveMoveUnits() {
     catch(e) { errEl.textContent = 'Could not place the units. Check your connection.'; errEl.style.display = 'block'; return; }
   }
   closeMoveUnits();
-  renderInventory(); renderLoadList();
+  renderInventory();
   if (currentJobId) renderDetailBody(currentJobId);
 }
 
@@ -7643,7 +5851,7 @@ async function saveXfer() {
   const fromCurrent = f(sku, fromField) ?? 0;
   // Rig stock loaded for a job isn't free to move — only the spare can be transferred.
   if (fromField === RIG.field && qty > skuRigSpare(sku)) {
-    xferShowError(`Only ${skuRigSpare(sku)} spare on the Rig — the rest is loaded for jobs. Unload it from the load list first.`);
+    xferShowError(`Only ${skuRigSpare(sku)} spare on the Rig — the rest is loaded for jobs. It's committed to open jobs; mark it installed or complete the job to free it.`);
     return;
   }
   if (qty > fromCurrent) {
@@ -7956,10 +6164,8 @@ function renderTentJobPicker() {
       let meta = `${n} unit${n === 1 ? '' : 's'}`;
       if (g.kind === 'job') {
         const job = jobs.find(j => j.id === g.jobId);
-        const vt = job ? (f(job, F.job_next_type) || '') : '';
-        const vd = job ? (jobNextDate(job) || '') : '';
+        const vt = job ? (f(job, F.job_type) || '') : '';
         if (vt) meta += ' · ' + escapeHtml(vt);
-        if (vd) meta += ' · ' + fmtDate(vd);
       }
       html += `<button class="tent-job-btn${done ? ' done' : ''}" onclick="beginTentJobVerify('${g.key}')">
         <div class="tent-job-left"><div class="tent-job-name">${escapeHtml(g.label)}${done ? ' ✓' : ''}</div><div class="tent-job-meta">${meta}</div></div>
@@ -8453,7 +6659,7 @@ function showView(name) {
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
   document.getElementById('view-'+name).classList.add('active');
-  const idx={schedule:0,loadlist:1,orders:2,jobs:3,inventory:4};
+  const idx={inventory:0,orders:1,jobs:2};
   document.querySelectorAll('nav button')[idx[name]].classList.add('active');
 }
 
