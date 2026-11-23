@@ -419,7 +419,7 @@
 
   <nav>
     <button class="active" onclick="showView('inventory')">📦 Inventory</button>
-    <button onclick="showView('orders')">🛒 Orders</button>
+    <button onclick="showView('orders')">🛒 Needs List</button>
     <button onclick="showView('jobs')">🏗 Jobs</button>
   </nav>
 
@@ -427,7 +427,7 @@
 
   <div id="view-orders" class="view">
     <div style="text-align:center;margin-bottom: 12px;">
-      <button class="btn-sm btn-sm-action" onclick="openAddOrderModal()" style="padding: 5px 12px;font-size:12px;">+ Add to order</button>
+      <button class="btn-sm btn-sm-action" onclick="openAddOrderModal()" style="padding: 5px 12px;font-size:12px;">+ Add to Needs List</button>
     </div>
     <div class="loc-tabs" id="order-status-tabs" style="margin-bottom:10px;"></div>
     <div id="orders-body"></div>
@@ -659,7 +659,7 @@
 <!-- ADD TO ORDER MODAL — manual entry OR from an existing SKU -->
 <div class="modal-bg" id="add-order-modal" onclick="if(event.target===this)closeAddOrderModal()">
   <div class="modal" style="max-width:520px;">
-    <h3 id="add-order-title">Add to order list</h3>
+    <h3 id="add-order-title">Add to Needs List</h3>
     <div style="display:flex;gap:6px;margin-bottom:14px;">
       <button class="loc-tab active" id="ord-mode-sku" onclick="setAddOrderMode('sku')">From SKU</button>
       <button class="loc-tab" id="ord-mode-manual" onclick="setAddOrderMode('manual')">Manual entry</button>
@@ -713,7 +713,7 @@
 
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeAddOrderModal()">Cancel</button>
-      <button class="btn-sm btn-sm-accent" id="add-order-save-btn" onclick="saveAddOrder()" style="padding:10px 20px;">Add to order list</button>
+      <button class="btn-sm btn-sm-accent" id="add-order-save-btn" onclick="saveAddOrder()" style="padding:10px 20px;">Add to Needs List</button>
     </div>
   </div>
 </div>
@@ -4107,7 +4107,7 @@ function renderOrders() {
 
   if (!list.length) {
     const emptyMsg = currentOrderStatus === 'Needed'
-      ? `<div class="empty"><div class="icon">🛒</div>Nothing needs ordering<div style="margin-top:8px;font-size:13px;color:var(--text-faint);">Add manually with + Add to order, or low-stock SKUs can be added from the Inventory tab.</div></div>`
+      ? `<div class="empty"><div class="icon">🛒</div>Nothing needs ordering<div style="margin-top:8px;font-size:13px;color:var(--text-faint);">Add manually with + Add to Needs List, or low-stock SKUs can be added from the Inventory tab.</div></div>`
       : `<div class="empty"><div class="icon">📦</div>No ${currentOrderStatus.toLowerCase()} items</div>`;
     body.innerHTML = emptyMsg;
     return;
@@ -4328,7 +4328,7 @@ async function deleteOrder(orderId) {
   const order = orders.find(o => o.id === orderId);
   if (!order) return;
   const name = f(order, F.order_item) || 'this item';
-  if (!confirm(`Remove "${name}" from the order list?`)) return;
+  if (!confirm(`Remove "${name}" from the Needs List?`)) return;
   try {
     await deleteRecord(ORDERS_TBL, orderId);
     orders = orders.filter(o => o.id !== orderId);
@@ -4428,8 +4428,8 @@ function openAddOrderModal() {
   document.getElementById('ord-notes').value = '';
   document.getElementById('ord-error').style.display = 'none';
   orderEditId = null;
-  document.getElementById('add-order-title').textContent = 'Add to order list';
-  document.getElementById('add-order-save-btn').textContent = 'Add to order list';
+  document.getElementById('add-order-title').textContent = 'Add to Needs List';
+  document.getElementById('add-order-save-btn').textContent = 'Add to Needs List';
   document.getElementById('ord-mode-sku').parentElement.style.display = '';
   document.getElementById('add-order-modal').classList.add('open');
 }
@@ -4457,7 +4457,7 @@ function onOrdSkuPick() {
   if (skuId.startsWith('model:')) {
     const entry = ordPickEntries.find(e => e.value === skuId); if (!entry) return;
     const ex = findOpenOrderForModel(entry.model);
-    if (ex) { errEl.textContent = `Heads up: this is already on the order list (${describeExistingOrder(ex)}).`; errEl.style.display = 'block'; }
+    if (ex) { errEl.textContent = `Heads up: this is already on the Needs List (${describeExistingOrder(ex)}).`; errEl.style.display = 'block'; }
     document.getElementById('ord-itemnumber').value = entry.model;
     if (entry.vendor) document.getElementById('ord-vendor').value = entry.vendor;
     if (!document.getElementById('ord-qty').value) document.getElementById('ord-qty').value = 1;
@@ -4469,7 +4469,7 @@ function onOrdSkuPick() {
   // Save will still block — this just tells Tony before he fills in qty/notes.
   const existing = findOpenOrderForSku(skuId);
   if (existing) {
-    errEl.textContent = `Heads up: this is already on the order list (${describeExistingOrder(existing)}).`;
+    errEl.textContent = `Heads up: this is already on the Needs List (${describeExistingOrder(existing)}).`;
     errEl.style.display = 'block';
   }
   // Pre-fill from SKU
@@ -4540,7 +4540,7 @@ async function saveAddOrder() {
     if (skuId.startsWith('model:')) {
       const entry = ordPickEntries.find(e => e.value === skuId);
       const ex = entry && findOpenOrderForModel(entry.model);
-      if (ex) { errEl.textContent = `Already on the order list (${describeExistingOrder(ex)}). Switch to the Order tab to see it.`; errEl.style.display = 'block'; return; }
+      if (ex) { errEl.textContent = `Already on the Needs List (${describeExistingOrder(ex)}). Switch to the Needs List tab to see it.`; errEl.style.display = 'block'; return; }
       itemName = entry ? entry.label : skuId.slice(6);
     }
   }
@@ -4551,7 +4551,7 @@ async function saveAddOrder() {
     // — duplicates there are for one-off items not in the SKU catalog.)
     const existing = findOpenOrderForSku(skuId);
     if (existing) {
-      errEl.textContent = `Already on the order list (${describeExistingOrder(existing)}). Switch to the Order tab to see it.`;
+      errEl.textContent = `Already on the Needs List (${describeExistingOrder(existing)}). Switch to the Needs List tab to see it.`;
       errEl.style.display = 'block';
       return;
     }
@@ -4624,7 +4624,7 @@ async function addSkuToOrderList(skuId) {
   // Check if a Needed entry for this SKU already exists — don't double-add
   const existing = findOpenOrderForSku(skuId);
   if (existing) {
-    alert(`Already on the order list (${describeExistingOrder(existing)}).`);
+    alert(`Already on the Needs List (${describeExistingOrder(existing)}).`);
     return;
   }
   // Source reflects WHY this is being added:
@@ -4660,7 +4660,7 @@ async function addSkuToOrderList(skuId) {
     renderOrders();
     renderInventory(); // refresh the "+ Order" button state on the SKU card
   } catch(e) {
-    showError('Could not add to order list.');
+    showError('Could not add to Needs List.');
   }
 }
 
@@ -5200,13 +5200,13 @@ function renderInventory() {  const body = document.getElementById('inventory-bo
             // Is this SKU already on the order list with Needed status?
             const onOrder = !!findOpenOrderForSku(sid);
             if (onOrder) {
-              return `<span class="inv-low-badge" style="background:var(--accent-light);color:var(--accent-text);">✓ on order list</span>`;
+              return `<span class="inv-low-badge" style="background:var(--accent-light);color:var(--accent-text);">✓ on Needs List</span>`;
             }
             if (isLow) {
-              return `<button class="inv-low-badge" onclick="event.stopPropagation();addSkuToOrderList('${sid}')" style="border:none;cursor:pointer;" title="Add to order list">⚠ + Order</button>`;
+              return `<button class="inv-low-badge" onclick="event.stopPropagation();addSkuToOrderList('${sid}')" style="border:none;cursor:pointer;" title="Add to Needs List">⚠ + Order</button>`;
             }
             // Quiet add-to-order button for any SKU that isn't currently flagged or already on the list
-            return `<button class="inv-low-badge" onclick="event.stopPropagation();addSkuToOrderList('${sid}')" style="background:var(--bg-soft,#f5f5f5);color:var(--text-muted);border:1px solid var(--border-strong);cursor:pointer;" title="Add to order list">+ Order</button>`;
+            return `<button class="inv-low-badge" onclick="event.stopPropagation();addSkuToOrderList('${sid}')" style="background:var(--bg-soft,#f5f5f5);color:var(--text-muted);border:1px solid var(--border-strong);cursor:pointer;" title="Add to Needs List">+ Order</button>`;
           })()}
           ${(() => {
             // Headline number depends on current tab:
